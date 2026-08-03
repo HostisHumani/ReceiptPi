@@ -7,12 +7,12 @@ import json
 import subprocess
 from datetime import datetime
 
+import config
 from flask import Blueprint, jsonify, render_template
 
-import config
-from print_queue import enqueue_print
-from security import require_api_token, csrf_protect, get_csrf_token
 from modules.message.routes import _raw_print_message
+from print_queue import enqueue_print
+from security import csrf_protect, get_csrf_token, require_api_token
 
 system_bp = Blueprint("system", __name__)
 
@@ -33,6 +33,7 @@ def ssh_run(user, host, remote_command, timeout=10):
         capture_output=True,
         text=True,
         timeout=timeout,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f"SSH-Befehl fehlgeschlagen (Exit {result.returncode})")

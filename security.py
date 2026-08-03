@@ -1,10 +1,9 @@
 """Shared web security and request parsing helpers."""
+import secrets as secrets_module
 from functools import wraps
 
-from flask import request, session, abort, jsonify
-import secrets as secrets_module
-
 import config
+from flask import abort, jsonify, request, session
 
 # Shared input limits used by multiple modules.
 MAX_TITLE_LEN = 100

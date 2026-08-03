@@ -12,6 +12,7 @@ import urllib.request
 #
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import config
+
 from modules.wifi.routes import get_guest_wifi_status
 
 PRINTER_URL = "http://localhost:5000/print/wifi"

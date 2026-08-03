@@ -1,11 +1,19 @@
 """Shopping-list module for titled lists with printable checkboxes."""
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 
-from printer import get_printer
 from print_queue import enqueue_print
-from security import csrf_protect, require_api_token, get_json_body, get_csrf_token, MAX_TITLE_LEN, MAX_ITEMS, MAX_ITEM_LEN
+from printer import get_printer
+from security import (
+    MAX_ITEM_LEN,
+    MAX_ITEMS,
+    MAX_TITLE_LEN,
+    csrf_protect,
+    get_csrf_token,
+    get_json_body,
+    require_api_token,
+)
 
 shopping_bp = Blueprint("shopping", __name__)
 

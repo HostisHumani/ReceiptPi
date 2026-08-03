@@ -17,3 +17,7 @@ settings.json.tmp
 
 # Claude Code
 .claude/
+
+# Local development
+.venv-lint/
+.ruff_cache/

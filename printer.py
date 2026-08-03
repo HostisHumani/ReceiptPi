@@ -1,9 +1,8 @@
 """Printer hardware access and small system-level helpers."""
 import socket
 
-from escpos.printer import Usb
-
 import config
+from escpos.printer import Usb
 
 VENDOR_ID = config.VENDOR_ID
 PRODUCT_ID = config.PRODUCT_ID

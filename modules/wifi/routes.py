@@ -2,16 +2,16 @@
 
 Prints the SSID and password together with a Wi-Fi QR code in one queued job.
 The Fritz!Box status lookup is shared with the polling watcher."""
+import config
 import qrcode
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template
 from fritzconnection import FritzConnection
 from fritzconnection.lib.fritzwlan import FritzGuestWLAN
 from PIL import Image
 
-import config
-from printer import get_printer
 from print_queue import enqueue_print
-from security import require_api_token, csrf_protect, get_csrf_token, get_json_body
+from printer import get_printer
+from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 
 wifi_bp = Blueprint("wifi", __name__)
 

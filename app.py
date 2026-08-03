@@ -14,19 +14,18 @@ registers blueprints, exposes the health check, and serves the home page.
 The boot greeting is triggered by Gunicorn's on_starting hook so it runs once
 in the master process. For local development, the __main__ block performs the
 same action before starting Flask."""
+import config
 from flask import Flask, render_template
 
-import config
-from print_queue import start_worker, enqueue_print
-from printer import _raw_health_check
-
-from modules.shopping.routes import shopping_bp
-from modules.message.routes import message_bp
 from modules.images.routes import images_bp
-from modules.wifi.routes import wifi_bp
-from modules.weather.routes import weather_bp
-from modules.system.routes import system_bp
+from modules.message.routes import message_bp
 from modules.settings.routes import settings_bp
+from modules.shopping.routes import shopping_bp
+from modules.system.routes import system_bp
+from modules.weather.routes import weather_bp
+from modules.wifi.routes import wifi_bp
+from print_queue import enqueue_print, start_worker
+from printer import _raw_health_check
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15 MB leaves room for multipart overhead above the 12 MB image limit.
@@ -66,8 +65,9 @@ if __name__ == "__main__":
     # Local development only. Production uses Gunicorn with gunicorn.conf.py.
     #
     import socket
-    from printer import get_local_ip
+
     from modules.message.routes import _raw_print_message
+    from printer import get_local_ip
 
     try:
         hostname = socket.gethostname()

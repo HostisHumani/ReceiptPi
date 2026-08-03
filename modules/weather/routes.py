@@ -7,13 +7,13 @@ import json
 import urllib.request
 from datetime import datetime
 
+import config
 from flask import Blueprint, jsonify, render_template, request
 
-import config
 import settings_store
-from print_queue import enqueue_print
-from security import require_api_token, csrf_protect, get_csrf_token
 from modules.message.routes import _raw_print_message
+from print_queue import enqueue_print
+from security import csrf_protect, get_csrf_token, require_api_token
 
 weather_bp = Blueprint("weather", __name__)
 

@@ -6,16 +6,16 @@ Supported inputs:
 
 Both paths use process_and_enqueue_image() so validation, conversion, scaling,
 and deduplication remain consistent."""
+import base64
 import hashlib
 import io
-import base64
 
 from flask import Blueprint, jsonify, render_template, request
 from PIL import Image, ImageOps
 
-from printer import get_printer
 from print_queue import enqueue_print
-from security import require_api_token, csrf_protect, get_csrf_token, get_json_body
+from printer import get_printer
+from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 
 images_bp = Blueprint("images", __name__)
 

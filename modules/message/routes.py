@@ -4,11 +4,18 @@ _raw_print_message() is also reused by modules that need a simple text receipt,
 including weather, system reports, and the boot greeting."""
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 
-from printer import get_printer
 from print_queue import enqueue_print
-from security import csrf_protect, require_api_token, get_json_body, get_csrf_token, MAX_TITLE_LEN, MAX_TEXT_LEN
+from printer import get_printer
+from security import (
+    MAX_TEXT_LEN,
+    MAX_TITLE_LEN,
+    csrf_protect,
+    get_csrf_token,
+    get_json_body,
+    require_api_token,
+)
 
 message_bp = Blueprint("message", __name__)
 

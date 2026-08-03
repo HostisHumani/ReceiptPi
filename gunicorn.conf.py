@@ -5,8 +5,8 @@ forked. Keeping the boot greeting here prevents duplicate prints if the worker
 count is ever increased accidentally."""
 import socket
 
-from printer import get_local_ip
 from modules.message.routes import _raw_print_message
+from printer import get_local_ip
 
 
 def on_starting(server):

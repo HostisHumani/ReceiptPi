@@ -5,7 +5,7 @@ scripts and automation and is protected by the configured API token."""
 from flask import Blueprint, jsonify, render_template, request
 
 import settings_store
-from security import require_api_token, csrf_protect, get_csrf_token, get_json_body
+from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 
 settings_bp = Blueprint("settings", __name__)
 
