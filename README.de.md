@@ -2,6 +2,21 @@
   <img src="assets/logo-header.png" alt="ReceiptPi Logo" width="700">
 </p>
 
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/Status-Alpha-orange.svg" alt="Status">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi-C51A4A.svg" alt="Platform">
+  <img src="https://img.shields.io/github/last-commit/HostisHumani/ReceiptPi" alt="Last Commit">
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#roadmap">Roadmap</a> •
+  <a href="../../issues">Issues</a>
+</p>
+
 # ReceiptPi
 
 *[English version](README.md)*
@@ -12,8 +27,11 @@ Statusmeldungen, Wetterberichten und Systemberichten, plus optionale
 Automations-Trigger (GitHub-Stars, Fritz!Box-Gästenetz, Zabbix-Webhooks für
 PBS-Fehler).
 
-Ausführliches Setup (inkl. Migration von einer bestehenden
-"Bondrucker"/"Thermodrucker"-Installation): siehe [ANLEITUNG.md](ANLEITUNG.md).
+<p align="center">
+  <a href="assets/home.png">
+    <img src="assets/home.png" alt="ReceiptPi Web Interface" height="320">
+  </a>
+</p>
 
 ## Schnellstart
 
@@ -30,9 +48,7 @@ python3 app.py
 
 Server läuft dann auf Port 5000, Web-UI unter `http://<pi-hostname>:5000`.
 `python3 app.py` nutzt den Flask-Entwicklungsserver – für den Dauerbetrieb
-läuft der Service stattdessen über Gunicorn mit `gunicorn.conf.py` und genau
-1 Worker (siehe ANLEITUNG.md Schritt 9, wichtig wegen der prozessinternen
-Print-Queue).
+läuft der Service stattdessen über Gunicorn mit `gunicorn.conf.py` und genau einem Worker, da die Print-Queue prozesslokal arbeitet.
 
 ## Struktur
 
@@ -73,11 +89,9 @@ Jede Funktion ist als eigener Flask-Blueprint umgesetzt. Nicht abgefangene Ausna
 ## Endpunkte
 
 Alle `/print/*`- und `/settings/*`-Endpunkte verlangen den Header
-`X-Api-Token: <wert>`, sobald `API_TOKEN` in `config.py` gesetzt ist (leer =
-kein Schutz, siehe ANLEITUNG.md Schritt 6). Vor jedem Druckauftrag greifen
-zusätzlich die zentralen Druckregeln (Ruhezeiten, Rate-Limit,
-Duplikat-Sperre – siehe ANLEITUNG.md Schritt 16); ein blockierter Auftrag
-antwortet mit `429`.
+`X-Api-Token: <wert>`, sobald `API_TOKEN` in `config.py` gesetzt ist (leer = kein Schutz). 
+Vor jedem Druckauftrag greifen zusätzlich die zentralen Druckregeln: Ruhezeiten, Rate-Limit und Duplikat-Sperre. 
+Ein blockierter Auftrag antwortet mit `429`.
 
 - `POST /print/message` – `{ "title": "...", "text": "..." }`
 - `POST /print/list` – `{ "title": "...", "items": ["..."] }`
