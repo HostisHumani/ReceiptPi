@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block header %}📶 Gäste-WLAN{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; Zurück</a>
+
+<form method="post" action="/ui/wifi" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="hint" style="margin-top:0;">
+    Fragt den aktuellen Gästenetz-Status live bei der Fritz!Box ab und
+    druckt SSID/Passwort + QR-Code, falls das Gästenetz gerade aktiviert
+    ist. Läuft normalerweise automatisch per Cronjob - dieser Button ist
+    für den Fall, dass du den Zettel sofort/erneut brauchst.
+  </div>
+  <button type="submit">📶 Gäste-WLAN jetzt drucken</button>
+</form>
+{% endblock %}

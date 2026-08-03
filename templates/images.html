@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block header %}🖼️ Bild{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; Zurück</a>
+
+<form method="post" action="/ui/images" enctype="multipart/form-data" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="image">Bilddatei (PNG/JPG, max. 12MB)</label>
+  <input type="file" id="image" name="image" accept="image/png, image/jpeg" required>
+  <div class="hint">Wird automatisch auf 512px Breite skaliert und in Schwarz/Weiß umgewandelt.</div>
+
+  <button type="submit">Drucken</button>
+</form>
+{% endblock %}

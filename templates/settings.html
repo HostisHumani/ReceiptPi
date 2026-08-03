@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block header %}⚙️ Einstellungen{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; Zurück</a>
+
+<h2 style="font-size:1.05em; margin: 0 0 8px;">Druckregeln</h2>
+<form method="post" action="/ui/settings/print_rules" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
+    <input type="checkbox" name="quiet_hours_enabled" style="width:auto;"
+           {% if settings.print_rules.quiet_hours_enabled %}checked{% endif %}>
+    Ruhezeiten aktiv
+  </label>
+
+  <label for="quiet_hours_start">Ruhezeit ab</label>
+  <input type="time" id="quiet_hours_start" name="quiet_hours_start"
+         value="{{ settings.print_rules.quiet_hours_start }}">
+
+  <label for="quiet_hours_end">Ruhezeit bis</label>
+  <input type="time" id="quiet_hours_end" name="quiet_hours_end"
+         value="{{ settings.print_rules.quiet_hours_end }}">
+
+  <label for="max_jobs_per_hour">Max. Druckaufträge pro Stunde</label>
+  <input type="number" id="max_jobs_per_hour" name="max_jobs_per_hour" min="1"
+         value="{{ settings.print_rules.max_jobs_per_hour }}">
+
+  <label for="duplicate_window_seconds">Duplikat-Sperre (Sekunden)</label>
+  <input type="number" id="duplicate_window_seconds" name="duplicate_window_seconds" min="0"
+         value="{{ settings.print_rules.duplicate_window_seconds }}">
+
+  <button type="submit">Speichern</button>
+</form>
+
+<h2 style="font-size:1.05em; margin: 24px 0 8px;">Wetter-Standorte</h2>
+<div class="card">
+  {% for name, loc in settings.weather.locations.items() %}
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--color-border);">
+      <div>
+        <strong>{{ name }}</strong>
+        {% if name == settings.weather.default_location %}<span style="color:var(--color-accent); font-size:0.8em;"> (Standard)</span>{% endif %}
+        <div class="hint" style="margin-top:2px;">{{ loc.lat }}, {{ loc.lon }}</div>
+      </div>
+      <div style="display:flex; gap:6px;">
+        {% if name != settings.weather.default_location %}
+        <form method="post" action="/ui/settings/weather/default" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="name" value="{{ name }}">
+          <button type="submit" style="width:auto; margin:0; padding:8px 10px; font-size:0.8em; background:transparent; border:1px solid var(--color-border); color:var(--color-text);">Standard</button>
+        </form>
+        {% endif %}
+        {% if settings.weather.locations|length > 1 %}
+        <form method="post" action="/ui/settings/weather/delete" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="name" value="{{ name }}">
+          <button type="submit" style="width:auto; margin:0; padding:8px 10px; font-size:0.8em; background:var(--color-danger); color:var(--color-text);">Löschen</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<h3 style="font-size:0.95em; margin: 18px 0 8px; color:var(--color-text-muted);">Neuen Standort hinzufügen</h3>
+<form method="post" action="/ui/settings/weather/add" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="loc_name">Name</label>
+  <input type="text" id="loc_name" name="name" placeholder="z.B. Berlin">
+
+  <label for="loc_lat">Breitengrad (lat)</label>
+  <input type="text" id="loc_lat" name="lat" placeholder="z.B. 52.52">
+
+  <label for="loc_lon">Längengrad (lon)</label>
+  <input type="text" id="loc_lon" name="lon" placeholder="z.B. 13.40">
+
+  <label style="display:flex; align-items:center; gap:8px;">
+    <input type="checkbox" name="set_default" style="width:auto;">
+    Als Standard-Standort setzen
+  </label>
+
+  <button type="submit">Hinzufügen</button>
+</form>
+{% endblock %}

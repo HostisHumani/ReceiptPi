@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="tile-grid">
+  <a class="tile" href="/shopping">
+    <span class="tile-icon">🛒</span>
+    <span class="tile-name">Einkauf</span>
+    <span class="tile-desc">Einkaufszettel drucken</span>
+  </a>
+
+  <a class="tile" href="/message">
+    <span class="tile-icon">📝</span>
+    <span class="tile-name">Nachricht</span>
+    <span class="tile-desc">Freien Text drucken</span>
+  </a>
+
+  <a class="tile" href="/weather">
+    <span class="tile-icon">🌤️</span>
+    <span class="tile-name">Wetter</span>
+    <span class="tile-desc">Wetterbericht drucken</span>
+  </a>
+
+  <a class="tile" href="/images">
+    <span class="tile-icon">🖼️</span>
+    <span class="tile-name">Bild</span>
+    <span class="tile-desc">Bild hochladen und drucken</span>
+  </a>
+
+  <a class="tile" href="/wifi">
+    <span class="tile-icon">📶</span>
+    <span class="tile-name">Gäste-WLAN</span>
+    <span class="tile-desc">Zugang aktivieren und drucken</span>
+  </a>
+
+  <a class="tile" href="/system">
+    <span class="tile-icon">🖥️</span>
+    <span class="tile-name">System</span>
+    <span class="tile-desc">Homelab-Status abrufen</span>
+  </a>
+</div>
+{% endblock %}

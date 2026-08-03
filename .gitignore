@@ -1,0 +1,19 @@
+# Secrets - niemals committen
+config.py
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+thermo-env/
+
+# Editor/OS
+.DS_Store
+
+# Settings-Datei (falls sie mal versehentlich projektlokal statt in
+# STATE_DIR landet, z.B. bei einem lokalen Testlauf ohne config.STATE_DIR)
+settings.json
+settings.json.tmp
+
+# Claude Code
+.claude/

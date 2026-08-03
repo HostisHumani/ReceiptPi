@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block header %}🛒 Einkauf{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; Zurück</a>
+
+<form method="post" action="/ui/list" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="title">Titel</label>
+  <input type="text" id="title" name="title" value="Einkaufszettel">
+
+  <label for="items">Einträge (ein Eintrag pro Zeile)</label>
+  <textarea id="items" name="items" placeholder="Milch&#10;Brot&#10;..."></textarea>
+
+  <button type="submit">Drucken</button>
+</form>
+{% endblock %}

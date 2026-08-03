@@ -1,0 +1,6 @@
+flask
+gunicorn
+python-escpos
+pillow
+qrcode
+fritzconnection

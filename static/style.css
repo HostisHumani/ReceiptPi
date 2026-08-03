@@ -1,0 +1,179 @@
+/* ReceiptPi - gemeinsames Farbschema (Emerald Ink / Champagne) */
+:root {
+  --color-bg: #08211a;          /* dunkler als Emerald Ink selbst - Seitenhintergrund */
+  --color-surface: #0d3327;     /* Kachel-/Kartenflächen, angelehnt an Emerald Ink #064E3B */
+  --color-surface-hover: #124a37;
+  --color-border: rgba(248, 231, 201, 0.14);
+  --color-text: #f8e7c9;        /* Champagne - Haupttext */
+  --color-text-muted: #c9b489;  /* gedämpftes Champagne für Sekundärtext */
+  --color-accent: #2fae66;      /* kräftigeres Grün für Buttons/Aktionen */
+  --color-accent-hover: #279457;
+  --color-danger: #7a2f2f;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 20px;
+}
+
+.topbar h1 {
+  font-size: 1.4em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-link {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 0.95em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.back-link:hover { color: var(--color-text); }
+
+/* Startseite: Kachel-Grid */
+.tile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.tile:active { transform: scale(0.98); }
+.tile:hover { background: var(--color-surface-hover); }
+
+.tile .tile-icon { font-size: 1.8em; }
+.tile .tile-name { font-weight: 700; font-size: 1.05em; }
+.tile .tile-desc { font-size: 0.82em; color: var(--color-text-muted); line-height: 1.3; }
+
+/* Unterseiten: Formular-Karte */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+label {
+  display: block;
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  margin: 14px 0 6px;
+}
+label:first-child { margin-top: 0; }
+
+input[type="text"], input[type="number"], input[type="file"], textarea, select {
+  width: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 11px 12px;
+  font-size: 1em;
+  font-family: inherit;
+}
+textarea { min-height: 120px; resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--color-text-muted); opacity: 0.7; }
+
+button, .btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 1.05em;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-accent);
+  color: #08211a;
+  margin-top: 18px;
+  cursor: pointer;
+}
+button:active, .btn:active { background: var(--color-accent-hover); }
+
+.msg {
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 0.92em;
+}
+.msg.ok { background: rgba(47, 174, 102, 0.18); border: 1px solid rgba(47, 174, 102, 0.4); }
+.msg.err { background: rgba(122, 47, 47, 0.25); border: 1px solid rgba(122, 47, 47, 0.5); }
+
+.hint {
+  font-size: 0.8em;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+/* Burger-Menü: natives <details>/<summary>, kein JS nötig */
+.burger-menu {
+  position: relative;
+}
+.burger-menu summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 1.3em;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--color-text);
+  user-select: none;
+}
+.burger-menu summary::-webkit-details-marker { display: none; }
+.burger-menu summary:hover { background: var(--color-surface-hover); }
+.burger-menu[open] summary { background: var(--color-surface-hover); }
+
+.burger-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  min-width: 180px;
+  overflow: hidden;
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.burger-dropdown a {
+  display: block;
+  padding: 12px 16px;
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.95em;
+}
+.burger-dropdown a:hover { background: var(--color-surface-hover); }
