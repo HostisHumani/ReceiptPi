@@ -6,8 +6,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/Status-Alpha-orange.svg" alt="Status">
   <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi-C51A4A.svg" alt="Platform">
-  <img src="https://img.shields.io/github/last-commit/HostisHumani/ReceiptPi" alt="Last Commit">
+  <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi-C51A4A?logo=raspberrypi&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/github/last-commit/HostisHumani/ReceiptPi?label=Last%20Commit" alt="Last Commit">
 </p>
 
 <p align="center">
