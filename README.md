@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo-header.png" alt="ReceiptPi Logo" width="700">
+</p>
+
 # ReceiptPi
 
 *[Deutsche Version / German version](README.de.md)*
