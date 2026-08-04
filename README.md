@@ -1,3 +1,22 @@
+<p align="center">
+  <img src="assets/logo-header.png" alt="ReceiptPi Logo" width="700">
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/Status-Alpha-orange.svg" alt="Status">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi-C51A4A?logo=raspberrypi&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/github/last-commit/HostisHumani/ReceiptPi?label=Last%20Commit" alt="Last Commit">
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#roadmap">Roadmap</a> •
+  <a href="../../issues">Issues</a>
+</p>
+
 # ReceiptPi
 
 *[Deutsche Version / German version](README.de.md)*
@@ -8,8 +27,11 @@ lists, status messages, weather reports and system reports, plus optional
 automation triggers (GitHub stars, Fritz!Box guest network, Zabbix webhooks
 for backup failures).
 
-Detailed setup (incl. migration from an existing "Bondrucker"/"Thermodrucker"
-installation): see [ANLEITUNG.md](ANLEITUNG.md) (German only for now).
+<p align="center">
+  <a href="assets/home.png">
+    <img src="assets/home.png" alt="ReceiptPi Web Interface" height="320">
+  </a>
+</p>
 
 ## Quick start
 
@@ -26,11 +48,7 @@ python3 app.py
 
 The server then runs on port 5000, web UI at `http://<pi-hostname>:5000`.
 `python3 app.py` uses Flask's development server - for production the
-service runs via Gunicorn with `gunicorn.conf.py` and exactly 1 worker (see
-ANLEITUNG.md step 9, important because of the in-process print queue).
-
-**Important:** `templates/index.html` must actually live in the `templates/`
-subfolder, not the project root - otherwise Flask raises `TemplateNotFound`.
+service runs via Gunicorn with `gunicorn.conf.py` and exactly 1 worker, which is required because the print queue is process-local.
 
 ## Structure
 
@@ -54,19 +72,26 @@ receiptpi/
 ├── watchers/
 │   ├── github_star_watch.py     cron: prints on a new GitHub star
 │   └── fritzbox_wifi_watch.py    cron: prints a wifi slip once the guest network is enabled
-└── templates/index.html   mobile web UI
+└── templates/             shared layout and module pages
+    ├── base.html
+    ├── home.html
+    ├── shopping.html
+    ├── message.html
+    ├── images.html
+    ├── wifi.html
+    ├── weather.html
+    ├── system.html
+    └── settings.html
 ```
 
-Each module is its own Flask blueprint - an error inside one module doesn't
-take the others down with it, as long as it's caught within the module.
+Each feature is implemented as its own Flask blueprint. Unhandled exceptions are isolated to the current request; modules share the same process, print queue and settings store.
 
 ## Endpoints
 
 All `/print/*` and `/settings/*` endpoints require the `X-Api-Token: <value>`
-header once `API_TOKEN` is set in `config.py` (empty = no protection, see
-ANLEITUNG.md step 6). Every print job also passes through the central print
-rules (quiet hours, rate limit, duplicate suppression - see ANLEITUNG.md
-step 16); a blocked job responds with `429`.
+header once `API_TOKEN` is set in `config.py` (empty = no protection). 
+Every print job also passes through the central print rules: quiet hours, rate limiting and duplicate suppression. 
+A blocked job responds with `429`.
 
 - `POST /print/message` - `{ "title": "...", "text": "..." }`
 - `POST /print/list` - `{ "title": "...", "items": ["..."] }`
@@ -87,6 +112,24 @@ pip freeze > requirements.lock.txt
 Freezes the actually installed versions - `requirements.txt` itself is
 deliberately left unpinned, `requirements.lock.txt` is only a reference in
 case an update ever breaks something.
+
+## Current modules
+
+- Shopping lists
+- Free-form messages
+- Image uploads and API image printing
+- Guest Wi-Fi credentials and QR codes
+- Weather reports
+- System reports
+- Web-based settings
+
+## Roadmap
+
+Planned work includes the multilingual UI, PWA packaging, additional modules and improved installation automation. The roadmap may change as ReceiptPi is tested on more hardware.
+
+## Contributing
+
+Issues and pull requests are welcome. New modules should use Flask Blueprints, submit print jobs through the central queue and avoid direct writes to the printer or settings files.
 
 ## Trademark Notice
 
