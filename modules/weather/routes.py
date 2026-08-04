@@ -21,8 +21,8 @@ from flask import Blueprint, jsonify, render_template, request
 
 import i18n
 import settings_store
-from modules.message.routes import _raw_print_message
 from print_queue import enqueue_print
+from printer import get_printer
 from security import csrf_protect, get_csrf_token, require_api_token
 
 weather_bp = Blueprint("weather", __name__)
@@ -87,45 +87,84 @@ def fetch_ha_sensor(entity_id):
 def _raw_print_weather(location_name=None):
     resolved_name, lat, lon = resolve_location(location_name)
     location_display = resolved_name or i18n.tr("receipt.weather.no_location_configured")
-    lines = [i18n.tr("receipt.weather.title", location=location_display)]
 
+    dwd_lines = []
     if lat is not None:
         try:
             forecast = fetch_dwd_forecast(lat, lon)
             if forecast:
                 temp = forecast.get("temperature")
-                cond = forecast.get("condition", "")
                 wind = forecast.get("wind_speed")
                 precip = forecast.get("precipitation")
-                lines.append(i18n.tr("receipt.weather.dwd_line", temp=temp, cond=cond))
+                if temp is not None:
+                    dwd_lines.append(i18n.tr("receipt.weather.temp", value=temp))
                 if wind is not None:
-                    lines.append(i18n.tr("receipt.weather.wind", value=wind))
+                    dwd_lines.append(i18n.tr("receipt.weather.wind", value=wind))
                 if precip is not None:
-                    lines.append(i18n.tr("receipt.weather.precipitation", value=precip))
+                    dwd_lines.append(i18n.tr("receipt.weather.precipitation", value=precip))
+                if not dwd_lines:
+                    dwd_lines.append(i18n.tr("receipt.weather.dwd_no_data"))
             else:
-                lines.append(i18n.tr("receipt.weather.dwd_no_data"))
+                dwd_lines.append(i18n.tr("receipt.weather.dwd_no_data"))
         except Exception as e:
-            lines.append(i18n.tr("receipt.weather.dwd_error", error=e))
+            dwd_lines.append(i18n.tr("receipt.weather.dwd_error", error=e))
     else:
-        lines.append(i18n.tr("receipt.weather.no_location_in_settings"))
+        dwd_lines.append(i18n.tr("receipt.weather.no_location_in_settings"))
 
     # Netatmo readings still only refer to the one physical home device,
     # regardless of the selected weather location - only makes sense for
-    # "home", so it's always shown alongside.
-    try:
-        indoor = fetch_ha_sensor(config.NETATMO_INDOOR_ENTITY)
-        if indoor:
-            lines.append(i18n.tr("receipt.weather.indoor", value=indoor[0], unit=indoor[1]))
-        outdoor = fetch_ha_sensor(config.NETATMO_OUTDOOR_ENTITY)
-        if outdoor:
-            lines.append(i18n.tr("receipt.weather.outdoor", value=outdoor[0], unit=outdoor[1]))
-        if not indoor and not outdoor:
-            lines.append(i18n.tr("receipt.weather.netatmo_not_configured"))
-    except Exception as e:
-        lines.append(i18n.tr("receipt.weather.netatmo_error", error=e))
+    # "home", so it's always shown alongside (if configured at all).
+    # fetch_ha_sensor() returns None for an unconfigured/placeholder
+    # entity ID without hitting the network, so netatmo_lines simply
+    # stays empty and the whole section gets skipped below - no one-line
+    # "not configured" placeholder anymore, since not everyone has a
+    # Netatmo station.
+    netatmo_lines = []
+    netatmo_configured = bool(
+        getattr(config, "NETATMO_INDOOR_ENTITY", None) and not config.NETATMO_INDOOR_ENTITY.startswith("Platzhalter")
+    ) or bool(
+        getattr(config, "NETATMO_OUTDOOR_ENTITY", None) and not config.NETATMO_OUTDOOR_ENTITY.startswith("Platzhalter")
+    )
+    if netatmo_configured:
+        try:
+            indoor = fetch_ha_sensor(config.NETATMO_INDOOR_ENTITY)
+            if indoor:
+                netatmo_lines.append(i18n.tr("receipt.weather.indoor", value=indoor[0], unit=indoor[1]))
+            outdoor = fetch_ha_sensor(config.NETATMO_OUTDOOR_ENTITY)
+            if outdoor:
+                netatmo_lines.append(i18n.tr("receipt.weather.outdoor", value=outdoor[0], unit=outdoor[1]))
+            if not netatmo_lines:
+                netatmo_lines.append(i18n.tr("receipt.weather.dwd_no_data"))  # generic "no data", reused
+        except Exception as e:
+            netatmo_lines.append(i18n.tr("receipt.weather.netatmo_error", error=e))
 
-    text = "\n".join(lines)
-    _raw_print_message(None, text)
+    p = get_printer()
+    try:
+        p.set(align="center", bold=True, width=2, height=2)
+        p.text(i18n.tr("receipt.weather.title", location=location_display) + "\n")
+        p.set(align="left", bold=False, width=1, height=1)
+        p.text("\n")
+
+        p.set(align="left", bold=True, width=1, height=1)
+        p.text(i18n.tr("receipt.weather.dwd_heading") + "\n")
+        p.set(align="left", bold=False, width=1, height=1)
+        for line in dwd_lines:
+            p.text(line + "\n")
+        p.text("\n")
+
+        if netatmo_lines:
+            p.set(align="left", bold=True, width=1, height=1)
+            p.text(i18n.tr("receipt.weather.netatmo_heading") + "\n")
+            p.set(align="left", bold=False, width=1, height=1)
+            for line in netatmo_lines:
+                p.text(line + "\n")
+            p.text("\n")
+
+        p.set(align="center", bold=False, width=1, height=1)
+        p.text(f"-- {datetime.now().strftime('%d.%m.%Y %H:%M')} --\n")
+        p.cut()
+    finally:
+        p.close()
 
 
 @weather_bp.route("/weather", methods=["GET"])

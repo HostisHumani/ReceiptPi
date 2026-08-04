@@ -97,9 +97,8 @@
   "receipt.system.host_updates_count": "{label}: {count} update(s)",
   "receipt.system.host_updates_available": "{label}: {count} updates available",
   "receipt.system.ssh_command_failed": "SSH command failed (exit {code})",
-  "receipt.weather.title": "Weather {location}",
+  "receipt.weather.title": "Weather for {location}",
   "receipt.weather.no_location_configured": "(no location configured)",
-  "receipt.weather.dwd_line": "DWD: {temp}°C, {cond}",
   "receipt.weather.wind": "Wind: {value} km/h",
   "receipt.weather.precipitation": "Precipitation: {value} mm",
   "receipt.weather.dwd_no_data": "DWD: no data",
@@ -107,9 +106,11 @@
   "receipt.weather.no_location_in_settings": "No location configured in settings",
   "receipt.weather.indoor": "Indoor: {value}{unit}",
   "receipt.weather.outdoor": "Outdoor: {value}{unit}",
-  "receipt.weather.netatmo_not_configured": "Netatmo: entity IDs not configured yet",
   "receipt.weather.netatmo_error": "Netatmo error: {error}",
   "receipt.wifi.title": "GUEST WIFI",
   "receipt.wifi.ssid_label": "SSID: {value}",
-  "receipt.wifi.password_label": "Password: {value}"
+  "receipt.wifi.password_label": "Password: {value}",
+  "receipt.weather.temp": "Temp.: {value}°C",
+  "receipt.weather.dwd_heading": "DWD:",
+  "receipt.weather.netatmo_heading": "Netatmo:"
 }

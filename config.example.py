@@ -17,7 +17,7 @@ NETATMO_INDOOR_ENTITY = "Platzhalter für netatmo innen"
 NETATMO_OUTDOOR_ENTITY = "Platzhalter für netatmo außen"
 
 # --- Wetter (DWD via Bright Sky, kein API-Key nötig) ------------------------
-WEATHER_LAT = 53.56
+WEATHER_LAT = 53.90
 WEATHER_LON = 10.00
 WEATHER_LOCATION_NAME = "Hamburg"
 
