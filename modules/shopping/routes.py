@@ -29,9 +29,23 @@ def _raw_print_list(title, items):
         p.text(f"{title}\n")
         p.set(align="left", bold=False, width=1, height=1)
         p.text("-" * 32 + "\n")
+        # ESC 3 n: slightly wider line spacing than the printer's default
+        # (~30 dots), just for the item list - makes a long list easier
+        # to read without wasting much extra paper. Reset back to the
+        # default afterward so it doesn't affect anything printed after
+        # the list (footer date, subsequent jobs, etc.).
+        p._raw(bytes([0x1B, 0x33, 38]))
         for item in items:
             if item.strip():
-                p.text(f"[ ] {item.strip()}\n")
+                # "( )" instead of "[ ]": square brackets fall in the
+                # code range that some printers remap under a national
+                # ISO 646 character set (e.g. "[" -> "Ä", "]" -> "Ü" on
+                # the German variant - see the comment in printer.py for
+                # the actual fix). Parentheses aren't affected by any of
+                # the common national variants, so they print correctly
+                # as a checkbox even if that fix somehow doesn't apply.
+                p.text(f"( ) {item.strip()}\n")
+        p._raw(bytes([0x1B, 0x32]))  # ESC 2: back to default line spacing
         p.text("-" * 32 + "\n")
         p.set(align="center")
         p.text(f"{datetime.now().strftime('%d.%m.%Y %H:%M')}\n")
