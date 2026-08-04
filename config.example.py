@@ -16,10 +16,10 @@ HA_TOKEN = "Hier HA Token"
 NETATMO_INDOOR_ENTITY = "Platzhalter für netatmo innen"
 NETATMO_OUTDOOR_ENTITY = "Platzhalter für netatmo außen"
 
-# --- Wetter (DWD via Bright Sky, kein API-Key nötig) ------------------------
-WEATHER_LAT = 53.90
-WEATHER_LON = 10.00
-WEATHER_LOCATION_NAME = "Hamburg"
+# --- Weather (DWD via Bright Sky, no API key needed) ------------------------
+WEATHER_LAT = 52.52
+WEATHER_LON = 13.40
+WEATHER_LOCATION_NAME = "Berlin"
 
 # --- Fritz!Box (für WLAN-Gäste-QR) ------------------------------------------
 FRITZBOX_ADDRESS = "192.168.178.1"
@@ -58,5 +58,8 @@ API_TOKEN = ""
 STATE_DIR = "/var/lib/receiptpi"
 
 # --- GitHub-Star-Watch -------------------------------------------------------
-GITHUB_OWNER = "YourGitHubUsername"
-GITHUB_REPO = "YourRepo"
+# List of repos to watch for new stars - each entry gets its own baseline
+# and its own print notification. Add as many as you like.
+GITHUB_REPOS = [
+    {"owner": "your-github-username", "repo": "your-repo"},
+]
