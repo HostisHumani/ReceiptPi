@@ -17,9 +17,9 @@ NETATMO_INDOOR_ENTITY = "Platzhalter für netatmo innen"
 NETATMO_OUTDOOR_ENTITY = "Platzhalter für netatmo außen"
 
 # --- Wetter (DWD via Bright Sky, kein API-Key nötig) ------------------------
-WEATHER_LAT = 53.30
-WEATHER_LON = 9.96
-WEATHER_LOCATION_NAME = "Jesteburg"
+WEATHER_LAT = 53.56
+WEATHER_LON = 10.00
+WEATHER_LOCATION_NAME = "Hamburg"
 
 # --- Fritz!Box (für WLAN-Gäste-QR) ------------------------------------------
 FRITZBOX_ADDRESS = "192.168.178.1"
@@ -58,5 +58,5 @@ API_TOKEN = ""
 STATE_DIR = "/var/lib/receiptpi"
 
 # --- GitHub-Star-Watch -------------------------------------------------------
-GITHUB_OWNER = "HostisHumani"
-GITHUB_REPO = "HomeLab"
+GITHUB_OWNER = "YourGitHubUsername"
+GITHUB_REPO = "YourRepo"
