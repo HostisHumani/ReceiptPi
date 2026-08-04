@@ -125,7 +125,12 @@ def fetch_updates_for_host(label, user, host):
     """Liefert Update-Zeilen für einen Host. Bei wenigen offenen Updates
     (<= UPDATE_LIST_THRESHOLD) werden die Paketnamen einzeln aufgelistet,
     darüber nur die Anzahl."""
-    output = ssh_run(user, host, "apt list --upgradable 2>/dev/null | grep -v '^Listing'")
+    # "|| true" is necessary here: grep exits 1 when it finds NO matching
+    # lines - which simply means "no updates available", not an actual
+    # error. Without it, ssh_run() would treat that as a failed SSH
+    # command (any non-zero exit code) and raise, even though nothing
+    # went wrong.
+    output = ssh_run(user, host, "apt list --upgradable 2>/dev/null | grep -v '^Listing' || true")
     if not output:
         return [i18n.tr("receipt.system.host_current", label=label)]
 
