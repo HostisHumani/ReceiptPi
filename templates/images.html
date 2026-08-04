@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block header %}🖼️ Bild{% endblock %}
+{% block header %}🖼️ {{ t('tile.images.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/">&larr; Zurück</a>
+<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/images" enctype="multipart/form-data" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label for="image">Bilddatei (PNG/JPG, max. 12MB)</label>
+  <label for="image">{{ t('images.file_label') }}</label>
   <input type="file" id="image" name="image" accept="image/png, image/jpeg" required>
-  <div class="hint">Wird automatisch auf 512px Breite skaliert und in Schwarz/Weiß umgewandelt.</div>
+  <div class="hint">{{ t('images.hint') }}</div>
 
-  <button type="submit">Drucken</button>
+  <button type="submit">{{ t('images.button') }}</button>
 </form>
 {% endblock %}

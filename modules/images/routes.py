@@ -1,11 +1,16 @@
-"""Image printing module.
+"""
+Module: print images. Two paths to the same result:
+  - POST /print/image      JSON with base64 (for scripts/curl/automations)
+  - POST /ui/images         multipart file upload (from the web UI subpage)
+Both go through the same process_and_enqueue_image() function, so
+validation/scaling/duplicate detection isn't maintained twice.
 
-Supported inputs:
-  - POST /print/image   JSON with a Base64-encoded image
-  - POST /ui/images    Multipart upload from the web interface
-
-Both paths use process_and_enqueue_image() so validation, conversion, scaling,
-and deduplication remain consistent."""
+Note: the detail strings returned by process_and_enqueue_image() (image
+too large, invalid file, ...) stay in English regardless of the UI
+language setting - they're shared with the JSON API, which isn't
+localized. Only the surrounding "Error: ..." wrapper text on the web UI
+page respects the language switch (see ui_print_image below).
+"""
 import base64
 import hashlib
 import io
@@ -13,18 +18,18 @@ import io
 from flask import Blueprint, jsonify, render_template, request
 from PIL import Image, ImageOps
 
+import i18n
 from print_queue import enqueue_print
 from printer import get_printer
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 
 images_bp = Blueprint("images", __name__)
 
-# Limit decoded dimensions to reduce decompression-bomb risk while still
-# accepting typical high-resolution phone photos.
-#
-#
+# High enough for real, uncompressed phone photos (even newer high-res
+# cameras), but still bounded enough to catch a deliberate decompression
+# bomb (tiny file, huge pixel dimensions in the header).
 MAX_IMAGE_DIMENSION = 12000
-MAX_IMAGE_BYTES = 12 * 1024 * 1024  # 12 MB supports large JPEG and PNG uploads from modern phones.
+MAX_IMAGE_BYTES = 12 * 1024 * 1024  # 12MB - covers larger JPEGs/PNGs from modern phone cameras too
 
 
 def _raw_print_image(img):
@@ -37,51 +42,51 @@ def _raw_print_image(img):
 
 
 def process_and_enqueue_image(img_bytes):
-    """Validate, convert, scale, and enqueue an image.
-
-    Returns the same (success, detail, HTTP status) tuple as enqueue_print()."""
+    """Shared pipeline for both upload paths: validates, scales,
+    converts, and enqueues the print job. Returns (ok, detail,
+    http_status) - the same 3-tuple convention as enqueue_print()."""
     if len(img_bytes) > MAX_IMAGE_BYTES:
-        return False, f"Bilddatei zu groß ({len(img_bytes)} Bytes, Maximum {MAX_IMAGE_BYTES} Bytes)", 400
+        return False, f"Image file too large ({len(img_bytes)} bytes, maximum {MAX_IMAGE_BYTES} bytes)", 400
 
-    # Use a hash of the original bytes because PIL object representations include
-    # process-specific memory addresses and are not stable deduplication keys.
-    #
-    #
+    # Hash of the raw image bytes as an explicit dedupe_key: the default
+    # duplicate detection in print_queue is based on str(args), which
+    # for image printing contains a Pillow object (including its memory
+    # address) - two uploads of the SAME image would never have gotten
+    # the same fingerprint otherwise.
     dedupe_key = hashlib.sha256(img_bytes).hexdigest()
 
     try:
         img = Image.open(io.BytesIO(img_bytes))
-        img.verify()  # Validate the file structure without fully decoding it.
-        img = Image.open(io.BytesIO(img_bytes))  # Reopen because verify() invalidates the image object.
+        img.verify()  # checks the structure without fully decoding
+        img = Image.open(io.BytesIO(img_bytes))  # reopen after verify()
 
         if img.width > MAX_IMAGE_DIMENSION or img.height > MAX_IMAGE_DIMENSION:
-            return False, f"Bild zu groß ({img.width}x{img.height}), Maximum {MAX_IMAGE_DIMENSION}px pro Seite", 400
+            return False, f"Image too large ({img.width}x{img.height}), maximum {MAX_IMAGE_DIMENSION}px per side", 400
 
-        # The python-escpos TM-T88V profile limits image width to 512 pixels.
-        #
-        #
-        #
+        # 512px, not 576: python-escpos caps media.width at 512px in the
+        # TM-T88V profile, regardless of the actual printer - 576 caused
+        # "Image width is too large (576 > 512)" for real (large) photos.
         max_width = 512
         if img.width > max_width:
             ratio = max_width / img.width
             img = img.resize((max_width, int(img.height * ratio)))
 
         img = img.convert("L")
-        # Apply autocontrast before monochrome conversion to preserve detail in
-        # dark or low-contrast images. A small cutoff ignores extreme outliers.
-        #
-        #
-        #
+        # Auto-contrast BEFORE the conversion: stretches the brightness
+        # range so generally darker/low-contrast photos don't end up
+        # completely black. cutoff=1 clips the most extreme 1% at both
+        # ends, so a few very bright/dark outliers (e.g. a small
+        # highlight) don't skew the contrast.
         img = ImageOps.autocontrast(img, cutoff=1)
-        # Pillow uses Floyd-Steinberg dithering when converting to mode 1 without
-        # an explicit threshold, which preserves gradients better than hard clipping.
-        #
-        #
-        #
-        #
+        # convert("1") without an explicit threshold uses Pillow's
+        # Floyd-Steinberg dithering (default behavior) instead of a hard
+        # black/white cutoff - photos with grayscale/gradients look much
+        # more natural this way instead of turning into large black
+        # blobs. For very high-contrast motifs (comics, plain text
+        # screenshots) this makes barely any visible difference.
         img = img.convert("1")
     except Exception as e:
-        return False, f"Bild konnte nicht verarbeitet werden: {e}", 400
+        return False, f"Could not process image: {e}", 400
 
     return enqueue_print(_raw_print_image, img, dedupe_key=dedupe_key)
 
@@ -94,37 +99,40 @@ def images_page():
 @images_bp.route("/print/image", methods=["POST"])
 @require_api_token
 def print_image():
-    """Accept JSON in the form {"image_base64": "..."}."""
+    """
+    Expects JSON: { "image_base64": "..." }
+    """
     data, err = get_json_body()
     if err:
         return err
     image_b64 = data.get("image_base64")
     if not image_b64:
-        return jsonify({"status": "error", "detail": "image_base64 fehlt"}), 400
+        return jsonify({"status": "error", "detail": "image_base64 is missing"}), 400
 
     try:
-        # Reject malformed Base64 instead of silently ignoring invalid characters.
-        #
+        # validate=True aborts immediately on invalid base64 characters,
+        # instead of silently ignoring them (Python's default behavior).
         img_bytes = base64.b64decode(image_b64, validate=True)
     except Exception as e:
-        return jsonify({"status": "error", "detail": f"Ungültiges Base64: {e}"}), 400
+        return jsonify({"status": "error", "detail": f"Invalid base64: {e}"}), 400
 
     ok, detail, status_code = process_and_enqueue_image(img_bytes)
     if ok:
-        return jsonify({"status": "gedruckt"}), 200
+        return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
 
 
 @images_bp.route("/ui/images", methods=["POST"])
 @csrf_protect
 def ui_print_image():
-    """Handle a multipart image upload from the web interface."""
+    """File upload from the web UI subpage (multipart/form-data), no
+    base64 detour needed - the browser sends the raw bytes directly."""
     uploaded = request.files.get("image")
     if not uploaded or uploaded.filename == "":
-        message, success = "Keine Datei ausgewählt", False
+        message, success = i18n.tr("images.no_file_selected"), False
     else:
         img_bytes = uploaded.read()
         ok, detail, _status_code = process_and_enqueue_image(img_bytes)
-        message = "Gedruckt ✓" if ok else f"Fehler: {detail}"
+        message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
         success = ok
     return render_template("images.html", message=message, success=success, csrf_token=get_csrf_token())

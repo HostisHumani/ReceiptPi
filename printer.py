@@ -1,4 +1,7 @@
-"""Printer hardware access and small system-level helpers."""
+"""
+Drucker-Hardware-Zugriff: USB-Verbindung zum ESC/POS-Drucker öffnen, plus
+ein paar systemnahe Helfer (lokale IP fürs Boot-Gruß-Modul).
+"""
 import socket
 
 import config
@@ -9,7 +12,8 @@ PRODUCT_ID = config.PRODUCT_ID
 
 
 def get_printer():
-    """Open the configured ESC/POS USB printer connection."""
+    """Öffnet die Verbindung zum Drucker. Wirft eine Exception, wenn er
+    nicht erreichbar ist (z.B. nicht angeschlossen oder falsche IDs)."""
     return Usb(VENDOR_ID, PRODUCT_ID, profile="TM-T88V")
 
 
@@ -19,7 +23,9 @@ def _raw_health_check():
 
 
 def get_local_ip():
-    """Determine the local interface address without sending application data."""
+    """Ermittelt die lokale IP ohne tatsächliche Verbindung nach außen
+    (verbindet nur, um die passende Interface-IP vom Betriebssystem zu
+    erfragen - es wird kein Paket wirklich verschickt)."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))

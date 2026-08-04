@@ -1,15 +1,13 @@
 {% extends "base.html" %}
-{% block header %}🖥️ System{% endblock %}
+{% block header %}🖥️ {{ t('tile.system.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/">&larr; Zurück</a>
+<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/system" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <div class="hint" style="margin-top:0;">
-    Fragt CPU/RAM/LXC-Status (Proxmox), NVMe-Speicherplatz + Docker (piNAS),
-    die letzten PBS-Backups sowie verfügbare Updates per SSH ab. Kann ein
-    paar Sekunden dauern.
+    {{ t('system.hint') }}
   </div>
-  <button type="submit">📊 Systembericht drucken</button>
+  <button type="submit">{{ t('system.button') }}</button>
 </form>
 {% endblock %}

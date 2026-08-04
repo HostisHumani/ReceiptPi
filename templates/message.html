@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block header %}📝 Nachricht{% endblock %}
+{% block header %}📝 {{ t('tile.message.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/">&larr; Zurück</a>
+<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/message" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label for="title">Titel (optional)</label>
-  <input type="text" id="title" name="title" placeholder="z.B. Erinnerung">
+  <label for="title">{{ t('message.title_label') }}</label>
+  <input type="text" id="title" name="title" placeholder="{{ t('message.title_placeholder') }}">
 
-  <label for="text">Nachricht</label>
-  <textarea id="text" name="text" placeholder="Freier Text..."></textarea>
+  <label for="text">{{ t('message.text_label') }}</label>
+  <textarea id="text" name="text" placeholder="{{ t('message.text_placeholder') }}"></textarea>
 
-  <button type="submit">Drucken</button>
+  <button type="submit">{{ t('message.button') }}</button>
 </form>
 {% endblock %}

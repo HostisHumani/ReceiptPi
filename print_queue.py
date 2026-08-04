@@ -1,8 +1,19 @@
-"""Central print queue and print-rule enforcement.
+"""
+Central print queue: every print job (web UI, cron watchers, webhooks)
+lands here and gets processed one at a time by a single worker thread,
+so nothing collides on the USB connection.
 
-All jobs are processed by one worker thread to serialize access to the printer.
-Quiet hours, rate limiting, and duplicate suppression are applied centrally so
-feature modules do not need to implement them independently."""
+check_print_rules() centrally checks quiet hours, rate limit and
+duplicate suppression from settings_store before every job - so no
+individual module has to know about or duplicate this logic.
+
+Note on i18n: the block-reason strings below go through i18n.tr()
+(current UI language), same as the web UI. This means /print/* JSON
+responses for a BLOCKED job (429) follow the language setting too,
+unlike other JSON error messages elsewhere which stay English - a
+deliberate, small inconsistency rather than threading translation keys
+through every single module's route handlers for this narrow case.
+"""
 import hashlib
 import queue
 import threading
@@ -10,30 +21,35 @@ import time
 from datetime import datetime
 from datetime import time as dtime
 
+import i18n
 import settings_store
 
 PRINT_QUEUE = queue.Queue(maxsize=100)
 _worker_started = False
 
-# Rate-limit and deduplication state is process-local by design.
-# A restart intentionally resets temporary throttling state.
-#
+# Rate limit / duplicate detection: lives purely in process memory, so
+# it doesn't survive a restart - that's intentional, a restart shouldn't
+# block things indefinitely, only rein in "runaway" bursts within one
+# running session.
 _recent_job_times = []
 _recent_job_hashes = {}
 
-# Protect shared rule state from concurrent Gunicorn threads.
-#
-#
-#
-#
+# Protects _recent_job_times/_recent_job_hashes from concurrent access
+# by multiple Gunicorn threads (--threads 4, see ANLEITUNG.md) - without
+# the lock, two parallel requests could both pass the same duplicate
+# check before either one records its fingerprint.
 _rules_lock = threading.Lock()
 
 
 def _job_fingerprint(func, args, dedupe_key=None):
-    """Build a fingerprint for duplicate detection.
-
-    Text jobs use the callable and arguments. Binary or object-based jobs should
-    supply an explicit dedupe_key, such as a hash of the original image bytes."""
+    """Builds the fingerprint for duplicate detection. Defaults to
+    func+args, which works well for text-based jobs (status message,
+    weather, ...). UNSUITABLE for images: a Pillow Image object in args
+    turns into something like "<PIL.Image.Image ... at 0x7f...>" via
+    str(args) - the memory address changes on every upload even for the
+    exact same image, so the duplicate lock would never trigger. For
+    such cases an explicit dedupe_key can be passed (e.g. a hash of the
+    raw image bytes) that's used instead of args in the fingerprint."""
     key_part = dedupe_key if dedupe_key is not None else args
     raw = f"{func.__module__}.{func.__name__}:{key_part}"
     return hashlib.sha256(raw.encode()).hexdigest()
@@ -47,16 +63,19 @@ def _in_quiet_hours(rules):
         start = dtime.fromisoformat(rules["quiet_hours_start"])
         end = dtime.fromisoformat(rules["quiet_hours_end"])
     except (ValueError, KeyError):
-        return False  # Invalid time settings should not block printing.
+        return False  # broken/missing time value - better not to block
     if start <= end:
         return start <= now <= end
     else:
-        # Quiet period crosses midnight, for example 22:00-07:00.
+        # quiet hours span midnight, e.g. 22:00-07:00
         return now >= start or now <= end
 
 
 def check_print_rules(func, args, dedupe_key=None):
-    """Apply quiet hours, rate limits, and duplicate suppression."""
+    """Checks quiet hours, rate limit and duplicates. Returns
+    (allowed: bool, reason: str or None). Runs entirely under
+    _rules_lock, see the comment there. dedupe_key, see
+    _job_fingerprint()."""
     with _rules_lock:
         return _check_print_rules_locked(func, args, dedupe_key)
 
@@ -66,25 +85,28 @@ def _check_print_rules_locked(func, args, dedupe_key=None):
     now = time.time()
 
     if _in_quiet_hours(rules):
-        return False, f"Ruhezeit aktiv ({rules['quiet_hours_start']}-{rules['quiet_hours_end']})"
+        return False, i18n.tr(
+            "print_queue.quiet_hours_active",
+            start=rules["quiet_hours_start"], end=rules["quiet_hours_end"],
+        )
 
     global _recent_job_times
     _recent_job_times = [t for t in _recent_job_times if now - t < 3600]
     max_per_hour = rules.get("max_jobs_per_hour", 20)
     if len(_recent_job_times) >= max_per_hour:
-        return False, f"Rate-Limit erreicht (max. {max_per_hour} Druckaufträge/Stunde)"
+        return False, i18n.tr("print_queue.rate_limit", max=max_per_hour)
 
     fingerprint = _job_fingerprint(func, args, dedupe_key)
     window = rules.get("duplicate_window_seconds", 60)
     last_seen = _recent_job_hashes.get(fingerprint)
     if last_seen and now - last_seen < window:
-        return False, f"Duplikat unterdrückt (identischer Auftrag vor weniger als {window}s)"
+        return False, i18n.tr("print_queue.duplicate", window=window)
 
-    # Remove expired fingerprints so the dictionary cannot grow indefinitely.
-    #
-    # Keep recent entries for at least one hour to avoid premature cleanup.
-    #
-    #
+    # Clean out old hash entries, otherwise the dict grows unbounded over
+    # months (unlike _recent_job_times above, which already gets cleaned
+    # on every call). Cutoff is deliberately max(window, 3600) instead of
+    # just window, so a briefly-set short window doesn't immediately
+    # delete entries that were just needed for the duplicate check.
     cutoff = now - max(window, 3600)
     for key in [k for k, t in _recent_job_hashes.items() if t < cutoff]:
         del _recent_job_hashes[key]
@@ -100,7 +122,7 @@ def _print_worker():
         try:
             func(*args)
             result["ok"] = True
-            result["detail"] = "gedruckt"
+            result["detail"] = "printed"
         except Exception as e:
             result["ok"] = False
             result["detail"] = str(e)
@@ -109,7 +131,9 @@ def _print_worker():
 
 
 def start_worker():
-    """Start the queue worker once; repeated calls are safe."""
+    """Starts the worker thread once (calling this multiple times is
+    safe, e.g. if the module gets imported repeatedly via several
+    blueprints)."""
     global _worker_started
     if not _worker_started:
         threading.Thread(target=_print_worker, daemon=True).start()
@@ -117,14 +141,24 @@ def start_worker():
 
 
 def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None):
-    """Enqueue a job and wait for completion.
+    """Enqueues a print job and waits for it to finish. Returns
+    (ok: bool, detail: str, http_status: int).
 
-    Returns (success, detail, HTTP status). Set bypass_rules only for internal jobs
-    such as health checks or the boot greeting. An explicit dedupe_key may be used
-    when the arguments do not provide a stable representation.
+    bypass_rules=True skips quiet hours/rate limit/duplicate suppression
+    - only meant for internal, non-user-triggered actions like the
+    health check or the boot greeting, NOT for regular print functions.
 
-    A 504 response only ends the HTTP wait. The queued job may still print later,
-    so clients must not retry timeouts automatically."""
+    dedupe_key: optional explicit key for duplicate suppression instead
+    of relying on str(args) - important e.g. for image printing, where
+    args contains a Pillow object (see _job_fingerprint()).
+
+    Status codes: 429 quiet hours/rate limit/duplicate, 503 queue full,
+    504 timeout, 500 print error, 200 success.
+
+    Note on 504: the job stays in the queue and may still get printed by
+    the worker once its turn comes - the timeout only ends the waiting
+    on the HTTP side, not the job itself. Clients shouldn't automatically
+    retry on a 504, or the same receipt could end up printed twice."""
     if not bypass_rules:
         allowed, reason = check_print_rules(func, args, dedupe_key)
         if not allowed:
@@ -135,20 +169,22 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None):
     try:
         PRINT_QUEUE.put((func, args, result, event), timeout=5)
     except queue.Full:
-        return False, "Druck-Queue ist voll (max. 100 wartende Aufträge)", 503
+        return False, i18n.tr("print_queue.full"), 503
     if not event.wait(timeout=timeout):
-        return False, "Timeout - Druckauftrag hing zu lange in der Queue", 504
+        return False, i18n.tr("print_queue.timeout"), 504
     ok = result.get("ok", False)
-    detail = result.get("detail", "unbekannter Fehler")
+    detail = result.get("detail", i18n.tr("print_queue.unknown_error"))
     return ok, detail, (200 if ok else 500)
 
 
 def enqueue_print_async(func, *args, bypass_rules=False, dedupe_key=None):
-    """Enqueue a fire-and-forget job without blocking the caller."""
+    """Enqueues a print job without waiting for the result. For
+    fire-and-forget cases like the boot greeting, so the server startup
+    doesn't block if the printer happens to be unreachable."""
     if not bypass_rules:
         allowed, _reason = check_print_rules(func, args, dedupe_key)
         if not allowed:
-            return  # Silently drop optional asynchronous jobs when the queue is full.
+            return  # silently skip the boot greeting/etc. instead of raising
     try:
         PRINT_QUEUE.put((func, args, {}, threading.Event()), timeout=5)
     except queue.Full:

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ current_language }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,9 +11,9 @@
     <div class="topbar">
       <h1>{% block header %}🖨️ ReceiptPi{% endblock %}</h1>
       <details class="burger-menu">
-        <summary aria-label="Menü">☰</summary>
+        <summary aria-label="Menu">☰</summary>
         <div class="burger-dropdown">
-          <a href="/settings">⚙️ Einstellungen</a>
+          <a href="/settings">{{ t('menu.settings') }}</a>
         </div>
       </details>
     </div>

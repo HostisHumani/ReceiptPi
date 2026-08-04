@@ -1,8 +1,12 @@
-"""Shopping-list module for titled lists with printable checkboxes."""
+"""
+Module: shopping list / lists - title + one item per line, prints a list
+with checkboxes.
+"""
 from datetime import datetime
 
 from flask import Blueprint, jsonify, render_template, request
 
+import i18n
 from print_queue import enqueue_print
 from printer import get_printer
 from security import (
@@ -37,42 +41,51 @@ def _raw_print_list(title, items):
 
 
 def do_print_list(title, items):
-    """Return (success, detail, HTTP status); see enqueue_print()."""
+    """Returns (ok, detail, http_status), see enqueue_print()."""
     ok, detail, status_code = enqueue_print(_raw_print_list, title, items)
     if ok:
-        detail = f"{len(items)} Punkte gedruckt"
+        detail = f"{len(items)} items printed"
     return ok, detail, status_code
 
 
 @shopping_bp.route("/shopping", methods=["GET"])
 def shopping_page():
-    return render_template("shopping.html", message=None, success=None, csrf_token=get_csrf_token())
+    return render_template(
+        "shopping.html", message=None, success=None, csrf_token=get_csrf_token(),
+        default_title=i18n.tr("shopping.title_default"),
+    )
 
 
 @shopping_bp.route("/print/list", methods=["POST"])
 @require_api_token
 def print_list():
-    """Accept JSON in the form {"title": "Shopping list", "items": [...]}."""
+    """
+    Expects JSON: { "title": "Shopping list", "items": ["Milk", "Bread", ...] }
+    """
     data, err = get_json_body()
     if err:
         return err
-    title = (data.get("title") or "Liste")[:MAX_TITLE_LEN]
+    title = (data.get("title") or "List")[:MAX_TITLE_LEN]
     raw_items = data.get("items", [])
     if not isinstance(raw_items, list):
-        return jsonify({"status": "error", "detail": "items muss eine Liste sein"}), 400
+        return jsonify({"status": "error", "detail": "items must be a list"}), 400
     items = [str(item)[:MAX_ITEM_LEN] for item in raw_items[:MAX_ITEMS]]
     ok, detail, status_code = do_print_list(title, items)
     if ok:
-        return jsonify({"status": "gedruckt", "detail": detail}), 200
+        return jsonify({"status": "printed", "detail": detail}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
 
 
 @shopping_bp.route("/ui/list", methods=["POST"])
 @csrf_protect
 def ui_print_list():
-    title = (request.form.get("title", "Liste").strip() or "Liste")[:MAX_TITLE_LEN]
+    default_title = i18n.tr("shopping.title_default")
+    title = (request.form.get("title", default_title).strip() or default_title)[:MAX_TITLE_LEN]
     raw_items = request.form.get("items", "")
     items = [line.strip()[:MAX_ITEM_LEN] for line in raw_items.splitlines() if line.strip()][:MAX_ITEMS]
     ok, detail, _status_code = do_print_list(title, items)
-    message = "Gedruckt ✓" if ok else f"Fehler: {detail}"
-    return render_template("shopping.html", message=message, success=ok, csrf_token=get_csrf_token())
+    message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
+    return render_template(
+        "shopping.html", message=message, success=ok, csrf_token=get_csrf_token(),
+        default_title=default_title,
+    )

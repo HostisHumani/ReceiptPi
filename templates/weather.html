@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block header %}🌤️ Wetter{% endblock %}
+{% block header %}🌤️ {{ t('tile.weather.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/">&larr; Zurück</a>
+<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/weather" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label for="location">Standort</label>
+  <label for="location">{{ t('weather.location_label') }}</label>
   <select id="location" name="location">
     {% for name in locations %}
       <option value="{{ name }}" {% if name == default_location %}selected{% endif %}>{{ name }}</option>
     {% endfor %}
   </select>
-  <div class="hint">Weitere Standorte lassen sich über die Settings-API hinzufügen (Einstellungsseite folgt).</div>
+  <div class="hint">{{ t('weather.hint') }}</div>
 
-  <button type="submit">🌤️ Wetter drucken</button>
+  <button type="submit">{{ t('weather.button') }}</button>
 </form>
 {% endblock %}

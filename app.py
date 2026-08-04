@@ -1,22 +1,36 @@
-"""ReceiptPi server for Epson TM-T88V and other ESC/POS printers.
+"""
+ReceiptPi - server for an Epson TM-T88V (or other ESC/POS printer) on a Pi.
 
-Architecture:
-  - print_queue.py      Central print queue and print rules
-  - printer.py          Printer hardware access
-  - security.py         CSRF protection, API token validation, JSON parsing
-  - settings_store.py   Runtime settings stored as JSON in STATE_DIR
-  - modules/            One Flask blueprint per feature
-  - watchers/           Standalone polling scripts executed outside this process
+Modular structure:
+  - print_queue.py    central print queue (one worker thread, prevents
+                       concurrent USB access) + central print rules
+                       (quiet hours, rate limit, duplicate suppression)
+  - printer.py         printer hardware access
+  - security.py        CSRF protection, API token protection, JSON parsing
+  - settings_store.py   central settings (JSON in STATE_DIR)
+  - i18n.py             minimal translation lookup (JSON files, no
+                       Flask-Babel/gettext toolchain)
+  - modules/            one Flask blueprint per printing feature
+                       (shopping, message, images, wifi, weather, system,
+                       settings)
+  - watchers/            standalone cron scripts that watch something and
+                       send a print job to this server when needed (do
+                       NOT run inside this process)
 
-This module intentionally stays small: it creates the Flask application,
-registers blueprints, exposes the health check, and serves the home page.
+app.py itself stays deliberately thin: create the Flask app, register
+blueprints, health check and home page.
 
-The boot greeting is triggered by Gunicorn's on_starting hook so it runs once
-in the master process. For local development, the __main__ block performs the
-same action before starting Flask."""
+The boot greeting does NOT run here at module level - it runs via
+gunicorn.conf.py (on_starting hook), which is guaranteed to fire exactly
+once in the master process, regardless of worker count. For a direct
+`python3 app.py` run (dev mode) the __main__ block below handles it,
+since that's a single, non-forking process anyway.
+"""
 import config
 from flask import Flask, render_template
 
+import i18n
+import settings_store
 from modules.images.routes import images_bp
 from modules.message.routes import message_bp
 from modules.settings.routes import settings_bp
@@ -28,7 +42,7 @@ from print_queue import enqueue_print, start_worker
 from printer import _raw_health_check
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15 MB leaves room for multipart overhead above the 12 MB image limit.
+app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB - headroom over MAX_IMAGE_BYTES (12MB, see modules/images/routes.py) for multipart overhead
 
 INVALID_SECRET_KEYS = {
     "",
@@ -36,23 +50,38 @@ INVALID_SECRET_KEYS = {
 }
 if getattr(config, "SECRET_KEY", "") in INVALID_SECRET_KEYS:
     raise RuntimeError(
-        "SECRET_KEY ist nicht konfiguriert (noch der Platzhalter aus "
-        "config.example.py). Bitte in config.py einen zufälligen Wert "
-        "eintragen: python3 -c \"import secrets; print(secrets.token_hex(32))\""
+        "SECRET_KEY is not configured (still the placeholder from "
+        "config.example.py). Please set a random value in config.py: "
+        "python3 -c \"import secrets; print(secrets.token_hex(32))\""
     )
-app.secret_key = config.SECRET_KEY  # Required for CSRF-protected web sessions.
+app.secret_key = config.SECRET_KEY  # needed for the web UI's CSRF token session
 
-start_worker()  # Start the single print-queue worker.
+start_worker()  # start the print queue worker thread
+i18n.load_translations()  # load translation JSON files once at startup
 
 for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, settings_bp):
     app.register_blueprint(blueprint)
+
+
+@app.context_processor
+def inject_i18n():
+    """Makes t() and the current language available in every template
+    without each route having to pass them explicitly. Language is a
+    single, shared setting (see settings_store) rather than per-session,
+    since this is a single-user home appliance."""
+    lang = settings_store.get_settings().get("language", i18n.DEFAULT_LANGUAGE)
+    return {
+        "t": lambda key, **kw: i18n.t(key, lang, **kw),
+        "current_language": lang,
+        "supported_languages": i18n.SUPPORTED_LANGUAGES,
+    }
 
 
 @app.route("/health", methods=["GET"])
 def health():
     ok, detail, status_code = enqueue_print(_raw_health_check, timeout=10, bypass_rules=True)
     if ok:
-        return {"status": "ok", "printer": "erreichbar"}, 200
+        return {"status": "ok", "printer": "reachable"}, 200
     return {"status": "error", "detail": detail}, status_code
 
 
@@ -62,8 +91,8 @@ def index():
 
 
 if __name__ == "__main__":
-    # Local development only. Production uses Gunicorn with gunicorn.conf.py.
-    #
+    # Only for local test runs (`python3 app.py`). In production the
+    # server runs via Gunicorn with gunicorn.conf.py (see ANLEITUNG.md).
     import socket
 
     from modules.message.routes import _raw_print_message
@@ -72,9 +101,9 @@ if __name__ == "__main__":
     try:
         hostname = socket.gethostname()
         ip = get_local_ip()
-        text = f"Hostname: {hostname}\nIP: {ip}\nReceiptPi-Server gestartet (Dev-Modus)"
+        text = f"Hostname: {hostname}\nIP: {ip}\nReceiptPi server started (dev mode)"
         _raw_print_message("ONLINE", text)
     except Exception:
-        pass  # A failed boot greeting must not prevent the development server from starting.
+        pass  # the boot greeting is "nice to have", not a reason to block the dev server
 
     app.run(host="0.0.0.0", port=5000)

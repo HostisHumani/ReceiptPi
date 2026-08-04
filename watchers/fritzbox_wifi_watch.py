@@ -1,15 +1,24 @@
-"""Poll the Fritz!Box guest Wi-Fi state and request a receipt when enabled.
+"""
+Pollt die Fritz!Box auf den Gästenetz-Status. Wird das Gästenetz aktiviert,
+schickt dieses Script SSID + Passwort an den ReceiptPi-Server, der
+daraus einen kombinierten Ausdruck (lesbarer Text + WLAN-QR-Code) erzeugt.
 
-Run this script periodically through cron or a systemd timer. The shared
-get_guest_wifi_status() implementation lives in the Wi-Fi module."""
+Läuft per Cronjob alle 1-2 Minuten, siehe ANLEITUNG.md.
+
+Benötigt: pip install fritzconnection
+
+Die eigentliche Fritz!Box-Abfrage (get_guest_wifi_status) liegt zentral in
+modules/wifi/routes.py - der manuelle "Jetzt drucken"-Button in der Web-UI
+nutzt dieselbe Funktion, statt sie doppelt zu pflegen.
+"""
 
 import json
 import os
 import sys
 import urllib.request
 
-# Add the project root so cron execution can import config and modules.
-#
+# config.py und modules/ liegen im Projekt-Wurzelverzeichnis, watchers/
+# ist eine Ebene darunter - daher explizit ins sys.path aufnehmen.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import config
 
@@ -17,7 +26,7 @@ from modules.wifi.routes import get_guest_wifi_status
 
 PRINTER_URL = "http://localhost:5000/print/wifi"
 API_TOKEN = getattr(config, "API_TOKEN", "")
-STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # Fall back to the project root.
+STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # Fallback: Projekt-Wurzelverzeichnis
 STATE_FILE = os.path.join(STATE_DIR, "wifi_state.json")
 
 
@@ -32,7 +41,8 @@ def load_last_state():
 
 
 def save_last_state(enabled):
-    """Persist watcher state atomically."""
+    """Atomarer Schreibvorgang (temp-Datei + os.replace), damit die Datei
+    bei einem Stromausfall mitten im Schreiben nicht beschädigt zurückbleibt."""
     tmp_path = STATE_FILE + ".tmp"
     with open(tmp_path, "w") as f:
         json.dump({"enabled": enabled}, f)
@@ -60,7 +70,7 @@ def main():
     last_enabled = load_last_state()
 
     if last_enabled is None:
-        # First run establishes the baseline without printing.
+        # Erster Lauf: nur Baseline speichern, nichts drucken
         save_last_state(status["enabled"])
         print(f"Baseline gesetzt: Gästenetz {'an' if status['enabled'] else 'aus'}")
         return

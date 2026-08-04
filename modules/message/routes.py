@@ -1,11 +1,16 @@
-"""Free-form message printing module.
+"""
+Module: status messages (free title + text). Used to be called "status",
+which could be confused with the server status module (now "system") -
+"message" is clearer: just a text message on the receipt.
 
-_raw_print_message() is also reused by modules that need a simple text receipt,
-including weather, system reports, and the boot greeting."""
+_raw_print_message is also used by other modules (weather, system, boot
+greeting) as the shared "plain text on receipt" primitive.
+"""
 from datetime import datetime
 
 from flask import Blueprint, jsonify, render_template, request
 
+import i18n
 from print_queue import enqueue_print
 from printer import get_printer
 from security import (
@@ -36,7 +41,7 @@ def _raw_print_message(title, text):
 
 
 def do_print_message(title, text):
-    """Return (success, detail, HTTP status); see enqueue_print()."""
+    """Returns (ok, detail, http_status), see enqueue_print()."""
     return enqueue_print(_raw_print_message, title, text)
 
 
@@ -48,7 +53,9 @@ def message_page():
 @message_bp.route("/print/message", methods=["POST"])
 @require_api_token
 def print_message():
-    """Accept JSON in the form {"title": "optional", "text": "message"}."""
+    """
+    Expects JSON: { "title": "optional", "text": "message" }
+    """
     data, err = get_json_body()
     if err:
         return err
@@ -56,7 +63,7 @@ def print_message():
     text = (data.get("text") or "")[:MAX_TEXT_LEN]
     ok, detail, status_code = do_print_message(title, text)
     if ok:
-        return jsonify({"status": "gedruckt"}), 200
+        return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
 
 
@@ -66,5 +73,5 @@ def ui_print_message():
     title = request.form.get("title", "").strip()[:MAX_TITLE_LEN]
     text = request.form.get("text", "").strip()[:MAX_TEXT_LEN]
     ok, detail, _status_code = do_print_message(title, text)
-    message = "Gedruckt ✓" if ok else f"Fehler: {detail}"
+    message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
     return render_template("message.html", message=message, success=ok, csrf_token=get_csrf_token())

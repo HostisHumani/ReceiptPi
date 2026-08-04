@@ -1,16 +1,19 @@
-"""Poll a GitHub repository for new stars and print an event receipt.
+"""
+Pollt die GitHub-API auf neue Stars für ein Repo und druckt bei Zuwachs
+eine Statusmeldung über den ReceiptPi-Server (app.py).
 
-Run this script periodically through cron or a systemd timer. No inbound webhook
-or publicly reachable endpoint is required."""
+Läuft am besten per Cronjob alle paar Minuten, siehe ANLEITUNG.md.
+Kein offener Port, kein Webhook nötig - reine Abfrage nach außen.
+"""
 
 import json
 import os
 import sys
 import urllib.request
 
-# Add the project root so the watcher can import config regardless of cwd.
-#
-#
+# config.py liegt im Projekt-Wurzelverzeichnis, watchers/ ist eine Ebene
+# darunter - daher explizit ins sys.path aufnehmen, sonst schlägt der
+# Import fehl, egal von wo aus der Cronjob das Script startet.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import config
 
@@ -19,7 +22,7 @@ GITHUB_OWNER = config.GITHUB_OWNER
 GITHUB_REPO = config.GITHUB_REPO
 PRINTER_URL = "http://localhost:5000/print/message"
 API_TOKEN = getattr(config, "API_TOKEN", "")
-STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # Fall back to the project root when STATE_DIR is unavailable.
+STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # Fallback: Projekt-Wurzelverzeichnis, falls STATE_DIR fehlt
 STATE_FILE = os.path.join(STATE_DIR, "star_state.json")
 # ---------------------------------------------------------------------------
 
@@ -38,12 +41,13 @@ def load_last_count():
             with open(STATE_FILE) as f:
                 return json.load(f).get("stars")
         except (json.JSONDecodeError, OSError):
-            return None  # Treat an empty or damaged state file as an uninitialized baseline.
+            return None  # beschädigte/leere Datei - wie "kein vorheriger Stand" behandeln
     return None
 
 
 def save_last_count(count):
-    """Persist the highest observed star count atomically."""
+    """Schreibt atomar (temp-Datei + os.replace), damit die Datei bei einem
+    Stromausfall mitten im Schreiben nicht beschädigt/leer zurückbleibt."""
     tmp_path = STATE_FILE + ".tmp"
     with open(tmp_path, "w") as f:
         json.dump({"stars": count}, f)
@@ -69,7 +73,7 @@ def main():
     last = load_last_count()
 
     if last is None:
-        # First run establishes the baseline without printing.
+        # Erster Lauf (oder beschädigte State-Datei): nur Baseline speichern
         save_last_count(current)
         print(f"Baseline gesetzt: {current} Stars")
         return
@@ -80,11 +84,11 @@ def main():
         save_last_count(current)
         print(f"Neuer Star! {last} -> {current}")
     elif current > 0 and current < last:
-        # Keep the highest observed count so removed and restored stars do not trigger
-        # duplicate notifications.
-        #
+        # Stars wurden entfernt - gespeicherten Höchststand NICHT absenken,
+        # sonst würde ein späteres Wiedererreichen des alten Stands erneut
+        # als "neuer" Star gemeldet (z.B. 100 -> 99 -> 100).
         print(f"Stars gesunken ({last} -> {current}), Baseline bleibt {last}")
-    # No change; avoid an unnecessary write.
+    # current == last: nichts zu tun, auch kein Schreibzugriff nötig
 
 
 if __name__ == "__main__":

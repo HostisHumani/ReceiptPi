@@ -1,8 +1,17 @@
-"""Weather report module using Bright Sky forecasts and optional Netatmo
-sensor values retrieved through Home Assistant.
+"""
+Module: weather report - DWD forecast (Bright Sky, no API key needed) +
+Netatmo readings via Home Assistant's REST API (since Netatmo is already
+set up there).
 
-Weather locations are managed through settings_store and can be changed at
-runtime without restarting ReceiptPi."""
+Locations come from settings_store instead of being fixed in config.py -
+they can be managed at runtime via /settings/weather/locations without
+restarting the service (see modules/settings/routes.py).
+
+The printed receipt text is fully translated via i18n as well (not
+just the web UI page around it) - DWD/Netatmo are kept as-is in both
+languages since they're the actual data source names, not generic
+labels.
+"""
 import json
 import urllib.request
 from datetime import datetime
@@ -10,6 +19,7 @@ from datetime import datetime
 import config
 from flask import Blueprint, jsonify, render_template, request
 
+import i18n
 import settings_store
 from modules.message.routes import _raw_print_message
 from print_queue import enqueue_print
@@ -19,14 +29,16 @@ weather_bp = Blueprint("weather", __name__)
 
 
 def resolve_location(name=None):
-    """Resolve a configured location and fall back to the default."""
+    """Resolves a location name to (name, lat, lon). Without a name, the
+    default location from settings is used. An unknown name falls back
+    to the default instead of crashing."""
     weather_settings = settings_store.get_settings()["weather"]
     locations = weather_settings["locations"]
     default_name = weather_settings.get("default_location")
 
     chosen_name = name if (name and name in locations) else default_name
     if chosen_name not in locations:
-        # Final fallback for missing or invalid location settings.
+        # last-resort fallback in case the settings file is ever empty/broken
         chosen_name = next(iter(locations)) if locations else None
     if chosen_name is None:
         return None, None, None
@@ -74,7 +86,8 @@ def fetch_ha_sensor(entity_id):
 
 def _raw_print_weather(location_name=None):
     resolved_name, lat, lon = resolve_location(location_name)
-    lines = [f"Wetter {resolved_name or '(kein Standort konfiguriert)'}"]
+    location_display = resolved_name or i18n.tr("receipt.weather.no_location_configured")
+    lines = [i18n.tr("receipt.weather.title", location=location_display)]
 
     if lat is not None:
         try:
@@ -84,32 +97,32 @@ def _raw_print_weather(location_name=None):
                 cond = forecast.get("condition", "")
                 wind = forecast.get("wind_speed")
                 precip = forecast.get("precipitation")
-                lines.append(f"DWD: {temp}°C, {cond}")
+                lines.append(i18n.tr("receipt.weather.dwd_line", temp=temp, cond=cond))
                 if wind is not None:
-                    lines.append(f"Wind: {wind} km/h")
+                    lines.append(i18n.tr("receipt.weather.wind", value=wind))
                 if precip is not None:
-                    lines.append(f"Niederschlag: {precip} mm")
+                    lines.append(i18n.tr("receipt.weather.precipitation", value=precip))
             else:
-                lines.append("DWD: keine Daten")
+                lines.append(i18n.tr("receipt.weather.dwd_no_data"))
         except Exception as e:
-            lines.append(f"DWD-Fehler: {e}")
+            lines.append(i18n.tr("receipt.weather.dwd_error", error=e))
     else:
-        lines.append("Kein Standort in den Settings hinterlegt")
+        lines.append(i18n.tr("receipt.weather.no_location_in_settings"))
 
-    # Netatmo values belong to the configured home installation and are shown
-    # independently of the selected forecast location.
-    #
+    # Netatmo readings still only refer to the one physical home device,
+    # regardless of the selected weather location - only makes sense for
+    # "home", so it's always shown alongside.
     try:
         indoor = fetch_ha_sensor(config.NETATMO_INDOOR_ENTITY)
         if indoor:
-            lines.append(f"Innen: {indoor[0]}{indoor[1]}")
+            lines.append(i18n.tr("receipt.weather.indoor", value=indoor[0], unit=indoor[1]))
         outdoor = fetch_ha_sensor(config.NETATMO_OUTDOOR_ENTITY)
         if outdoor:
-            lines.append(f"Außen: {outdoor[0]}{outdoor[1]}")
+            lines.append(i18n.tr("receipt.weather.outdoor", value=outdoor[0], unit=outdoor[1]))
         if not indoor and not outdoor:
-            lines.append("Netatmo: Entity-IDs noch nicht konfiguriert")
+            lines.append(i18n.tr("receipt.weather.netatmo_not_configured"))
     except Exception as e:
-        lines.append(f"Netatmo-Fehler: {e}")
+        lines.append(i18n.tr("receipt.weather.netatmo_error", error=e))
 
     text = "\n".join(lines)
     _raw_print_message(None, text)
@@ -131,14 +144,17 @@ def weather_page():
 @weather_bp.route("/print/weather", methods=["POST", "GET"])
 @require_api_token
 def print_weather():
-    """Print weather for an optional JSON or query-string location."""
+    """
+    Optional JSON body { "location": "Berlin" } or query parameter
+    ?location=Berlin - without one, the default location is used.
+    """
     location_name = request.args.get("location")
     if request.method == "POST" and request.is_json:
         location_name = (request.get_json(silent=True) or {}).get("location", location_name)
 
     ok, detail, status_code = enqueue_print(_raw_print_weather, location_name)
     if ok:
-        return jsonify({"status": "gedruckt"}), 200
+        return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
 
 
@@ -147,7 +163,7 @@ def print_weather():
 def ui_print_weather():
     location_name = request.form.get("location") or None
     ok, detail, _status_code = enqueue_print(_raw_print_weather, location_name)
-    message = "Wetter gedruckt ✓" if ok else f"Fehler: {detail}"
+    message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
     weather_settings = settings_store.get_settings()["weather"]
     return render_template(
         "weather.html",
