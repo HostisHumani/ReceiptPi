@@ -56,20 +56,46 @@ def _job_fingerprint(func, args, dedupe_key=None):
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _in_quiet_hours(rules):
-    if not rules.get("quiet_hours_enabled"):
+def _rule_matches_now(rule, now_weekday, now_time, yesterday_weekday):
+    """Does this single rule's day+time window cover the current
+    moment? Handles the overnight case (start > end, e.g. 18:00-09:00)
+    by checking two possibilities: the window started TODAY and hasn't
+    ended yet, or it started YESTERDAY (on one of the rule's days) and
+    hasn't ended yet - e.g. a Mon-Fri 18:00-09:00 rule still applies on
+    Tuesday at 02:00 because of Monday's window, even though Tuesday
+    itself doesn't have to be one of the rule's days."""
+    if not rule.get("enabled", True):
         return False
-    now = datetime.now().time()
+    days = rule.get("days") or []
     try:
-        start = dtime.fromisoformat(rules["quiet_hours_start"])
-        end = dtime.fromisoformat(rules["quiet_hours_end"])
-    except (ValueError, KeyError):
+        start = dtime.fromisoformat(rule["start"])
+        end = dtime.fromisoformat(rule["end"])
+    except (ValueError, KeyError, TypeError):
         return False  # broken/missing time value - better not to block
     if start <= end:
-        return start <= now <= end
+        return now_weekday in days and start <= now_time <= end
     else:
-        # quiet hours span midnight, e.g. 22:00-07:00
-        return now >= start or now <= end
+        started_today = now_weekday in days and now_time >= start
+        continues_from_yesterday = yesterday_weekday in days and now_time <= end
+        return started_today or continues_from_yesterday
+
+
+def _active_quiet_hours_rule(rules):
+    """Returns the first enabled quiet-hours rule whose day+time window
+    covers right now, or None if none applies. "First match wins" -
+    with several overlapping rules there's only one reason to report to
+    the caller, so there's no need to merge or prioritize them."""
+    quiet_rules = rules.get("quiet_hours_rules") or []
+    if not quiet_rules:
+        return None
+    now = datetime.now()
+    now_weekday = now.weekday()  # 0=Monday .. 6=Sunday
+    yesterday_weekday = (now_weekday - 1) % 7
+    now_time = now.time()
+    for rule in quiet_rules:
+        if _rule_matches_now(rule, now_weekday, now_time, yesterday_weekday):
+            return rule
+    return None
 
 
 def check_print_rules(func, args, dedupe_key=None):
@@ -85,10 +111,17 @@ def _check_print_rules_locked(func, args, dedupe_key=None):
     rules = settings_store.get_settings()["print_rules"]
     now = time.time()
 
-    if _in_quiet_hours(rules):
+    active_rule = _active_quiet_hours_rule(rules)
+    if active_rule:
+        label = active_rule.get("label")
+        if label:
+            return False, i18n.tr(
+                "print_queue.quiet_hours_active_labeled",
+                label=label, start=active_rule["start"], end=active_rule["end"],
+            )
         return False, i18n.tr(
             "print_queue.quiet_hours_active",
-            start=rules["quiet_hours_start"], end=rules["quiet_hours_end"],
+            start=active_rule["start"], end=active_rule["end"],
         )
 
     global _recent_job_times

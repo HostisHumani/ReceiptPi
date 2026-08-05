@@ -10,15 +10,18 @@ settings.json ended up there, the service would need a write exception
 for its own directory again.
 
 Contains three areas:
-  - print_rules: quiet hours, rate limit, duplicate suppression - apply
-    to EVERY print job regardless of module, hence centralized instead
-    of duplicated per module (see print_queue.check_print_rules()).
+  - print_rules: quiet-hour rules (each with its own weekdays + time
+    window, see quiet_hours_rules below), rate limit, duplicate
+    suppression - apply to EVERY print job regardless of module, hence
+    centralized instead of duplicated per module (see
+    print_queue.check_print_rules()).
   - weather: freely definable locations for the weather report.
   - language: UI language ("de"/"en"), see i18n.py.
 """
 import json
 import os
 import threading
+import uuid
 
 import config
 
@@ -27,9 +30,13 @@ SETTINGS_FILE = os.path.join(STATE_DIR, "settings.json")
 
 DEFAULT_SETTINGS = {
     "print_rules": {
-        "quiet_hours_enabled": False,
-        "quiet_hours_start": "22:00",
-        "quiet_hours_end": "07:00",
+        # List of independent quiet-hour rules instead of one single
+        # window, so e.g. "weekends off" and "weekdays 9-18" can coexist
+        # - see print_queue._active_quiet_hours_rule() for how they're
+        # evaluated. Each rule: {"id", "label", "enabled", "days"
+        # (list of 0=Monday..6=Sunday), "start" ("HH:MM"), "end"
+        # ("HH:MM", may be earlier than start for an overnight window)}.
+        "quiet_hours_rules": [],
         "max_jobs_per_hour": 20,
         "duplicate_window_seconds": 60,
     },
@@ -80,6 +87,39 @@ def _deep_merge_defaults(data, defaults):
     return data
 
 
+def _migrate_legacy_quiet_hours(data):
+    """One-time migration: before this version, print_rules had a single
+    quiet_hours_enabled/start/end triple instead of a list of rules
+    (quiet_hours_rules). Converts an already-configured legacy window
+    into an equivalent single rule covering all 7 weekdays, so upgrading
+    doesn't silently drop or change a quiet-hours window that's already
+    live on an existing installation.
+
+    Mutates data in place. Returns True if anything changed (so the
+    caller knows to persist it), False if there was nothing to migrate
+    (fresh install, or already migrated on an earlier call)."""
+    pr = data.get("print_rules")
+    if not isinstance(pr, dict):
+        return False
+    if "quiet_hours_enabled" not in pr and "quiet_hours_start" not in pr and "quiet_hours_end" not in pr:
+        return False  # nothing legacy left to migrate
+
+    legacy_enabled = pr.pop("quiet_hours_enabled", False)
+    legacy_start = pr.pop("quiet_hours_start", "22:00")
+    legacy_end = pr.pop("quiet_hours_end", "07:00")
+    if legacy_enabled:
+        pr.setdefault("quiet_hours_rules", [])
+        pr["quiet_hours_rules"].append({
+            "id": uuid.uuid4().hex[:12],
+            "label": "",
+            "enabled": True,
+            "days": [0, 1, 2, 3, 4, 5, 6],
+            "start": legacy_start,
+            "end": legacy_end,
+        })
+    return True
+
+
 def _ensure_file():
     os.makedirs(STATE_DIR, exist_ok=True)
     if not os.path.exists(SETTINGS_FILE):
@@ -104,7 +144,11 @@ def get_settings():
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         data = json.loads(json.dumps(DEFAULT_SETTINGS))  # defensive copy
-    return _deep_merge_defaults(data, DEFAULT_SETTINGS)
+    migrated = _migrate_legacy_quiet_hours(data)
+    data = _deep_merge_defaults(data, DEFAULT_SETTINGS)
+    if migrated:
+        _write(data)  # persist once, so the next read doesn't re-migrate
+    return data
 
 
 def save_settings(data):

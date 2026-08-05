@@ -5,7 +5,8 @@ touching config.py or restarting the service.
 
 Two access paths to the same data:
   - JSON API under /settings/api, /settings/print_rules,
-    /settings/weather/locations - for scripts/automations, protected by
+    /settings/quiet_hours/rules, /settings/weather/locations - for
+    scripts/automations, protected by
     X-Api-Token (unchanged from before). Error messages here stay in
     English regardless of the UI language setting - it's a machine-
     facing API, not something end users read in a browser.
@@ -13,6 +14,8 @@ Two access paths to the same data:
     by CSRF token, localized via i18n.tr() to match the current UI
     language.
 """
+import uuid
+
 from flask import Blueprint, jsonify, render_template, request
 
 import i18n
@@ -20,6 +23,8 @@ import settings_store
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 
 settings_bp = Blueprint("settings", __name__)
+
+ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6]  # 0=Monday..6=Sunday, matches datetime.weekday()
 
 
 # ---------------------------------------------------------------------------
@@ -30,25 +35,13 @@ settings_bp = Blueprint("settings", __name__)
 # ---------------------------------------------------------------------------
 
 def validate_print_rules_updates(updates):
-    """Validates a print_rules update dict. Returns None if everything is
-    valid, otherwise (translation_key, format_kwargs) for the error.
+    """Validates a print_rules update dict (max_jobs_per_hour /
+    duplicate_window_seconds only - quiet-hour rules have their own
+    schema, see validate_quiet_hours_rule()). Returns None if everything
+    is valid, otherwise (translation_key, format_kwargs) for the error.
     IMPORTANT: type(x) is bool instead of isinstance(x, bool) - in
     Python, bool is a subclass of int, so isinstance(True, int) would be
     True and would silently let e.g. {"max_jobs_per_hour": true} through."""
-    import datetime as _dt
-
-    if "quiet_hours_enabled" in updates and type(updates["quiet_hours_enabled"]) is not bool:
-        return "settings.validation.quiet_hours_enabled_bool", {}
-
-    for field in ("quiet_hours_start", "quiet_hours_end"):
-        if field in updates:
-            if not isinstance(updates[field], str):
-                return "settings.validation.time_format", {"field": field}
-            try:
-                _dt.time.fromisoformat(updates[field])
-            except ValueError:
-                return "settings.validation.time_format", {"field": field}
-
     if "max_jobs_per_hour" in updates:
         value = updates["max_jobs_per_hour"]
         if type(value) is not int or value < 1:
@@ -60,6 +53,55 @@ def validate_print_rules_updates(updates):
             return "settings.validation.duplicate_window", {}
 
     return None
+
+
+def validate_quiet_hours_rule(data):
+    """Validates a single quiet-hours rule (label/days/start/end/
+    enabled). Returns None if valid, otherwise (translation_key,
+    format_kwargs). days must be a non-empty list of distinct weekday
+    numbers 0(Monday)..6(Sunday) - matches datetime.weekday(), see
+    print_queue._active_quiet_hours_rule()."""
+    import datetime as _dt
+
+    days = data.get("days")
+    if not isinstance(days, list) or not days:
+        return "settings.validation.days_missing", {}
+    try:
+        days_int = [int(d) for d in days]
+    except (TypeError, ValueError):
+        return "settings.validation.days_invalid", {}
+    if any(d < 0 or d > 6 for d in days_int) or len(set(days_int)) != len(days_int):
+        return "settings.validation.days_invalid", {}
+
+    for field in ("start", "end"):
+        value = data.get(field)
+        if not isinstance(value, str):
+            return "settings.validation.time_format", {"field": field}
+        try:
+            _dt.time.fromisoformat(value)
+        except ValueError:
+            return "settings.validation.time_format", {"field": field}
+
+    if "enabled" in data and type(data["enabled"]) is not bool:
+        return "settings.validation.enabled_bool", {}
+
+    return None
+
+
+def build_quiet_hours_rule(data):
+    """Builds a stored rule dict from already-validated input (see
+    validate_quiet_hours_rule()). Assigns a fresh id - rules are never
+    edited in place, only added/toggled/deleted, so a new id on every
+    add is fine and keeps this simple (same pattern as weather
+    locations, which also have no in-place edit)."""
+    return {
+        "id": uuid.uuid4().hex[:12],
+        "label": str(data.get("label") or "").strip()[:50],
+        "enabled": bool(data.get("enabled", True)),
+        "days": sorted({int(d) for d in data["days"]}),
+        "start": data["start"],
+        "end": data["end"],
+    }
 
 
 def validate_and_build_location(name, lat_raw, lon_raw):
@@ -99,14 +141,11 @@ def settings_page():
 @settings_bp.route("/ui/settings/print_rules", methods=["POST"])
 @csrf_protect
 def ui_update_print_rules():
-    updates = {
-        "quiet_hours_enabled": request.form.get("quiet_hours_enabled") == "on",
-        "quiet_hours_start": request.form.get("quiet_hours_start", "22:00"),
-        "quiet_hours_end": request.form.get("quiet_hours_end", "07:00"),
-    }
     try:
-        updates["max_jobs_per_hour"] = int(request.form.get("max_jobs_per_hour", 20))
-        updates["duplicate_window_seconds"] = int(request.form.get("duplicate_window_seconds", 60))
+        updates = {
+            "max_jobs_per_hour": int(request.form.get("max_jobs_per_hour", 20)),
+            "duplicate_window_seconds": int(request.form.get("duplicate_window_seconds", 60)),
+        }
     except ValueError:
         message, success = i18n.tr("settings.print_rules.invalid_numbers"), False
     else:
@@ -117,6 +156,76 @@ def ui_update_print_rules():
         else:
             settings_store.update_section("print_rules", updates)
             message, success = i18n.tr("settings.print_rules.saved"), True
+
+    return _render_settings(message, success)
+
+
+@settings_bp.route("/ui/settings/quiet_hours/add", methods=["POST"])
+@csrf_protect
+def ui_add_quiet_hours_rule():
+    data = {
+        "label": request.form.get("label", ""),
+        "days": request.form.getlist("days"),
+        "start": request.form.get("start", "22:00"),
+        "end": request.form.get("end", "07:00"),
+        "enabled": request.form.get("enabled") == "on",
+    }
+    error = validate_quiet_hours_rule(data)
+    if error:
+        key, kwargs = error
+        message, success = i18n.tr(key, **kwargs), False
+    else:
+        rule = build_quiet_hours_rule(data)
+
+        def _mutate(settings):
+            settings["print_rules"].setdefault("quiet_hours_rules", [])
+            settings["print_rules"]["quiet_hours_rules"].append(rule)
+
+        settings_store.update_settings_transaction(_mutate)
+        message, success = i18n.tr("settings.quiet_hours.saved"), True
+
+    return _render_settings(message, success)
+
+
+@settings_bp.route("/ui/settings/quiet_hours/toggle", methods=["POST"])
+@csrf_protect
+def ui_toggle_quiet_hours_rule():
+    rule_id = request.form.get("id", "")
+    found = {"ok": False}
+
+    def _mutate(settings):
+        for rule in settings["print_rules"].get("quiet_hours_rules", []):
+            if rule["id"] == rule_id:
+                rule["enabled"] = not rule.get("enabled", True)
+                found["ok"] = True
+                break
+
+    settings_store.update_settings_transaction(_mutate)
+    if found["ok"]:
+        message, success = i18n.tr("settings.quiet_hours.toggled"), True
+    else:
+        message, success = i18n.tr("settings.quiet_hours.not_found", id=rule_id), False
+
+    return _render_settings(message, success)
+
+
+@settings_bp.route("/ui/settings/quiet_hours/delete", methods=["POST"])
+@csrf_protect
+def ui_delete_quiet_hours_rule():
+    rule_id = request.form.get("id", "")
+    found = {"ok": False}
+
+    def _mutate(settings):
+        rules = settings["print_rules"].get("quiet_hours_rules", [])
+        remaining = [r for r in rules if r["id"] != rule_id]
+        found["ok"] = len(remaining) != len(rules)
+        settings["print_rules"]["quiet_hours_rules"] = remaining
+
+    settings_store.update_settings_transaction(_mutate)
+    if found["ok"]:
+        message, success = i18n.tr("settings.quiet_hours.deleted"), True
+    else:
+        message, success = i18n.tr("settings.quiet_hours.not_found", id=rule_id), False
 
     return _render_settings(message, success)
 
@@ -220,19 +329,18 @@ def get_all_settings():
 def update_print_rules():
     """
     Expects JSON with one or more of the following fields:
-    { "quiet_hours_enabled": bool, "quiet_hours_start": "HH:MM",
-      "quiet_hours_end": "HH:MM", "max_jobs_per_hour": int,
-      "duplicate_window_seconds": int }
+    { "max_jobs_per_hour": int, "duplicate_window_seconds": int }
     Only the fields provided are changed, the rest stay as they were.
+    Quiet-hour rules are managed separately, see
+    /settings/quiet_hours/rules below - a single window doesn't fit this
+    endpoint's "just update these fields" shape anymore now that there
+    can be several independent rules.
     """
     data, err = get_json_body()
     if err:
         return err
 
-    allowed_fields = {
-        "quiet_hours_enabled", "quiet_hours_start", "quiet_hours_end",
-        "max_jobs_per_hour", "duplicate_window_seconds",
-    }
+    allowed_fields = {"max_jobs_per_hour", "duplicate_window_seconds"}
     updates = {k: v for k, v in data.items() if k in allowed_fields}
     if not updates:
         return jsonify({"status": "error", "detail": "no valid fields provided"}), 400
@@ -244,6 +352,74 @@ def update_print_rules():
 
     result = settings_store.update_section("print_rules", updates)
     return jsonify({"status": "saved", "print_rules": result["print_rules"]}), 200
+
+
+@settings_bp.route("/settings/quiet_hours/rules", methods=["GET"])
+@require_api_token
+def list_quiet_hours_rules():
+    return jsonify(settings_store.get_settings()["print_rules"]["quiet_hours_rules"]), 200
+
+
+@settings_bp.route("/settings/quiet_hours/rules", methods=["POST"])
+@require_api_token
+def add_quiet_hours_rule():
+    """
+    Expects JSON: { "label": "Wochenende" (optional), "days": [5, 6]
+    (0=Monday..6=Sunday), "start": "HH:MM", "end": "HH:MM",
+    "enabled": true (optional, default true) }
+    """
+    data, err = get_json_body()
+    if err:
+        return err
+
+    error = validate_quiet_hours_rule(data)
+    if error:
+        key, kwargs = error
+        return jsonify({"status": "error", "detail": i18n.t(key, "en", **kwargs)}), 400
+
+    rule = build_quiet_hours_rule(data)
+
+    def _mutate(settings):
+        settings["print_rules"].setdefault("quiet_hours_rules", [])
+        settings["print_rules"]["quiet_hours_rules"].append(rule)
+
+    result = settings_store.update_settings_transaction(_mutate)
+    return jsonify({"status": "saved", "quiet_hours_rules": result["print_rules"]["quiet_hours_rules"]}), 200
+
+
+@settings_bp.route("/settings/quiet_hours/rules/<rule_id>/toggle", methods=["POST"])
+@require_api_token
+def toggle_quiet_hours_rule(rule_id):
+    found = {"ok": False}
+
+    def _mutate(settings):
+        for rule in settings["print_rules"].get("quiet_hours_rules", []):
+            if rule["id"] == rule_id:
+                rule["enabled"] = not rule.get("enabled", True)
+                found["ok"] = True
+                break
+
+    result = settings_store.update_settings_transaction(_mutate)
+    if not found["ok"]:
+        return jsonify({"status": "error", "detail": f"Rule '{rule_id}' not found"}), 404
+    return jsonify({"status": "saved", "quiet_hours_rules": result["print_rules"]["quiet_hours_rules"]}), 200
+
+
+@settings_bp.route("/settings/quiet_hours/rules/<rule_id>", methods=["DELETE"])
+@require_api_token
+def delete_quiet_hours_rule(rule_id):
+    found = {"ok": False}
+
+    def _mutate(settings):
+        rules = settings["print_rules"].get("quiet_hours_rules", [])
+        remaining = [r for r in rules if r["id"] != rule_id]
+        found["ok"] = len(remaining) != len(rules)
+        settings["print_rules"]["quiet_hours_rules"] = remaining
+
+    result = settings_store.update_settings_transaction(_mutate)
+    if not found["ok"]:
+        return jsonify({"status": "error", "detail": f"Rule '{rule_id}' not found"}), 404
+    return jsonify({"status": "deleted", "quiet_hours_rules": result["print_rules"]["quiet_hours_rules"]}), 200
 
 
 @settings_bp.route("/settings/weather/locations", methods=["GET"])
