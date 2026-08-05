@@ -6,15 +6,15 @@ boot greeting module).
 import socket
 
 import config
+import usb.backend.libusb1
+from escpos.exceptions import DeviceNotFoundError
 from escpos.printer import Usb
 
 VENDOR_ID = config.VENDOR_ID
 PRODUCT_ID = config.PRODUCT_ID
 
 
-def get_printer():
-    """Opens the connection to the printer. Raises an exception if it's
-    unreachable (e.g. not plugged in or wrong IDs)."""
+def _open_usb_printer():
     p = Usb(VENDOR_ID, PRODUCT_ID, profile="TM-T88V")
     # Force the "USA" international character set (ESC R 0). Some
     # printers - especially ones previously configured for the German
@@ -27,6 +27,26 @@ def get_printer():
     # happen to default to.
     p._raw(b"\x1b\x52\x00")
     return p
+
+
+def get_printer():
+    """Opens the connection to the printer. Raises an exception if it's
+    unreachable (e.g. not plugged in or wrong IDs).
+
+    Retries once with a freshly created libusb backend on failure.
+    pyusb caches its libusb1 backend as a process-wide singleton
+    (usb.backend.libusb1._lib_object) for as long as the process runs.
+    On this Pi's dwc_otg USB controller, that cached context reliably
+    stops seeing the printer after a physical unplug/replug - a brand
+    new Python process finds it instantly, but the long-running
+    gunicorn worker doesn't, until something forces a fresh context.
+    Clearing the cached backend and retrying reproduces that "fresh
+    process" behavior without requiring a service restart."""
+    try:
+        return _open_usb_printer()
+    except DeviceNotFoundError:
+        usb.backend.libusb1._lib_object = None
+        return _open_usb_printer()
 
 
 def _raw_health_check():

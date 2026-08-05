@@ -112,5 +112,8 @@
   "receipt.wifi.password_label": "Passwort: {value}",
   "receipt.weather.temp": "Temp.: {value}°C",
   "receipt.weather.dwd_heading": "DWD:",
-  "receipt.weather.netatmo_heading": "Netatmo:"
+  "receipt.weather.netatmo_heading": "Netatmo:",
+  "status.checking": "Drucker-Status wird geprüft...",
+  "status.online": "Drucker online",
+  "status.offline": "Drucker nicht erreichbar"
 }

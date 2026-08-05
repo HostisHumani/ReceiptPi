@@ -43,6 +43,22 @@ body {
   gap: 8px;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.printer-status {
+  font-size: 1.1em;
+  line-height: 1;
+  color: var(--color-text-muted);  /* "checking" state - neutral until the first /health response arrives */
+  cursor: default;
+  transition: color 0.2s ease;
+}
+.printer-status.online { color: var(--color-accent); }
+.printer-status.offline { color: #e05a5a; }
+
 .back-link {
   color: var(--color-text-muted);
   text-decoration: none;

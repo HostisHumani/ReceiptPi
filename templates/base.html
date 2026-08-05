@@ -10,12 +10,17 @@
   <div class="page">
     <div class="topbar">
       <h1>{% block header %}🖨️ ReceiptPi{% endblock %}</h1>
-      <details class="burger-menu">
-        <summary aria-label="Menu">☰</summary>
-        <div class="burger-dropdown">
-          <a href="/settings">{{ t('menu.settings') }}</a>
-        </div>
-      </details>
+      <div class="topbar-right">
+        <span id="printer-status" class="printer-status" title="{{ t('status.checking') }}"
+              data-online="{{ t('status.online') }}" data-offline="{{ t('status.offline') }}"
+              data-checking="{{ t('status.checking') }}">●</span>
+        <details class="burger-menu">
+          <summary aria-label="Menu">☰</summary>
+          <div class="burger-dropdown">
+            <a href="/settings">{{ t('menu.settings') }}</a>
+          </div>
+        </details>
+      </div>
     </div>
 
     {% if message %}
@@ -24,5 +29,35 @@
 
     {% block content %}{% endblock %}
   </div>
+
+  <script>
+    // Polls /health in the background so printer connectivity shows up
+    // as a small status dot instead of only surfacing when a print job
+    // fails. Deliberately plain JS, no framework/build step - matches
+    // the rest of the project staying dependency-light.
+    (function () {
+      var el = document.getElementById('printer-status');
+      if (!el) return;
+
+      function setStatus(state) {
+        el.classList.remove('online', 'offline', 'checking');
+        el.classList.add(state);
+        el.title = el.dataset[state];
+      }
+
+      async function checkPrinterStatus() {
+        setStatus('checking');
+        try {
+          var res = await fetch('/health', { cache: 'no-store' });
+          setStatus(res.ok ? 'online' : 'offline');
+        } catch (e) {
+          setStatus('offline');
+        }
+      }
+
+      checkPrinterStatus();
+      setInterval(checkPrinterStatus, 60000);
+    })();
+  </script>
 </body>
 </html>
