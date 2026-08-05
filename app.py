@@ -31,6 +31,7 @@ from flask import Flask, render_template
 
 import i18n
 import settings_store
+from modules.history.routes import history_bp
 from modules.images.routes import images_bp
 from modules.message.routes import message_bp
 from modules.settings.routes import settings_bp
@@ -59,7 +60,7 @@ app.secret_key = config.SECRET_KEY  # needed for the web UI's CSRF token session
 start_worker()  # start the print queue worker thread
 i18n.load_translations()  # load translation JSON files once at startup
 
-for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, settings_bp):
+for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, settings_bp, history_bp):
     app.register_blueprint(blueprint)
 
 
@@ -79,7 +80,7 @@ def inject_i18n():
 
 @app.route("/health", methods=["GET"])
 def health():
-    ok, detail, status_code = enqueue_print(_raw_health_check, timeout=10, bypass_rules=True)
+    ok, detail, status_code = enqueue_print(_raw_health_check, timeout=10, bypass_rules=True, log_history=False)
     if ok:
         return {"status": "ok", "printer": "reachable"}, 200
     return {"status": "error", "detail": detail}, status_code
@@ -95,15 +96,18 @@ if __name__ == "__main__":
     # server runs via Gunicorn with gunicorn.conf.py (see ANLEITUNG.md).
     import socket
 
+    import history_store
     from modules.message.routes import _raw_print_message
     from printer import get_local_ip
 
+    hostname = socket.gethostname()
     try:
-        hostname = socket.gethostname()
         ip = get_local_ip()
         text = f"Hostname: {hostname}\nIP: {ip}\nReceiptPi server started (dev mode)"
         _raw_print_message("ONLINE", text)
     except Exception:
         pass  # the boot greeting is "nice to have", not a reason to block the dev server
+    else:
+        history_store.log_job("boot", f"{hostname} ({ip})", "system", "ok")
 
     app.run(host="0.0.0.0", port=5000)

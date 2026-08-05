@@ -97,7 +97,9 @@ def print_wifi():
         # multi-byte Unicode characters, byte count and character count
         # diverge.
         return jsonify({"status": "error", "detail": "ssid must be at most 32 bytes"}), 400
-    ok, detail, status_code = enqueue_print(_raw_print_wifi, ssid, password, auth_type)
+    ok, detail, status_code = enqueue_print(
+        _raw_print_wifi, ssid, password, auth_type, job_type="wifi", summary=ssid, source="api",
+    )
     if ok:
         return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
@@ -122,7 +124,10 @@ def ui_print_wifi():
         message, success = i18n.tr("wifi.disabled"), False
     else:
         auth_type = getattr(config, "WIFI_QR_AUTH_TYPE", "WPA")
-        ok, detail, _status_code = enqueue_print(_raw_print_wifi, status["ssid"], status["password"], auth_type)
+        ok, detail, _status_code = enqueue_print(
+            _raw_print_wifi, status["ssid"], status["password"], auth_type,
+            job_type="wifi", summary=status["ssid"], source="ui",
+        )
         message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
         success = ok
 

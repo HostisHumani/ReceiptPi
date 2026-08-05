@@ -54,9 +54,12 @@ def _raw_print_list(title, items):
         p.close()
 
 
-def do_print_list(title, items):
+def do_print_list(title, items, source="ui"):
     """Returns (ok, detail, http_status), see enqueue_print()."""
-    ok, detail, status_code = enqueue_print(_raw_print_list, title, items)
+    summary = f"{title} ({len(items)})"
+    ok, detail, status_code = enqueue_print(
+        _raw_print_list, title, items, job_type="shopping", summary=summary, source=source,
+    )
     if ok:
         detail = f"{len(items)} items printed"
     return ok, detail, status_code
@@ -84,7 +87,7 @@ def print_list():
     if not isinstance(raw_items, list):
         return jsonify({"status": "error", "detail": "items must be a list"}), 400
     items = [str(item)[:MAX_ITEM_LEN] for item in raw_items[:MAX_ITEMS]]
-    ok, detail, status_code = do_print_list(title, items)
+    ok, detail, status_code = do_print_list(title, items, source="api")
     if ok:
         return jsonify({"status": "printed", "detail": detail}), 200
     return jsonify({"status": "error", "detail": detail}), status_code

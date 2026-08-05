@@ -1,0 +1,19 @@
+{
+  "menu.history": "📋 History",
+  "history.header": "📋 Print History",
+  "history.stats.total": "Total",
+  "history.stats.ok": "Printed",
+  "history.stats.error": "Errors",
+  "history.stats.blocked": "Blocked",
+  "history.status.ok": "Printed",
+  "history.status.error": "Error",
+  "history.status.blocked": "Blocked",
+  "history.source.ui": "Web UI",
+  "history.source.api": "API",
+  "history.source.system": "System",
+  "history.job_type.boot": "Boot greeting",
+  "history.job_type.other": "Other",
+  "history.empty": "No print jobs recorded yet.",
+  "history.pagination.prev": "Previous",
+  "history.pagination.next": "Next"
+}

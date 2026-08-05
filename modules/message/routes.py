@@ -40,9 +40,12 @@ def _raw_print_message(title, text):
         p.close()
 
 
-def do_print_message(title, text):
-    """Returns (ok, detail, http_status), see enqueue_print()."""
-    return enqueue_print(_raw_print_message, title, text)
+def do_print_message(title, text, source="ui"):
+    """Returns (ok, detail, http_status), see enqueue_print(). summary
+    for the history dashboard: the title if there is one, otherwise the
+    start of the text itself."""
+    summary = title or (text[:60] + ("…" if len(text) > 60 else ""))
+    return enqueue_print(_raw_print_message, title, text, job_type="message", summary=summary, source=source)
 
 
 @message_bp.route("/message", methods=["GET"])
@@ -61,7 +64,7 @@ def print_message():
         return err
     title = (data.get("title") or "")[:MAX_TITLE_LEN] or None
     text = (data.get("text") or "")[:MAX_TEXT_LEN]
-    ok, detail, status_code = do_print_message(title, text)
+    ok, detail, status_code = do_print_message(title, text, source="api")
     if ok:
         return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code

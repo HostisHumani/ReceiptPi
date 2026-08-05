@@ -185,7 +185,7 @@ def system_page():
 @system_bp.route("/print/system", methods=["POST", "GET"])
 @require_api_token
 def print_system():
-    ok, detail, status_code = enqueue_print(_raw_print_system_report)
+    ok, detail, status_code = enqueue_print(_raw_print_system_report, job_type="system", source="api")
     if ok:
         return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
@@ -194,6 +194,6 @@ def print_system():
 @system_bp.route("/ui/system", methods=["POST"])
 @csrf_protect
 def ui_print_system():
-    ok, detail, _status_code = enqueue_print(_raw_print_system_report)
+    ok, detail, _status_code = enqueue_print(_raw_print_system_report, job_type="system", source="ui")
     message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
     return render_template("system.html", message=message, success=ok, csrf_token=get_csrf_token())

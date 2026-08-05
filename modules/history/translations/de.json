@@ -1,0 +1,19 @@
+{
+  "menu.history": "📋 Verlauf",
+  "history.header": "📋 Druckverlauf",
+  "history.stats.total": "Gesamt",
+  "history.stats.ok": "Gedruckt",
+  "history.stats.error": "Fehler",
+  "history.stats.blocked": "Blockiert",
+  "history.status.ok": "Gedruckt",
+  "history.status.error": "Fehler",
+  "history.status.blocked": "Blockiert",
+  "history.source.ui": "Web-UI",
+  "history.source.api": "API",
+  "history.source.system": "System",
+  "history.job_type.boot": "Boot-Gruß",
+  "history.job_type.other": "Sonstiges",
+  "history.empty": "Noch keine Druckjobs aufgezeichnet.",
+  "history.pagination.prev": "Zurück",
+  "history.pagination.next": "Weiter"
+}

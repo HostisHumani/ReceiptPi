@@ -21,6 +21,7 @@ import time
 from datetime import datetime
 from datetime import time as dtime
 
+import history_store
 import i18n
 import settings_store
 
@@ -118,7 +119,7 @@ def _check_print_rules_locked(func, args, dedupe_key=None):
 
 def _print_worker():
     while True:
-        func, args, result, event = PRINT_QUEUE.get()
+        func, args, result, event, meta = PRINT_QUEUE.get()
         try:
             func(*args)
             result["ok"] = True
@@ -126,6 +127,11 @@ def _print_worker():
         except Exception as e:
             result["ok"] = False
             result["detail"] = str(e)
+        if meta.get("log_history", True):
+            history_store.log_job(
+                meta.get("job_type", "other"), meta.get("summary", ""), meta.get("source", "system"),
+                "ok" if result["ok"] else "error", result.get("detail", ""),
+            )
         event.set()
         PRINT_QUEUE.task_done()
 
@@ -140,7 +146,8 @@ def start_worker():
         _worker_started = True
 
 
-def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None):
+def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None,
+                   job_type="other", summary="", source="ui", log_history=True):
     """Enqueues a print job and waits for it to finish. Returns
     (ok: bool, detail: str, http_status: int).
 
@@ -152,6 +159,15 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None):
     of relying on str(args) - important e.g. for image printing, where
     args contains a Pillow object (see _job_fingerprint()).
 
+    job_type/summary/source/log_history: fed to history_store for the
+    print-history dashboard (see modules/history/routes.py). job_type is
+    a short stable id ("shopping", "wifi", ...), summary a short
+    human-readable detail (title, SSID, location, ...) - NEVER put
+    secrets in summary. source is where the request came from ("ui",
+    "api", "system"). Set log_history=False for internal, non-user-
+    facing jobs that shouldn't clutter the dashboard (e.g. the /health
+    check, which runs every 60s from every open browser tab).
+
     Status codes: 429 quiet hours/rate limit/duplicate, 503 queue full,
     504 timeout, 500 print error, 200 success.
 
@@ -162,12 +178,15 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None):
     if not bypass_rules:
         allowed, reason = check_print_rules(func, args, dedupe_key)
         if not allowed:
+            if log_history:
+                history_store.log_job(job_type, summary, source, "blocked", reason)
             return False, reason, 429
 
     result = {}
     event = threading.Event()
+    meta = {"job_type": job_type, "summary": summary, "source": source, "log_history": log_history}
     try:
-        PRINT_QUEUE.put((func, args, result, event), timeout=5)
+        PRINT_QUEUE.put((func, args, result, event, meta), timeout=5)
     except queue.Full:
         return False, i18n.tr("print_queue.full"), 503
     if not event.wait(timeout=timeout):
@@ -177,15 +196,20 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None):
     return ok, detail, (200 if ok else 500)
 
 
-def enqueue_print_async(func, *args, bypass_rules=False, dedupe_key=None):
+def enqueue_print_async(func, *args, bypass_rules=False, dedupe_key=None,
+                         job_type="other", summary="", source="system", log_history=True):
     """Enqueues a print job without waiting for the result. For
     fire-and-forget cases like the boot greeting, so the server startup
-    doesn't block if the printer happens to be unreachable."""
+    doesn't block if the printer happens to be unreachable. See
+    enqueue_print() for job_type/summary/source/log_history."""
     if not bypass_rules:
-        allowed, _reason = check_print_rules(func, args, dedupe_key)
+        allowed, reason = check_print_rules(func, args, dedupe_key)
         if not allowed:
+            if log_history:
+                history_store.log_job(job_type, summary, source, "blocked", reason)
             return  # silently skip the boot greeting/etc. instead of raising
+    meta = {"job_type": job_type, "summary": summary, "source": source, "log_history": log_history}
     try:
-        PRINT_QUEUE.put((func, args, {}, threading.Event()), timeout=5)
+        PRINT_QUEUE.put((func, args, {}, threading.Event(), meta), timeout=5)
     except queue.Full:
         pass

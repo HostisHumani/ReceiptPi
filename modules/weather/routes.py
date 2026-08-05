@@ -191,7 +191,10 @@ def print_weather():
     if request.method == "POST" and request.is_json:
         location_name = (request.get_json(silent=True) or {}).get("location", location_name)
 
-    ok, detail, status_code = enqueue_print(_raw_print_weather, location_name)
+    resolved_name, _lat, _lon = resolve_location(location_name)
+    ok, detail, status_code = enqueue_print(
+        _raw_print_weather, location_name, job_type="weather", summary=resolved_name or "", source="api",
+    )
     if ok:
         return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
@@ -201,7 +204,10 @@ def print_weather():
 @csrf_protect
 def ui_print_weather():
     location_name = request.form.get("location") or None
-    ok, detail, _status_code = enqueue_print(_raw_print_weather, location_name)
+    resolved_name, _lat, _lon = resolve_location(location_name)
+    ok, detail, _status_code = enqueue_print(
+        _raw_print_weather, location_name, job_type="weather", summary=resolved_name or "", source="ui",
+    )
     message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
     weather_settings = settings_store.get_settings()["weather"]
     return render_template(

@@ -41,7 +41,7 @@ def _raw_print_image(img):
         p.close()
 
 
-def process_and_enqueue_image(img_bytes):
+def process_and_enqueue_image(img_bytes, source="ui"):
     """Shared pipeline for both upload paths: validates, scales,
     converts, and enqueues the print job. Returns (ok, detail,
     http_status) - the same 3-tuple convention as enqueue_print()."""
@@ -88,7 +88,10 @@ def process_and_enqueue_image(img_bytes):
     except Exception as e:
         return False, f"Could not process image: {e}", 400
 
-    return enqueue_print(_raw_print_image, img, dedupe_key=dedupe_key)
+    return enqueue_print(
+        _raw_print_image, img, dedupe_key=dedupe_key,
+        job_type="images", summary=f"{img.width}x{img.height}px", source=source,
+    )
 
 
 @images_bp.route("/images", methods=["GET"])
@@ -116,7 +119,7 @@ def print_image():
     except Exception as e:
         return jsonify({"status": "error", "detail": f"Invalid base64: {e}"}), 400
 
-    ok, detail, status_code = process_and_enqueue_image(img_bytes)
+    ok, detail, status_code = process_and_enqueue_image(img_bytes, source="api")
     if ok:
         return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
