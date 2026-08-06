@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block header %}{{ t('settings.index.system_report.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
+
+{% if message %}
+<div class="card" style="margin-bottom:16px; {% if success %}color:var(--color-accent);{% else %}color:#e05a5a;{% endif %}">
+  {{ message }}
+</div>
+{% endif %}
+
+<div class="hint" style="margin-bottom:12px;">{{ t('settings.system_report.hint') }}</div>
+
+<form method="post" action="/ui/settings/system_report" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="proxmox_host" style="margin-top:0;">{{ t('settings.system_report.proxmox') }}</label>
+  <input type="text" id="proxmox_host" name="proxmox_host" placeholder="{{ t('settings.system_report.host_placeholder') }}"
+         value="{{ settings.system_report.ssh_hosts.proxmox.host }}">
+  <input type="text" id="proxmox_user" name="proxmox_user" placeholder="{{ t('settings.system_report.user_placeholder') }}"
+         value="{{ settings.system_report.ssh_hosts.proxmox.user }}" style="margin-top:6px;">
+
+  <label for="pinas_host">{{ t('settings.system_report.pinas') }}</label>
+  <input type="text" id="pinas_host" name="pinas_host" placeholder="{{ t('settings.system_report.host_placeholder') }}"
+         value="{{ settings.system_report.ssh_hosts.pinas.host }}">
+  <input type="text" id="pinas_user" name="pinas_user" placeholder="{{ t('settings.system_report.user_placeholder') }}"
+         value="{{ settings.system_report.ssh_hosts.pinas.user }}" style="margin-top:6px;">
+
+  <label for="pbs_host">{{ t('settings.system_report.pbs') }}</label>
+  <input type="text" id="pbs_host" name="pbs_host" placeholder="{{ t('settings.system_report.host_placeholder') }}"
+         value="{{ settings.system_report.ssh_hosts.pbs.host }}">
+  <input type="text" id="pbs_user" name="pbs_user" placeholder="{{ t('settings.system_report.user_placeholder') }}"
+         value="{{ settings.system_report.ssh_hosts.pbs.user }}" style="margin-top:6px;">
+
+  <div class="hint">{{ t('settings.system_report.ssh_key_hint') }}</div>
+
+  <button type="submit">{{ t('settings.save') }}</button>
+</form>
+{% endblock %}

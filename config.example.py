@@ -38,6 +38,11 @@ SECRET_KEY = "Hier zufälligen Wert per secrets.token_hex(32) einsetzen"
 # (siehe ANLEITUNG.md, Abschnitt 15) - dieselben Befehle wie im Termux Lab
 # Commander (scripts/termux-lab-commander.sh), kein Zabbix nötig.
 # Beispiel-IPs unten - durch die tatsächlichen Adressen in deinem Netz ersetzen.
+# HINWEIS: Diese Werte werden nur EINMALIG beim allerersten Start als
+# Ausgangspunkt nach settings.json übernommen (siehe settings_store.py).
+# Danach ist die Web-UI (Einstellungen -> System-Report) die eigentliche
+# Verwaltungsstelle - Änderungen hier in config.py haben ab dann keine
+# Wirkung mehr.
 SSH_PROXMOX_HOST = "192.168.1.10"
 SSH_PROXMOX_USER = "root"
 SSH_PINAS_HOST = "192.168.1.11"
@@ -60,6 +65,8 @@ STATE_DIR = "/var/lib/receiptpi"
 # --- GitHub-Star-Watch -------------------------------------------------------
 # List of repos to watch for new stars - each entry gets its own baseline
 # and its own print notification. Add as many as you like.
+# HINWEIS: Wird ebenfalls nur EINMALIG initial nach settings.json übernommen
+# (Einstellungen -> GitHub-Watch) - siehe Hinweis bei den SSH-Einstellungen oben.
 GITHUB_REPOS = [
     {"owner": "your-github-username", "repo": "your-repo"},
 ]

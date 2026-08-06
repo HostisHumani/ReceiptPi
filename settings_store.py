@@ -47,6 +47,21 @@ DEFAULT_SETTINGS = {
         "default_location": "Standard",
     },
     "language": "de",
+    "system_report": {
+        # Three FIXED roles (not a generic host list) - each backed by
+        # different SSH commands in modules/system/routes.py (Proxmox:
+        # pct/qm list, piNAS: docker ps, PBS: proxmox-backup-manager).
+        "ssh_hosts": {
+            "proxmox": {"host": "", "user": "root"},
+            "pinas": {"host": "", "user": "root"},
+            "pbs": {"host": "", "user": "root"},
+        },
+        "migrated_from_config": False,
+    },
+    "github_watch": {
+        "repos": [],
+        "migrated_from_config": False,
+    },
 }
 
 # Protects concurrent writes within the Flask process (e.g. two parallel
@@ -120,6 +135,51 @@ def _migrate_legacy_quiet_hours(data):
     return True
 
 
+def _migrate_legacy_config_values(data):
+    """One-time seed: if system_report/github_watch are still untouched
+    (no prior migration ran), copy over whatever's already configured in
+    config.py, so upgrading an existing deployment doesn't blank out a
+    working setup that used to be configured only by editing config.py.
+    Uses an explicit "migrated_from_config" flag rather than "is it
+    still empty" as the trigger - otherwise a user who deliberately
+    clears a field via the settings UI would have it silently refilled
+    from config.py on the next load. Once the flag is set, config.py's
+    copies of these values are inert - settings.json is the sole source
+    of truth from then on. Mutates data in place, returns True if
+    anything changed."""
+    changed = False
+
+    sr = data.setdefault("system_report", {})
+    if not sr.get("migrated_from_config"):
+        hosts = sr.setdefault("ssh_hosts", {})
+        for key, host_attr, user_attr in (
+            ("proxmox", "SSH_PROXMOX_HOST", "SSH_PROXMOX_USER"),
+            ("pinas", "SSH_PINAS_HOST", "SSH_PINAS_USER"),
+            ("pbs", "SSH_PBS_HOST", "SSH_PBS_USER"),
+        ):
+            legacy_host = getattr(config, host_attr, "")
+            legacy_user = getattr(config, user_attr, "") or "root"
+            if legacy_host:
+                hosts[key] = {"host": legacy_host, "user": legacy_user}
+        sr["migrated_from_config"] = True
+        changed = True
+
+    gh = data.setdefault("github_watch", {})
+    if not gh.get("migrated_from_config"):
+        legacy_repos = getattr(config, "GITHUB_REPOS", None)
+        if not legacy_repos:
+            legacy_owner = getattr(config, "GITHUB_OWNER", "")
+            legacy_repo_name = getattr(config, "GITHUB_REPO", "")
+            if legacy_owner and legacy_repo_name:
+                legacy_repos = [{"owner": legacy_owner, "repo": legacy_repo_name}]
+        if legacy_repos:
+            gh["repos"] = legacy_repos
+        gh["migrated_from_config"] = True
+        changed = True
+
+    return changed
+
+
 def _ensure_file():
     os.makedirs(STATE_DIR, exist_ok=True)
     if not os.path.exists(SETTINGS_FILE):
@@ -144,7 +204,11 @@ def get_settings():
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         data = json.loads(json.dumps(DEFAULT_SETTINGS))  # defensive copy
-    migrated = _migrate_legacy_quiet_hours(data)
+    # Both migrations must always run (not short-circuited by `or`) - each
+    # guards its own section independently via its own flag.
+    migrated_quiet_hours = _migrate_legacy_quiet_hours(data)
+    migrated_config_values = _migrate_legacy_config_values(data)
+    migrated = migrated_quiet_hours or migrated_config_values
     data = _deep_merge_defaults(data, DEFAULT_SETTINGS)
     if migrated:
         _write(data)  # persist once, so the next read doesn't re-migrate

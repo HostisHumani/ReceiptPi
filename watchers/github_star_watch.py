@@ -12,21 +12,24 @@ import os
 import sys
 import urllib.request
 
-# config.py lives in the project root, watchers/ is one level below -
-# add it to sys.path explicitly, otherwise the import fails regardless
-# of where the cronjob starts the script from.
+# config.py and settings_store.py live in the project root, watchers/ is
+# one level below - add it to sys.path explicitly, otherwise the import
+# fails regardless of where the cronjob starts the script from.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import config
 
+import settings_store
+
 # ---------------------------------------------------------------------------
-# Supports watching multiple repos via config.GITHUB_REPOS (a list of
-# {"owner": ..., "repo": ...} dicts). Falls back to the old single-repo
-# config.GITHUB_OWNER/config.GITHUB_REPO if GITHUB_REPOS isn't set, so an
-# existing config.py from before multi-repo support still works without
-# an immediate edit.
-REPOS = getattr(config, "GITHUB_REPOS", None) or [
-    {"owner": config.GITHUB_OWNER, "repo": config.GITHUB_REPO}
-]
+# Repo list now lives in settings.json (editable via the web UI, see
+# modules/settings/routes.py) instead of config.py - settings_store.py
+# migrates an existing config.GITHUB_REPOS (or the older single-repo
+# GITHUB_OWNER/GITHUB_REPO) into settings.json once, automatically, the
+# first time get_settings() runs (whether that's triggered by this
+# script or by the Flask app - whichever runs first after the upgrade).
+# From then on settings.json is authoritative; config.py's copies of
+# these values are no longer read here.
+REPOS = settings_store.get_settings()["github_watch"]["repos"]
 PRINTER_URL = "http://localhost:5000/print/message"
 API_TOKEN = getattr(config, "API_TOKEN", "")
 STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # fallback: project root

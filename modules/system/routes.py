@@ -12,15 +12,23 @@ import json
 import subprocess
 from datetime import datetime
 
-import config
 from flask import Blueprint, jsonify, render_template
 
 import i18n
+import settings_store
 from modules.message.routes import _raw_print_message
 from print_queue import enqueue_print
 from security import csrf_protect, get_csrf_token, require_api_token
 
 system_bp = Blueprint("system", __name__)
+
+
+def _ssh_target(role):
+    """Returns (user, host) for one of the three fixed roles
+    ("proxmox", "pinas", "pbs"), read from settings.json (see
+    settings_store.py, migrated once from config.py on first run)."""
+    entry = settings_store.get_settings()["system_report"]["ssh_hosts"][role]
+    return entry["user"], entry["host"]
 
 
 def ssh_run(user, host, remote_command, timeout=10):
@@ -50,12 +58,13 @@ def ssh_run(user, host, remote_command, timeout=10):
 def fetch_pve_status():
     """CPU-Temp, CPU-Last, RAM auf dem Proxmox-Host - identische Befehle
     wie im Termux Commander (check_status())."""
+    user, host = _ssh_target("proxmox")
     lines = []
-    cpu_temp = ssh_run(config.SSH_PROXMOX_USER, config.SSH_PROXMOX_HOST,
+    cpu_temp = ssh_run(user, host,
                         "cat /sys/class/thermal/thermal_zone0/temp | awk '{printf \"%.0f\", $1/1000}'")
-    cpu_load = ssh_run(config.SSH_PROXMOX_USER, config.SSH_PROXMOX_HOST,
+    cpu_load = ssh_run(user, host,
                         "top -bn1 | grep 'Cpu' | awk '{printf \"%.0f\", 100-$8}'")
-    ram = ssh_run(config.SSH_PROXMOX_USER, config.SSH_PROXMOX_HOST,
+    ram = ssh_run(user, host,
                   "free -h | awk '/^Mem:/{print $3\"/\"$2}'")
     lines.append(i18n.tr("receipt.system.cpu_temp", value=cpu_temp))
     lines.append(i18n.tr("receipt.system.cpu_load", value=cpu_load))
@@ -65,14 +74,15 @@ def fetch_pve_status():
 
 def fetch_lxc_vm_status():
     """LXC- und VM-Liste vom Proxmox-Host (pct list / qm list)."""
+    user, host = _ssh_target("proxmox")
     lines = []
-    lxc_output = ssh_run(config.SSH_PROXMOX_USER, config.SSH_PROXMOX_HOST, "pct list")
+    lxc_output = ssh_run(user, host, "pct list")
     for line in lxc_output.splitlines()[1:]:
         parts = line.split()
         if len(parts) >= 3:
             lines.append(f"LXC {parts[0]} ({parts[2]}): {parts[1]}")
 
-    vm_output = ssh_run(config.SSH_PROXMOX_USER, config.SSH_PROXMOX_HOST, "qm list")
+    vm_output = ssh_run(user, host, "qm list")
     for line in vm_output.splitlines()[1:]:
         parts = line.split()
         if len(parts) >= 3:
@@ -84,7 +94,8 @@ def fetch_lxc_vm_status():
 def fetch_omv_status():
     """NVMe-Speicherplatz auf piNAS (OMV) - identischer Befehl wie im
     Termux Commander."""
-    disk = ssh_run(config.SSH_PINAS_USER, config.SSH_PINAS_HOST,
+    user, host = _ssh_target("pinas")
+    disk = ssh_run(user, host,
                     "df -h /dev/nvme0n1p2 | awk 'NR==2{print $3\"/\"$2\" (\"$5\")\"}'")
     return [i18n.tr("receipt.system.nvme", value=disk)]
 
@@ -94,8 +105,9 @@ def fetch_docker_status():
     Anders als die anderen fetch_*-Funktionen NICHT 1:1 aus dem Termux
     Commander übernommen - der checkt nur Frigate auf einem separaten
     Host, keinen allgemeinen OMV-Docker-Stack."""
+    user, host = _ssh_target("pinas")
     output = ssh_run(
-        config.SSH_PINAS_USER, config.SSH_PINAS_HOST,
+        user, host,
         "docker ps --format '{{.Names}}: {{.Status}}'",
     )
     return output.splitlines() if output else [i18n.tr("receipt.system.no_containers")]
@@ -105,7 +117,8 @@ def fetch_pbs_recent_backups(limit=5):
     """Letzte PBS-Backup-Tasks (Backup/Sync/Prune/Verify/GC), analog zur
     Python-Auswertung im Termux Commander, hier lokal statt remote per
     eingebettetem Python-Aufruf geparst."""
-    output = ssh_run(config.SSH_PBS_USER, config.SSH_PBS_HOST,
+    user, host = _ssh_target("pbs")
+    output = ssh_run(user, host,
                       "proxmox-backup-manager task list --all --output-format json-pretty")
     tasks = json.loads(output)
     relevant_types = {"backup", "syncjob", "prune", "verify", "garbage_collection"}
@@ -147,9 +160,12 @@ def fetch_update_counts():
     """Update-Status für PVE, OMV und PBS, wie im Termux Commander unter
     'u) Update-Check' - dort bisher ohne PBS, hier ergänzt."""
     lines = []
-    lines.extend(fetch_updates_for_host("PVE", config.SSH_PROXMOX_USER, config.SSH_PROXMOX_HOST))
-    lines.extend(fetch_updates_for_host("OMV", config.SSH_PINAS_USER, config.SSH_PINAS_HOST))
-    lines.extend(fetch_updates_for_host("PBS", config.SSH_PBS_USER, config.SSH_PBS_HOST))
+    pve_user, pve_host = _ssh_target("proxmox")
+    pinas_user, pinas_host = _ssh_target("pinas")
+    pbs_user, pbs_host = _ssh_target("pbs")
+    lines.extend(fetch_updates_for_host("PVE", pve_user, pve_host))
+    lines.extend(fetch_updates_for_host("OMV", pinas_user, pinas_host))
+    lines.extend(fetch_updates_for_host("PBS", pbs_user, pbs_host))
     return lines
 
 

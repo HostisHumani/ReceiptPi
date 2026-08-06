@@ -20,7 +20,7 @@ _TRANSLATIONS = {}  # lang -> {key: value}
 # code -> display name (shown in the language switcher). A dict instead
 # of a plain list, so adding a third language later means one JSON file
 # plus one entry here - no hardcoded radio buttons to update in the
-# template (see templates/settings.html).
+# template (see templates/settings_language.html).
 SUPPORTED_LANGUAGES = {
     "de": "Deutsch",
     "en": "English",

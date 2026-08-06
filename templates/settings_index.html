@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block header %}{{ t('settings.header') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
+
+{% if message %}
+<div class="card" style="margin-bottom:16px; {% if success %}color:var(--color-accent);{% else %}color:#e05a5a;{% endif %}">
+  {{ message }}
+</div>
+{% endif %}
+
+<div class="tile-grid">
+  <a class="tile" href="/settings/language">
+    <span class="tile-icon">🌐</span>
+    <span class="tile-name">{{ t('settings.index.language.name') }}</span>
+    <span class="tile-desc">{{ t('settings.index.language.desc') }}</span>
+  </a>
+
+  <a class="tile" href="/settings/print-rules">
+    <span class="tile-icon">🖨️</span>
+    <span class="tile-name">{{ t('settings.index.print_rules.name') }}</span>
+    <span class="tile-desc">{{ t('settings.index.print_rules.desc') }}</span>
+  </a>
+
+  <a class="tile" href="/settings/weather">
+    <span class="tile-icon">🌦️</span>
+    <span class="tile-name">{{ t('settings.index.weather.name') }}</span>
+    <span class="tile-desc">{{ t('settings.index.weather.desc') }}</span>
+  </a>
+
+  <a class="tile" href="/settings/system-report">
+    <span class="tile-icon">🖥️</span>
+    <span class="tile-name">{{ t('settings.index.system_report.name') }}</span>
+    <span class="tile-desc">{{ t('settings.index.system_report.desc') }}</span>
+  </a>
+
+  <a class="tile" href="/settings/github-watch">
+    <span class="tile-icon">⭐</span>
+    <span class="tile-name">{{ t('settings.index.github_watch.name') }}</span>
+    <span class="tile-desc">{{ t('settings.index.github_watch.desc') }}</span>
+  </a>
+</div>
+{% endblock %}

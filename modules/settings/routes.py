@@ -120,9 +120,72 @@ def validate_and_build_location(name, lat_raw, lon_raw):
     return name, lat, lon, None, {}
 
 
-def _render_settings(message=None, success=None):
+def validate_ssh_host_entry(host_raw, user_raw):
+    """Returns (host, user, error_key, error_kwargs) - error_key is None
+    on success. Both host and user empty is valid (that role simply
+    isn't configured - the SSH call then fails per-section at print
+    time, same as any other unreachable host, nothing special-cased
+    there). A host without a user is rejected, since ssh_run() would
+    otherwise be called with an empty username."""
+    host = str(host_raw or "").strip()
+    user = str(user_raw or "").strip()
+    if host and not user:
+        return None, None, "settings.validation.ssh_user_missing", {}
+    return host, user, None, {}
+
+
+def validate_github_repo(owner_raw, repo_raw):
+    """Returns (owner, repo, error_key, error_kwargs) - error_key is
+    None on success."""
+    owner = str(owner_raw or "").strip()
+    repo = str(repo_raw or "").strip()
+    if not owner or not repo:
+        return None, None, "settings.validation.github_repo_missing", {}
+    return owner, repo, None, {}
+
+
+def _render_index(message=None, success=None):
+    return render_template("settings_index.html", message=message, success=success)
+
+
+def _render_language(message=None, success=None):
     return render_template(
-        "settings.html",
+        "settings_language.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+    )
+
+
+def _render_print_rules(message=None, success=None):
+    return render_template(
+        "settings_print_rules.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+        settings=settings_store.get_settings(),
+    )
+
+
+def _render_weather(message=None, success=None):
+    return render_template(
+        "settings_weather.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+        settings=settings_store.get_settings(),
+    )
+
+
+def _render_system_report(message=None, success=None):
+    return render_template(
+        "settings_system_report.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+        settings=settings_store.get_settings(),
+    )
+
+
+def _render_github_watch(message=None, success=None):
+    return render_template(
+        "settings_github_watch.html",
         message=message, success=success,
         csrf_token=get_csrf_token(),
         settings=settings_store.get_settings(),
@@ -130,12 +193,41 @@ def _render_settings(message=None, success=None):
 
 
 # ---------------------------------------------------------------------------
-# Web UI: settings page
+# Web UI: settings pages. /settings is an overview (tile grid, same pattern
+# as the home page) linking to one page per settings area - kept as
+# separate pages instead of one long scroll so the settings section stays
+# manageable as more areas get added (logos, etc.) instead of growing into
+# an ever-longer single page.
 # ---------------------------------------------------------------------------
 
 @settings_bp.route("/settings", methods=["GET"])
 def settings_page():
-    return _render_settings()
+    return _render_index()
+
+
+@settings_bp.route("/settings/language", methods=["GET"])
+def settings_language_page():
+    return _render_language()
+
+
+@settings_bp.route("/settings/print-rules", methods=["GET"])
+def settings_print_rules_page():
+    return _render_print_rules()
+
+
+@settings_bp.route("/settings/weather", methods=["GET"])
+def settings_weather_page():
+    return _render_weather()
+
+
+@settings_bp.route("/settings/system-report", methods=["GET"])
+def settings_system_report_page():
+    return _render_system_report()
+
+
+@settings_bp.route("/settings/github-watch", methods=["GET"])
+def settings_github_watch_page():
+    return _render_github_watch()
 
 
 @settings_bp.route("/ui/settings/print_rules", methods=["POST"])
@@ -157,7 +249,7 @@ def ui_update_print_rules():
             settings_store.update_section("print_rules", updates)
             message, success = i18n.tr("settings.print_rules.saved"), True
 
-    return _render_settings(message, success)
+    return _render_print_rules(message, success)
 
 
 @settings_bp.route("/ui/settings/quiet_hours/add", methods=["POST"])
@@ -184,7 +276,7 @@ def ui_add_quiet_hours_rule():
         settings_store.update_settings_transaction(_mutate)
         message, success = i18n.tr("settings.quiet_hours.saved"), True
 
-    return _render_settings(message, success)
+    return _render_print_rules(message, success)
 
 
 @settings_bp.route("/ui/settings/quiet_hours/toggle", methods=["POST"])
@@ -206,7 +298,7 @@ def ui_toggle_quiet_hours_rule():
     else:
         message, success = i18n.tr("settings.quiet_hours.not_found", id=rule_id), False
 
-    return _render_settings(message, success)
+    return _render_print_rules(message, success)
 
 
 @settings_bp.route("/ui/settings/quiet_hours/delete", methods=["POST"])
@@ -227,7 +319,7 @@ def ui_delete_quiet_hours_rule():
     else:
         message, success = i18n.tr("settings.quiet_hours.not_found", id=rule_id), False
 
-    return _render_settings(message, success)
+    return _render_print_rules(message, success)
 
 
 @settings_bp.route("/ui/settings/weather/add", methods=["POST"])
@@ -249,7 +341,7 @@ def ui_add_weather_location():
         settings_store.update_settings_transaction(_mutate)
         message, success = i18n.tr("settings.weather_locations.saved", name=name), True
 
-    return _render_settings(message, success)
+    return _render_weather(message, success)
 
 
 @settings_bp.route("/ui/settings/weather/delete", methods=["POST"])
@@ -272,7 +364,7 @@ def ui_delete_weather_location():
         settings_store.update_settings_transaction(_mutate)
         message, success = i18n.tr("settings.weather_locations.deleted", name=name), True
 
-    return _render_settings(message, success)
+    return _render_weather(message, success)
 
 
 @settings_bp.route("/ui/settings/weather/default", methods=["POST"])
@@ -290,7 +382,7 @@ def ui_set_default_weather_location():
         settings_store.update_settings_transaction(_mutate)
         message, success = i18n.tr("settings.weather_locations.default_set", name=name), True
 
-    return _render_settings(message, success)
+    return _render_weather(message, success)
 
 
 @settings_bp.route("/ui/settings/language", methods=["POST"])
@@ -311,7 +403,71 @@ def ui_set_language():
         # Render in the NEW language, since the change already applied.
         message, success = i18n.t("settings.language.updated", lang), True
 
-    return _render_settings(message, success)
+    return _render_language(message, success)
+
+
+@settings_bp.route("/ui/settings/system_report", methods=["POST"])
+@csrf_protect
+def ui_update_system_report():
+    updates = {}
+    for role in ("proxmox", "pinas", "pbs"):
+        host, user, error_key, error_kwargs = validate_ssh_host_entry(
+            request.form.get(f"{role}_host"), request.form.get(f"{role}_user")
+        )
+        if error_key:
+            return _render_system_report(i18n.tr(error_key, role=role, **error_kwargs), False)
+        updates[role] = {"host": host, "user": user}
+
+    def _mutate(settings):
+        settings["system_report"]["ssh_hosts"] = updates
+
+    settings_store.update_settings_transaction(_mutate)
+    return _render_system_report(i18n.tr("settings.system_report.saved"), True)
+
+
+@settings_bp.route("/ui/settings/github_watch/add", methods=["POST"])
+@csrf_protect
+def ui_add_github_repo():
+    owner, repo, error_key, error_kwargs = validate_github_repo(
+        request.form.get("owner"), request.form.get("repo")
+    )
+    if error_key:
+        message, success = i18n.tr(error_key, **error_kwargs), False
+    else:
+        def _mutate(settings):
+            settings["github_watch"].setdefault("repos", [])
+            already_present = any(
+                r["owner"] == owner and r["repo"] == repo for r in settings["github_watch"]["repos"]
+            )
+            if not already_present:
+                settings["github_watch"]["repos"].append({"owner": owner, "repo": repo})
+
+        settings_store.update_settings_transaction(_mutate)
+        message, success = i18n.tr("settings.github_watch.saved", owner=owner, repo=repo), True
+
+    return _render_github_watch(message, success)
+
+
+@settings_bp.route("/ui/settings/github_watch/delete", methods=["POST"])
+@csrf_protect
+def ui_delete_github_repo():
+    owner = request.form.get("owner", "")
+    repo = request.form.get("repo", "")
+    found = {"ok": False}
+
+    def _mutate(settings):
+        repos = settings["github_watch"].get("repos", [])
+        remaining = [r for r in repos if not (r["owner"] == owner and r["repo"] == repo)]
+        found["ok"] = len(remaining) != len(repos)
+        settings["github_watch"]["repos"] = remaining
+
+    settings_store.update_settings_transaction(_mutate)
+    if found["ok"]:
+        message, success = i18n.tr("settings.github_watch.deleted", owner=owner, repo=repo), True
+    else:
+        message, success = i18n.tr("settings.github_watch.not_found", owner=owner, repo=repo), False
+
+    return _render_github_watch(message, success)
 
 
 # ---------------------------------------------------------------------------
@@ -471,3 +627,85 @@ def delete_weather_location(name):
 
     result = settings_store.update_settings_transaction(_mutate)
     return jsonify({"status": "deleted", "weather": result["weather"]}), 200
+
+
+@settings_bp.route("/settings/system_report", methods=["GET"])
+@require_api_token
+def get_system_report_settings():
+    return jsonify(settings_store.get_settings()["system_report"]), 200
+
+
+@settings_bp.route("/settings/system_report", methods=["POST"])
+@require_api_token
+def update_system_report_settings():
+    """
+    Expects JSON with one or more roles:
+    { "proxmox": {"host": "...", "user": "..."}, "pinas": {...}, "pbs": {...} }
+    Only the roles provided are changed, the rest keep their current value.
+    """
+    data, err = get_json_body()
+    if err:
+        return err
+
+    current = settings_store.get_settings()["system_report"]["ssh_hosts"]
+    updates = dict(current)
+    for role in ("proxmox", "pinas", "pbs"):
+        if role in data:
+            entry = data[role] if isinstance(data[role], dict) else {}
+            host, user, error_key, error_kwargs = validate_ssh_host_entry(entry.get("host"), entry.get("user"))
+            if error_key:
+                return jsonify({"status": "error", "detail": i18n.t(error_key, "en", role=role, **error_kwargs)}), 400
+            updates[role] = {"host": host, "user": user}
+
+    def _mutate(settings):
+        settings["system_report"]["ssh_hosts"] = updates
+
+    result = settings_store.update_settings_transaction(_mutate)
+    return jsonify({"status": "saved", "system_report": result["system_report"]}), 200
+
+
+@settings_bp.route("/settings/github_watch/repos", methods=["GET"])
+@require_api_token
+def list_github_repos():
+    return jsonify(settings_store.get_settings()["github_watch"]["repos"]), 200
+
+
+@settings_bp.route("/settings/github_watch/repos", methods=["POST"])
+@require_api_token
+def add_github_repo():
+    """Expects JSON: { "owner": "HostisHumani", "repo": "ReceiptPi" }"""
+    data, err = get_json_body()
+    if err:
+        return err
+
+    owner, repo, error_key, error_kwargs = validate_github_repo(data.get("owner"), data.get("repo"))
+    if error_key:
+        return jsonify({"status": "error", "detail": i18n.t(error_key, "en", **error_kwargs)}), 400
+
+    def _mutate(settings):
+        settings["github_watch"].setdefault("repos", [])
+        already_present = any(
+            r["owner"] == owner and r["repo"] == repo for r in settings["github_watch"]["repos"]
+        )
+        if not already_present:
+            settings["github_watch"]["repos"].append({"owner": owner, "repo": repo})
+
+    result = settings_store.update_settings_transaction(_mutate)
+    return jsonify({"status": "saved", "repos": result["github_watch"]["repos"]}), 200
+
+
+@settings_bp.route("/settings/github_watch/repos/<owner>/<repo>", methods=["DELETE"])
+@require_api_token
+def delete_github_repo(owner, repo):
+    found = {"ok": False}
+
+    def _mutate(settings):
+        repos = settings["github_watch"].get("repos", [])
+        remaining = [r for r in repos if not (r["owner"] == owner and r["repo"] == repo)]
+        found["ok"] = len(remaining) != len(repos)
+        settings["github_watch"]["repos"] = remaining
+
+    result = settings_store.update_settings_transaction(_mutate)
+    if not found["ok"]:
+        return jsonify({"status": "error", "detail": f"Repo '{owner}/{repo}' not found"}), 404
+    return jsonify({"status": "deleted", "repos": result["github_watch"]["repos"]}), 200

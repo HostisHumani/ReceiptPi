@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block header %}{{ t('settings.index.github_watch.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
+
+{% if message %}
+<div class="card" style="margin-bottom:16px; {% if success %}color:var(--color-accent);{% else %}color:#e05a5a;{% endif %}">
+  {{ message }}
+</div>
+{% endif %}
+
+<div class="card">
+  {% if settings.github_watch.repos %}
+    {% for r in settings.github_watch.repos %}
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; {% if not loop.last %}border-bottom:1px solid var(--color-border);{% endif %}">
+        <strong>{{ r.owner }}/{{ r.repo }}</strong>
+        <form method="post" action="/ui/settings/github_watch/delete" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="owner" value="{{ r.owner }}">
+          <input type="hidden" name="repo" value="{{ r.repo }}">
+          <button type="submit" style="width:auto; margin:0; padding:8px 10px; font-size:0.8em; background:var(--color-danger); color:var(--color-text);">{{ t('settings.github_watch.delete') }}</button>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="hint" style="margin-top:0;">{{ t('settings.github_watch.empty') }}</div>
+  {% endif %}
+</div>
+
+<h3 style="font-size:0.95em; margin: 18px 0 8px; color:var(--color-text-muted);">{{ t('settings.github_watch.add_heading') }}</h3>
+<form method="post" action="/ui/settings/github_watch/add" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="owner" style="margin-top:0;">{{ t('settings.github_watch.owner') }}</label>
+  <input type="text" id="owner" name="owner" placeholder="e.g. HostisHumani">
+
+  <label for="repo">{{ t('settings.github_watch.repo') }}</label>
+  <input type="text" id="repo" name="repo" placeholder="e.g. ReceiptPi">
+
+  <button type="submit">{{ t('settings.github_watch.add') }}</button>
+</form>
+{% endblock %}
