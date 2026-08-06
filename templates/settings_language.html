@@ -3,12 +3,6 @@
 {% block content %}
 <a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
 
-{% if message %}
-<div class="card" style="margin-bottom:16px; {% if success %}color:var(--color-accent);{% else %}color:#e05a5a;{% endif %}">
-  {{ message }}
-</div>
-{% endif %}
-
 <form method="post" action="/ui/settings/language" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 

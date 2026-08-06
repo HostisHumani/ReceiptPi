@@ -3,12 +3,6 @@
 {% block content %}
 <a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
 
-{% if message %}
-<div class="card" style="margin-bottom:16px; {% if success %}color:var(--color-accent);{% else %}color:#e05a5a;{% endif %}">
-  {{ message }}
-</div>
-{% endif %}
-
 <h2 style="font-size:1.05em; margin: 0 0 8px;">{{ t('settings.quiet_hours.heading') }}</h2>
 <div class="card">
   {% if settings.print_rules.quiet_hours_rules %}
@@ -55,7 +49,7 @@
   <label>{{ t('settings.quiet_hours.days') }}</label>
   <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
     {% for d in range(7) %}
-    <label style="display:flex; align-items:center; gap:4px; font-weight:normal;">
+    <label style="display:flex; align-items:center; gap:4px; font-weight:normal; margin:0;">
       <input type="checkbox" name="days" value="{{ d }}" style="width:auto;">
       {{ t('settings.quiet_hours.day.' + d|string) }}
     </label>
