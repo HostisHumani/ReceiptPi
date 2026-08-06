@@ -15,6 +15,7 @@ from fritzconnection.lib.fritzwlan import FritzGuestWLAN
 from PIL import Image
 
 import i18n
+from logos import print_logo
 from print_queue import enqueue_print
 from printer import get_printer
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
@@ -58,6 +59,7 @@ def _raw_print_wifi(ssid, password, auth_type="WPA"):
 
     p = get_printer()
     try:
+        print_logo(p, "wifi")
         p.set(align="center", bold=True, width=2, height=2)
         p.text(i18n.tr("receipt.wifi.title") + "\n")
         p.set(align="left", bold=False, width=1, height=1)

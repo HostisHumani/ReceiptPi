@@ -31,6 +31,7 @@ from flask import Flask, render_template
 
 import i18n
 import settings_store
+from logos import ensure_default_logo_seeded
 from modules.history.routes import history_bp
 from modules.images.routes import images_bp
 from modules.message.routes import message_bp
@@ -59,6 +60,7 @@ app.secret_key = config.SECRET_KEY  # needed for the web UI's CSRF token session
 
 start_worker()  # start the print queue worker thread
 i18n.load_translations()  # load translation JSON files once at startup
+ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see logos.py
 
 for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, settings_bp, history_bp):
     app.register_blueprint(blueprint)

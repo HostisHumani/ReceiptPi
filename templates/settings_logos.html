@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block header %}{{ t('settings.index.logos.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
+
+{% if message %}
+<div class="card" style="margin-bottom:16px; {% if success %}color:var(--color-accent);{% else %}color:#e05a5a;{% endif %}">
+  {{ message }}
+</div>
+{% endif %}
+
+<div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+  <div>
+    <strong>{{ t('settings.logos.global_heading') }}</strong>
+    <div class="hint" style="margin-top:2px;">{{ t('settings.logos.global_hint') }}</div>
+  </div>
+  <form method="post" action="/ui/settings/logos/toggle" style="margin:0; flex-shrink:0;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" style="width:auto; margin:0; padding:8px 14px;">
+      {{ t('settings.quiet_hours.toggle_off') if settings.logos.enabled else t('settings.quiet_hours.toggle_on') }}
+    </button>
+  </form>
+</div>
+
+<h3 style="font-size:0.95em; margin: 18px 0 8px; color:var(--color-text-muted);">{{ t('settings.logos.default_heading') }}</h3>
+<div class="card">
+  {% if has_default_logo %}
+    <img src="/settings/logos/file/default" alt="" style="max-width:150px; max-height:80px; display:block; margin-bottom:10px;">
+  {% else %}
+    <div class="hint" style="margin-top:0;">{{ t('settings.logos.no_logo') }}</div>
+  {% endif %}
+  <form method="post" action="/ui/settings/logos/upload" enctype="multipart/form-data" style="margin:0;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="slot" value="default">
+    <input type="file" name="logo" accept="image/*">
+    <button type="submit">{{ t('settings.logos.upload') }}</button>
+  </form>
+  {% if has_default_logo %}
+  <form method="post" action="/ui/settings/logos/delete" style="margin-top:8px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="slot" value="default">
+    <button type="submit" style="background:var(--color-danger); color:var(--color-text);">{{ t('settings.logos.remove') }}</button>
+  </form>
+  {% endif %}
+</div>
+
+<h3 style="font-size:0.95em; margin: 18px 0 8px; color:var(--color-text-muted);">{{ t('settings.logos.per_module_heading') }}</h3>
+{% for key in module_keys %}
+<div class="card" style="margin-bottom:10px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+    <strong>{{ t('tile.' + key + '.name') }}</strong>
+    <form method="post" action="/ui/settings/logos/module_toggle" style="margin:0; flex-shrink:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="module" value="{{ key }}">
+      <button type="submit" style="width:auto; margin:0; padding:6px 10px; font-size:0.8em; background:transparent; border:1px solid var(--color-border); color:var(--color-text);">
+        {{ t('settings.quiet_hours.toggle_off') if settings.logos.modules[key].enabled else t('settings.quiet_hours.toggle_on') }}
+      </button>
+    </form>
+  </div>
+
+  {% if has_custom_logo(key) %}
+    <img src="/settings/logos/file/{{ key }}" alt="" style="max-width:150px; max-height:80px; display:block; margin:10px 0;">
+  {% else %}
+    <div class="hint">{{ t('settings.logos.using_default') if has_default_logo else t('settings.logos.no_logo') }}</div>
+  {% endif %}
+
+  <form method="post" action="/ui/settings/logos/upload" enctype="multipart/form-data" style="margin-top:8px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="slot" value="{{ key }}">
+    <input type="file" name="logo" accept="image/*">
+    <button type="submit">{{ t('settings.logos.upload') }}</button>
+  </form>
+  {% if has_custom_logo(key) %}
+  <form method="post" action="/ui/settings/logos/delete" style="margin-top:8px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="slot" value="{{ key }}">
+    <button type="submit" style="background:var(--color-danger); color:var(--color-text);">{{ t('settings.logos.remove') }}</button>
+  </form>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

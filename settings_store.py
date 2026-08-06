@@ -62,6 +62,16 @@ DEFAULT_SETTINGS = {
         "repos": [],
         "migrated_from_config": False,
     },
+    "logos": {
+        "enabled": False,
+        "modules": {
+            "shopping": {"enabled": False},
+            "message": {"enabled": False},
+            "wifi": {"enabled": False},
+            "weather": {"enabled": False},
+            "system": {"enabled": False},
+        },
+    },
 }
 
 # Protects concurrent writes within the Flask process (e.g. two parallel

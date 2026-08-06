@@ -7,6 +7,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request
 
 import i18n
+from logos import print_logo
 from print_queue import enqueue_print
 from printer import get_printer
 from security import (
@@ -25,6 +26,7 @@ shopping_bp = Blueprint("shopping", __name__)
 def _raw_print_list(title, items):
     p = get_printer()
     try:
+        print_logo(p, "shopping")
         p.set(align="center", bold=True, width=2, height=2)
         p.text(f"{title}\n")
         p.set(align="left", bold=False, width=1, height=1)

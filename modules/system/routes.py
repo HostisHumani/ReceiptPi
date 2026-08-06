@@ -190,7 +190,7 @@ def _raw_print_system_report():
             report_lines.append(i18n.tr("print.error_prefix") + str(e))
 
     text = "\n".join(report_lines)
-    _raw_print_message(None, text)
+    _raw_print_message(None, text, module="system")
 
 
 @system_bp.route("/system", methods=["GET"])

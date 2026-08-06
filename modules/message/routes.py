@@ -11,6 +11,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request
 
 import i18n
+from logos import print_logo
 from print_queue import enqueue_print
 from printer import get_printer
 from security import (
@@ -25,9 +26,15 @@ from security import (
 message_bp = Blueprint("message", __name__)
 
 
-def _raw_print_message(title, text):
+def _raw_print_message(title, text, module="message"):
+    """module: which logo-settings entry to use (see logos.py). Defaults
+    to "message" for the direct /message route - the system report
+    (modules/system/routes.py) reuses this exact function as its "plain
+    text on receipt" primitive but passes module="system", so it prints
+    its own configured logo instead of the message module's."""
     p = get_printer()
     try:
+        print_logo(p, module)
         p.set(align="center", bold=True, width=2, height=2)
         if title:
             p.text(f"{title}\n")

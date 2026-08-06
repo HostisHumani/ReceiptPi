@@ -21,6 +21,7 @@ from flask import Blueprint, jsonify, render_template, request
 
 import i18n
 import settings_store
+from logos import print_logo
 from print_queue import enqueue_print
 from printer import get_printer
 from security import csrf_protect, get_csrf_token, require_api_token
@@ -140,6 +141,7 @@ def _raw_print_weather(location_name=None):
 
     p = get_printer()
     try:
+        print_logo(p, "weather")
         p.set(align="center", bold=True, width=2, height=2)
         p.text(i18n.tr("receipt.weather.title", location=location_display) + "\n")
         p.set(align="left", bold=False, width=1, height=1)

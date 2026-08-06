@@ -14,11 +14,14 @@ Two access paths to the same data:
     by CSRF token, localized via i18n.tr() to match the current UI
     language.
 """
+import base64
+import os
 import uuid
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request, send_file
 
 import i18n
+import logos
 import settings_store
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 
@@ -192,6 +195,18 @@ def _render_github_watch(message=None, success=None):
     )
 
 
+def _render_logos(message=None, success=None):
+    return render_template(
+        "settings_logos.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+        settings=settings_store.get_settings(),
+        module_keys=logos.MODULE_KEYS,
+        has_custom_logo=logos.has_custom_logo,
+        has_default_logo=logos.has_default_logo(),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Web UI: settings pages. /settings is an overview (tile grid, same pattern
 # as the home page) linking to one page per settings area - kept as
@@ -228,6 +243,26 @@ def settings_system_report_page():
 @settings_bp.route("/settings/github-watch", methods=["GET"])
 def settings_github_watch_page():
     return _render_github_watch()
+
+
+@settings_bp.route("/settings/logos", methods=["GET"])
+def settings_logos_page():
+    return _render_logos()
+
+
+@settings_bp.route("/settings/logos/file/<slot>", methods=["GET"])
+def logos_file(slot):
+    """Serves a stored logo image directly, so the settings page can
+    show a live <img> preview of what's actually saved instead of just
+    a filename. Not access-controlled beyond what the rest of the
+    web UI already has (see the no-login-wall note in settings_store.py
+    migration comments) - a logo image isn't sensitive."""
+    if slot not in logos.MODULE_KEYS and slot != "default":
+        return "", 404
+    path = os.path.join(logos.LOGOS_DIR, f"{slot}.png")
+    if not os.path.isfile(path):
+        return "", 404
+    return send_file(path, mimetype="image/png")
 
 
 @settings_bp.route("/ui/settings/print_rules", methods=["POST"])
@@ -470,6 +505,62 @@ def ui_delete_github_repo():
     return _render_github_watch(message, success)
 
 
+@settings_bp.route("/ui/settings/logos/toggle", methods=["POST"])
+@csrf_protect
+def ui_toggle_logos_global():
+    def _mutate(settings):
+        settings["logos"]["enabled"] = not settings["logos"].get("enabled", False)
+
+    settings_store.update_settings_transaction(_mutate)
+    return _render_logos(i18n.tr("settings.logos.saved"), True)
+
+
+@settings_bp.route("/ui/settings/logos/module_toggle", methods=["POST"])
+@csrf_protect
+def ui_toggle_logos_module():
+    module = request.form.get("module", "")
+    if module not in logos.MODULE_KEYS:
+        return _render_logos(i18n.tr("settings.logos.unknown_module", module=module), False)
+
+    def _mutate(settings):
+        settings["logos"].setdefault("modules", {}).setdefault(module, {"enabled": False})
+        settings["logos"]["modules"][module]["enabled"] = not settings["logos"]["modules"][module].get(
+            "enabled", False,
+        )
+
+    settings_store.update_settings_transaction(_mutate)
+    return _render_logos(i18n.tr("settings.logos.saved"), True)
+
+
+@settings_bp.route("/ui/settings/logos/upload", methods=["POST"])
+@csrf_protect
+def ui_upload_logo():
+    slot = request.form.get("slot", "")
+    if slot not in logos.MODULE_KEYS and slot != "default":
+        return _render_logos(i18n.tr("settings.logos.unknown_module", module=slot), False)
+
+    uploaded = request.files.get("logo")
+    if not uploaded or uploaded.filename == "":
+        return _render_logos(i18n.tr("images.no_file_selected"), False)
+
+    ok, detail = logos.save_logo(slot, uploaded.read())
+    if ok:
+        return _render_logos(i18n.tr("settings.logos.upload_saved"), True)
+    return _render_logos(i18n.tr("print.error_prefix") + detail, False)
+
+
+@settings_bp.route("/ui/settings/logos/delete", methods=["POST"])
+@csrf_protect
+def ui_delete_logo():
+    slot = request.form.get("slot", "")
+    if slot not in logos.MODULE_KEYS and slot != "default":
+        return _render_logos(i18n.tr("settings.logos.unknown_module", module=slot), False)
+
+    if logos.delete_logo(slot):
+        return _render_logos(i18n.tr("settings.logos.upload_deleted"), True)
+    return _render_logos(i18n.tr("settings.logos.nothing_to_delete"), False)
+
+
 # ---------------------------------------------------------------------------
 # JSON API (for scripts/automations, protected by X-Api-Token)
 # ---------------------------------------------------------------------------
@@ -709,3 +800,84 @@ def delete_github_repo(owner, repo):
     if not found["ok"]:
         return jsonify({"status": "error", "detail": f"Repo '{owner}/{repo}' not found"}), 404
     return jsonify({"status": "deleted", "repos": result["github_watch"]["repos"]}), 200
+
+
+@settings_bp.route("/settings/logos/config", methods=["GET"])
+@require_api_token
+def get_logos_settings():
+    result = dict(settings_store.get_settings()["logos"])
+    result["has_default_logo"] = logos.has_default_logo()
+    result["custom_logos"] = {key: logos.has_custom_logo(key) for key in logos.MODULE_KEYS}
+    return jsonify(result), 200
+
+
+@settings_bp.route("/settings/logos/config", methods=["POST"])
+@require_api_token
+def update_logos_settings():
+    """
+    Expects JSON with one or more fields:
+    { "enabled": bool, "modules": { "shopping": {"enabled": bool}, ... } }
+    Only the fields/modules provided are changed, the rest keep their
+    current value. Logo image uploads are a separate endpoint, see
+    /settings/logos/upload/<slot> below.
+    """
+    data, err = get_json_body()
+    if err:
+        return err
+
+    if "enabled" in data and type(data["enabled"]) is not bool:
+        return jsonify({"status": "error", "detail": "enabled must be true or false"}), 400
+
+    modules_update = data.get("modules", {})
+    if modules_update:
+        if not isinstance(modules_update, dict) or not set(modules_update).issubset(logos.MODULE_KEYS):
+            return jsonify({"status": "error", "detail": f"modules keys must be one of {logos.MODULE_KEYS}"}), 400
+        for module_settings in modules_update.values():
+            if not isinstance(module_settings, dict) or type(module_settings.get("enabled")) is not bool:
+                return jsonify({"status": "error", "detail": "each module needs {\"enabled\": bool}"}), 400
+
+    def _mutate(settings):
+        if "enabled" in data:
+            settings["logos"]["enabled"] = data["enabled"]
+        for module, module_settings in modules_update.items():
+            settings["logos"].setdefault("modules", {}).setdefault(module, {"enabled": False})
+            settings["logos"]["modules"][module]["enabled"] = module_settings["enabled"]
+
+    result = settings_store.update_settings_transaction(_mutate)
+    return jsonify({"status": "saved", "logos": result["logos"]}), 200
+
+
+@settings_bp.route("/settings/logos/upload/<slot>", methods=["POST"])
+@require_api_token
+def upload_logo(slot):
+    """Expects JSON: { "logo_base64": "..." }. slot is one of the
+    module keys, or "default" for the shared fallback logo."""
+    if slot not in logos.MODULE_KEYS and slot != "default":
+        return jsonify({"status": "error", "detail": f"slot must be one of {logos.MODULE_KEYS} or 'default'"}), 400
+
+    data, err = get_json_body()
+    if err:
+        return err
+    logo_b64 = data.get("logo_base64")
+    if not logo_b64:
+        return jsonify({"status": "error", "detail": "logo_base64 is missing"}), 400
+
+    try:
+        file_bytes = base64.b64decode(logo_b64, validate=True)
+    except Exception as e:
+        return jsonify({"status": "error", "detail": f"Invalid base64: {e}"}), 400
+
+    ok, detail = logos.save_logo(slot, file_bytes)
+    if ok:
+        return jsonify({"status": "saved"}), 200
+    return jsonify({"status": "error", "detail": detail}), 400
+
+
+@settings_bp.route("/settings/logos/upload/<slot>", methods=["DELETE"])
+@require_api_token
+def delete_logo_api(slot):
+    if slot not in logos.MODULE_KEYS and slot != "default":
+        return jsonify({"status": "error", "detail": f"slot must be one of {logos.MODULE_KEYS} or 'default'"}), 400
+    if logos.delete_logo(slot):
+        return jsonify({"status": "deleted"}), 200
+    return jsonify({"status": "error", "detail": f"No logo stored for '{slot}'"}), 404
