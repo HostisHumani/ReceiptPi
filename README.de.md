@@ -87,7 +87,8 @@ receiptpi/
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── watchers/
 │   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
-│   └── fritzbox_wifi_watch.py    Cron: druckt WLAN-Zettel bei aktiviertem Gästenetz
+│   ├── fritzbox_wifi_watch.py    Cron: druckt WLAN-Zettel bei aktiviertem Gästenetz
+│   └── storm_warning_watch.py    Cron: druckt bei neuer aktiver Unwetterwarnung
 ├── assets/example-logos/    mitgelieferter Logo-Startsatz (Strichzeichnungen)
 └── templates/                gemeinsames Layout und Modul-Seiten
     ├── base.html
@@ -110,11 +111,10 @@ Jede Funktion ist als eigener Flask-Blueprint umgesetzt. Nicht abgefangene Ausna
 
 - `/settings/language` – UI-Sprache (Deutsch/Englisch)
 - `/settings/print-rules` – Ruhezeit-Regeln (mehrere unabhängige Regeln, je mit eigenen Wochentagen und Zeitfenster) + Rate-Limit + Duplikat-Sperre
-- `/settings/weather` – Wetter-Standorte
+- `/settings/weather` – Wetterbericht-Anbieter (DWD oder Open-Meteo), Wetter-Standorte, sowie ein unabhängiger Unwetterwarnungs-Anbieter (DWD, MeteoAlarm oder NWS) mit eigenem Aktiv-Schalter und optionalem "Ruhezeiten ignorieren"
 - `/settings/system-report` – SSH-Ziele für den Systembericht (Proxmox/piNAS/PBS)
 - `/settings/github-watch` – beobachtete GitHub-Repos
 - `/settings/logos` – globaler Logo-Schalter, Standard-Logo, sowie je Druckart eigener Schalter/Upload/Vorschau (fällt auf das Standard-Logo zurück, wenn kein eigenes gesetzt ist)
-- `/settings/design` – Farbschema der Oberfläche (5 mitgelieferte Paletten: Forrest, Dark Lime, Frost, Butter Bean, White Purple)
 
 ## Endpunkte
 
@@ -158,12 +158,11 @@ Referenz, falls ein Update mal etwas kaputt macht.
 - Freie Textmeldungen
 - Bild-Upload und Bilddruck per API
 - Gäste-WLAN-Zugangsdaten und QR-Codes
-- Wetterberichte (DWD + optional Netatmo)
+- Wetterberichte (DWD oder Open-Meteo wählbar, + optional Netatmo), mit optionalem Unwetterwarnungs-Watcher (DWD, MeteoAlarm oder NWS, druckt nur bei tatsächlich aktiver Warnung)
 - Systemberichte (Proxmox/piNAS/PBS via SSH)
 - Druckhistorie-Dashboard (Statistik + paginierte Liste, SQLite-basiert)
 - Optionale Logos je Druckart mit globalem Standard-Fallback
 - Webbasierte Einstellungen, aufgeteilt in Unterseiten je Bereich
-- 5 mitgelieferte Farbschemata (in den Einstellungen umschaltbar, kein Neustart nötig)
 - Deutsch/Englisch-UI, inklusive des eigentlichen Bon-Inhalts (nicht nur der UI drumherum)
 
 ## Roadmap

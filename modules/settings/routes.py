@@ -371,6 +371,41 @@ def ui_delete_quiet_hours_rule():
     return _render_print_rules(message, success)
 
 
+@settings_bp.route("/ui/settings/weather/provider", methods=["POST"])
+@csrf_protect
+def ui_set_weather_report_provider():
+    provider = request.form.get("report_provider", "")
+    if provider not in ("dwd", "open-meteo"):
+        return _render_weather(i18n.tr("settings.weather_provider.unsupported", provider=provider), False)
+
+    def _mutate(settings):
+        settings["weather"]["report_provider"] = provider
+
+    settings_store.update_settings_transaction(_mutate)
+    return _render_weather(i18n.tr("settings.weather_provider.updated"), True)
+
+
+@settings_bp.route("/ui/settings/weather/storm-warning", methods=["POST"])
+@csrf_protect
+def ui_set_storm_warning():
+    provider = request.form.get("provider", "dwd")
+    if provider not in ("dwd", "meteoalarm", "nws"):
+        provider = "dwd"
+
+    def _mutate(settings):
+        sw = settings["weather"]["storm_warning"]
+        sw["enabled"] = request.form.get("enabled") == "on"
+        sw["provider"] = provider
+        sw["dwd_state"] = (request.form.get("dwd_state") or "").strip()
+        sw["dwd_region_name"] = (request.form.get("dwd_region_name") or "").strip()
+        sw["meteoalarm_country"] = (request.form.get("meteoalarm_country") or "").strip()
+        sw["meteoalarm_region"] = (request.form.get("meteoalarm_region") or "").strip()
+        sw["ignore_quiet_hours"] = request.form.get("ignore_quiet_hours") == "on"
+
+    settings_store.update_settings_transaction(_mutate)
+    return _render_weather(i18n.tr("settings.storm_warning.updated"), True)
+
+
 @settings_bp.route("/ui/settings/weather/add", methods=["POST"])
 @csrf_protect
 def ui_add_weather_location():

@@ -98,31 +98,37 @@ def _active_quiet_hours_rule(rules):
     return None
 
 
-def check_print_rules(func, args, dedupe_key=None):
+def check_print_rules(func, args, dedupe_key=None, bypass_quiet_hours=False):
     """Checks quiet hours, rate limit and duplicates. Returns
     (allowed: bool, reason: str or None). Runs entirely under
     _rules_lock, see the comment there. dedupe_key, see
-    _job_fingerprint()."""
+    _job_fingerprint(). bypass_quiet_hours skips ONLY the quiet-hours
+    check - rate limit and duplicate suppression still apply. Not
+    exposed to any public API input; only set internally by callers
+    that read the corresponding opt-in from settings_store themselves
+    (currently just the storm-warning watcher, see
+    modules/weather/routes.py print_storm_warning())."""
     with _rules_lock:
-        return _check_print_rules_locked(func, args, dedupe_key)
+        return _check_print_rules_locked(func, args, dedupe_key, bypass_quiet_hours)
 
 
-def _check_print_rules_locked(func, args, dedupe_key=None):
+def _check_print_rules_locked(func, args, dedupe_key=None, bypass_quiet_hours=False):
     rules = settings_store.get_settings()["print_rules"]
     now = time.time()
 
-    active_rule = _active_quiet_hours_rule(rules)
-    if active_rule:
-        label = active_rule.get("label")
-        if label:
+    if not bypass_quiet_hours:
+        active_rule = _active_quiet_hours_rule(rules)
+        if active_rule:
+            label = active_rule.get("label")
+            if label:
+                return False, i18n.tr(
+                    "print_queue.quiet_hours_active_labeled",
+                    label=label, start=active_rule["start"], end=active_rule["end"],
+                )
             return False, i18n.tr(
-                "print_queue.quiet_hours_active_labeled",
-                label=label, start=active_rule["start"], end=active_rule["end"],
+                "print_queue.quiet_hours_active",
+                start=active_rule["start"], end=active_rule["end"],
             )
-        return False, i18n.tr(
-            "print_queue.quiet_hours_active",
-            start=active_rule["start"], end=active_rule["end"],
-        )
 
     global _recent_job_times
     _recent_job_times = [t for t in _recent_job_times if now - t < 3600]
@@ -179,14 +185,22 @@ def start_worker():
         _worker_started = True
 
 
-def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None,
-                   job_type="other", summary="", source="ui", log_history=True):
+def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hours=False,
+                   dedupe_key=None, job_type="other", summary="", source="ui", log_history=True):
     """Enqueues a print job and waits for it to finish. Returns
     (ok: bool, detail: str, http_status: int).
 
     bypass_rules=True skips quiet hours/rate limit/duplicate suppression
-    - only meant for internal, non-user-triggered actions like the
-    health check or the boot greeting, NOT for regular print functions.
+    entirely - only meant for internal, non-user-triggered actions like
+    the health check or the boot greeting, NOT for regular print
+    functions.
+
+    bypass_quiet_hours=True skips ONLY the quiet-hours check (rate
+    limit/duplicate suppression still apply) - for the opt-in "ignore
+    quiet hours" storm-warning setting. Has no effect if bypass_rules is
+    already True. Not meant to be settable from any public request
+    body/query param; only ever set by a caller that has already read
+    the corresponding toggle from settings_store itself.
 
     dedupe_key: optional explicit key for duplicate suppression instead
     of relying on str(args) - important e.g. for image printing, where
@@ -209,7 +223,7 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, dedupe_key=None,
     on the HTTP side, not the job itself. Clients shouldn't automatically
     retry on a 504, or the same receipt could end up printed twice."""
     if not bypass_rules:
-        allowed, reason = check_print_rules(func, args, dedupe_key)
+        allowed, reason = check_print_rules(func, args, dedupe_key, bypass_quiet_hours)
         if not allowed:
             if log_history:
                 history_store.log_job(job_type, summary, source, "blocked", reason)

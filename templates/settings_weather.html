@@ -3,7 +3,58 @@
 {% block content %}
 <a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
 
-<h2 style="font-size:1.05em; margin: 0 0 8px;">{{ t('settings.weather_locations.heading') }}</h2>
+<h2 style="font-size:1.05em; margin: 0 0 8px;">{{ t('settings.weather_provider.heading') }}</h2>
+<form method="post" action="/ui/settings/weather/provider" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label for="report_provider">{{ t('settings.weather_provider.report_label') }}</label>
+  <select id="report_provider" name="report_provider">
+    <option value="dwd" {% if settings.weather.report_provider == "dwd" %}selected{% endif %}>🇩🇪 DWD</option>
+    <option value="open-meteo" {% if settings.weather.report_provider == "open-meteo" %}selected{% endif %}>🌍 Open-Meteo</option>
+  </select>
+  <div class="hint">{{ t('settings.weather_provider.report_hint') }}</div>
+  <button type="submit">{{ t('settings.save') }}</button>
+</form>
+
+<h2 style="font-size:1.05em; margin: 18px 0 8px;">{{ t('settings.storm_warning.heading') }}</h2>
+<form method="post" action="/ui/settings/weather/storm-warning" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label style="display:flex; align-items:center; gap:8px;">
+    <input type="checkbox" name="enabled" style="width:auto;" {% if settings.weather.storm_warning.enabled %}checked{% endif %}>
+    {{ t('settings.storm_warning.enabled_label') }}
+  </label>
+
+  <label for="storm_provider">{{ t('settings.storm_warning.provider_label') }}</label>
+  <select id="storm_provider" name="provider">
+    <option value="dwd" {% if settings.weather.storm_warning.provider == "dwd" %}selected{% endif %}>🇩🇪 DWD</option>
+    <option value="meteoalarm" {% if settings.weather.storm_warning.provider == "meteoalarm" %}selected{% endif %}>🇪🇺 MeteoAlarm</option>
+    <option value="nws" {% if settings.weather.storm_warning.provider == "nws" %}selected{% endif %}>🇺🇸 NWS</option>
+  </select>
+
+  <label for="dwd_state">{{ t('settings.storm_warning.dwd_state_label') }}</label>
+  <input type="text" id="dwd_state" name="dwd_state" value="{{ settings.weather.storm_warning.dwd_state }}" placeholder="z.B. Niedersachsen">
+
+  <label for="dwd_region_name">{{ t('settings.storm_warning.dwd_region_label') }}</label>
+  <input type="text" id="dwd_region_name" name="dwd_region_name" value="{{ settings.weather.storm_warning.dwd_region_name }}" placeholder="z.B. Landkreis Harburg">
+  <div class="hint">{{ t('settings.storm_warning.dwd_hint') }}</div>
+
+  <label for="meteoalarm_country">{{ t('settings.storm_warning.meteoalarm_country_label') }}</label>
+  <input type="text" id="meteoalarm_country" name="meteoalarm_country" value="{{ settings.weather.storm_warning.meteoalarm_country }}" placeholder="z.B. germany">
+
+  <label for="meteoalarm_region">{{ t('settings.storm_warning.meteoalarm_region_label') }}</label>
+  <input type="text" id="meteoalarm_region" name="meteoalarm_region" value="{{ settings.weather.storm_warning.meteoalarm_region }}" placeholder="z.B. Bayerischer Wald">
+  <div class="hint">{{ t('settings.storm_warning.meteoalarm_hint') }}</div>
+
+  <label style="display:flex; align-items:center; gap:8px; margin-top:16px;">
+    <input type="checkbox" name="ignore_quiet_hours" style="width:auto;" {% if settings.weather.storm_warning.ignore_quiet_hours %}checked{% endif %}>
+    {{ t('settings.storm_warning.ignore_quiet_hours_label') }}
+  </label>
+  <div class="hint">{{ t('settings.storm_warning.ignore_quiet_hours_hint') }}</div>
+
+  <button type="submit">{{ t('settings.save') }}</button>
+</form>
+
+<h2 style="font-size:1.05em; margin: 18px 0 8px;">{{ t('settings.weather_locations.heading') }}</h2>
 <div class="card">
   {% for name, loc in settings.weather.locations.items() %}
     <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--color-border);">

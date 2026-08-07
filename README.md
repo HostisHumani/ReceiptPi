@@ -87,7 +87,8 @@ receiptpi/
 │   └── settings/                settings pages (web UI) + settings API
 ├── watchers/
 │   ├── github_star_watch.py     cron: prints on a new GitHub star
-│   └── fritzbox_wifi_watch.py    cron: prints a wifi slip once the guest network is enabled
+│   ├── fritzbox_wifi_watch.py    cron: prints a wifi slip once the guest network is enabled
+│   └── storm_warning_watch.py    cron: prints on a new active storm warning
 ├── assets/example-logos/    bundled starter logo set (outline icons)
 └── templates/                shared layout and module pages
     ├── base.html
@@ -110,11 +111,10 @@ Each feature is implemented as its own Flask blueprint. Unhandled exceptions are
 
 - `/settings/language` - UI language (German/English)
 - `/settings/print-rules` - quiet-hour rules (multiple independent rules, each with its own weekdays and time window) + rate limiting + duplicate suppression
-- `/settings/weather` - weather locations
+- `/settings/weather` - weather report provider (DWD or Open-Meteo), weather locations, and an independent storm-warning provider (DWD, MeteoAlarm, or NWS) with its own enable toggle and an optional "ignore quiet hours" override
 - `/settings/system-report` - SSH targets for the system report (Proxmox/piNAS/PBS)
 - `/settings/github-watch` - watched GitHub repositories
 - `/settings/logos` - global logo toggle, default logo, and a per-print-type toggle/upload/preview (falls back to the default logo if no custom one is set)
-- `/settings/design` - UI color theme (5 built-in palettes: Forrest, Dark Lime, Frost, Butter Bean, White Purple)
 
 ## Endpoints
 
@@ -158,12 +158,11 @@ case an update ever breaks something.
 - Free-form messages
 - Image uploads and API image printing
 - Guest Wi-Fi credentials and QR codes
-- Weather reports (DWD + optional Netatmo)
+- Weather reports (DWD or Open-Meteo, selectable, + optional Netatmo), with an optional storm-warning watcher (DWD, MeteoAlarm, or NWS, prints only when a warning is actually active)
 - System reports (Proxmox/piNAS/PBS via SSH)
 - Print history dashboard (stats + paginated log, SQLite-backed)
 - Optional per-print-type logos with a global default fallback
 - Web-based settings, split into per-area sub-pages
-- 5 built-in UI color themes (switchable in Settings, no restart needed)
 - German/English UI, including receipt content itself (not just the UI chrome)
 
 ## Roadmap

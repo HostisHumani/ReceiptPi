@@ -45,6 +45,36 @@ DEFAULT_SETTINGS = {
             "Standard": {"lat": 53.30, "lon": 9.96}
         },
         "default_location": "Standard",
+        # "dwd" or "open-meteo" - which backend the regular weather
+        # report is fetched from. Independent from storm_warning below -
+        # each is chosen separately, see modules/weather/routes.py.
+        "report_provider": "dwd",
+        "storm_warning": {
+            "enabled": False,
+            # "dwd" | "meteoalarm" | "nws" - see modules/weather/alerts.py.
+            # ECCC (Canada) was tried and removed 2026-08-07 - shipped
+            # with guessed, unverified field names, which is not
+            # acceptable. Only add it back with a verified live response.
+            "provider": "dwd",
+            # Only meaningful for provider="dwd": DWD's warning feed is
+            # keyed by Bundesland+Landkreis (Warncell), not lat/lon, so
+            # it can't reuse the lat/lon weather locations above.
+            "dwd_state": "",
+            "dwd_region_name": "",
+            # Only meaningful for provider="meteoalarm": MeteoAlarm's
+            # feed is keyed by country (URL slug, e.g. "germany",
+            # "united-kingdom" - see https://feeds.meteoalarm.org for
+            # the full list) + the exact region name as MeteoAlarm
+            # spells it for that country.
+            "meteoalarm_country": "",
+            "meteoalarm_region": "",
+            # If true, a genuine active storm warning bypasses quiet
+            # hours (still goes through rate limit/duplicate
+            # suppression) - see print_queue.enqueue_print's
+            # bypass_quiet_hours param. Off by default: opting into
+            # "wake me up for this" should be a deliberate choice.
+            "ignore_quiet_hours": False,
+        },
     },
     "language": "de",
     "theme": "forrest",

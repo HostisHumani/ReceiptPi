@@ -1,7 +1,9 @@
 """
-Module: weather report - DWD forecast (Bright Sky, no API key needed) +
-Netatmo readings via Home Assistant's REST API (since Netatmo is already
-set up there).
+Module: weather report - DWD forecast (Bright Sky, no API key needed) or
+Open-Meteo (worldwide, also no API key) + Netatmo readings via Home
+Assistant's REST API (since Netatmo is already set up there). Report
+provider is a per-installation setting (weather.report_provider), see
+modules/weather/alerts.py for the Open-Meteo fetch function.
 
 Locations come from settings_store instead of being fixed in config.py -
 they can be managed at runtime via /settings/weather/locations without
@@ -22,6 +24,8 @@ from flask import Blueprint, jsonify, render_template, request
 import i18n
 import settings_store
 from logos import print_logo
+from modules.message.routes import _raw_print_message
+from modules.weather.alerts import fetch_open_meteo_forecast
 from print_queue import enqueue_print
 from printer import get_printer
 from security import csrf_protect, get_csrf_token, require_api_token
@@ -89,10 +93,16 @@ def _raw_print_weather(location_name=None):
     resolved_name, lat, lon = resolve_location(location_name)
     location_display = resolved_name or i18n.tr("receipt.weather.no_location_configured")
 
+    report_provider = settings_store.get_settings()["weather"].get("report_provider", "dwd")
+    provider_label = "Open-Meteo" if report_provider == "open-meteo" else "DWD"
+
     dwd_lines = []
     if lat is not None:
         try:
-            forecast = fetch_dwd_forecast(lat, lon)
+            if report_provider == "open-meteo":
+                forecast = fetch_open_meteo_forecast(lat, lon)
+            else:
+                forecast = fetch_dwd_forecast(lat, lon)
             if forecast:
                 temp = forecast.get("temperature")
                 wind = forecast.get("wind_speed")
@@ -104,11 +114,11 @@ def _raw_print_weather(location_name=None):
                 if precip is not None:
                     dwd_lines.append(i18n.tr("receipt.weather.precipitation", value=precip))
                 if not dwd_lines:
-                    dwd_lines.append(i18n.tr("receipt.weather.dwd_no_data"))
+                    dwd_lines.append(i18n.tr("receipt.weather.dwd_no_data", provider=provider_label))
             else:
-                dwd_lines.append(i18n.tr("receipt.weather.dwd_no_data"))
+                dwd_lines.append(i18n.tr("receipt.weather.dwd_no_data", provider=provider_label))
         except Exception as e:
-            dwd_lines.append(i18n.tr("receipt.weather.dwd_error", error=e))
+            dwd_lines.append(i18n.tr("receipt.weather.dwd_error", provider=provider_label, error=e))
     else:
         dwd_lines.append(i18n.tr("receipt.weather.no_location_in_settings"))
 
@@ -135,7 +145,7 @@ def _raw_print_weather(location_name=None):
             if outdoor:
                 netatmo_lines.append(i18n.tr("receipt.weather.outdoor", value=outdoor[0], unit=outdoor[1]))
             if not netatmo_lines:
-                netatmo_lines.append(i18n.tr("receipt.weather.dwd_no_data"))  # generic "no data", reused
+                netatmo_lines.append(i18n.tr("receipt.weather.dwd_no_data", provider="Netatmo"))  # reused, now provider-aware
         except Exception as e:
             netatmo_lines.append(i18n.tr("receipt.weather.netatmo_error", error=e))
 
@@ -151,7 +161,7 @@ def _raw_print_weather(location_name=None):
         p.text("\n")
 
         p.set(align="left", bold=True, width=1, height=1)
-        p.text(i18n.tr("receipt.weather.dwd_heading") + "\n")
+        p.text(i18n.tr("receipt.weather.dwd_heading", provider=provider_label) + "\n")
         p.set(align="left", bold=False, width=1, height=1)
         for line in dwd_lines:
             p.text(line + "\n")
@@ -223,3 +233,38 @@ def ui_print_weather():
         locations=list(weather_settings["locations"].keys()),
         default_location=weather_settings.get("default_location"),
     )
+
+
+@weather_bp.route("/print/weather/alert", methods=["POST"])
+@require_api_token
+def print_weather_alert():
+    """Only meant to be called by watchers/storm_warning_watch.py, not
+    a general-purpose endpoint - still requires the same X-Api-Token as
+    every other /print/* route, just not documented in the README's
+    public endpoint list.
+
+    Whether quiet hours get bypassed is decided ENTIRELY server-side
+    from settings_store's weather.storm_warning.ignore_quiet_hours
+    toggle - never from anything in the request body. That toggle is
+    itself only reachable through the authenticated Settings UI, so
+    this endpoint can't be used to bypass quiet hours for anything the
+    admin hasn't already explicitly opted into.
+    """
+    data = request.get_json(silent=True) or {}
+    headline = (data.get("headline") or "").strip()
+    description = (data.get("description") or "").strip()
+    if not headline:
+        return jsonify({"status": "error", "detail": "'headline' must not be empty"}), 400
+
+    ignore_quiet_hours = settings_store.get_settings()["weather"]["storm_warning"].get(
+        "ignore_quiet_hours", False,
+    )
+    text = f"{headline}\n\n{description}".strip()
+    ok, detail, status_code = enqueue_print(
+        _raw_print_message, i18n.tr("receipt.weather.alert_title"), text, "weather",
+        job_type="weather_alert", summary=headline[:60], source="system",
+        bypass_quiet_hours=ignore_quiet_hours,
+    )
+    if ok:
+        return jsonify({"status": "printed"}), 200
+    return jsonify({"status": "error", "detail": detail}), status_code
