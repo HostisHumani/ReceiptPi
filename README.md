@@ -114,6 +114,7 @@ Each feature is implemented as its own Flask blueprint. Unhandled exceptions are
 - `/settings/system-report` - SSH targets for the system report (Proxmox/piNAS/PBS)
 - `/settings/github-watch` - watched GitHub repositories
 - `/settings/logos` - global logo toggle, default logo, and a per-print-type toggle/upload/preview (falls back to the default logo if no custom one is set)
+- `/settings/design` - UI color theme (5 built-in palettes: Forrest, Dark Lime, Frost, Butter Bean, White Purple)
 
 ## Endpoints
 
@@ -162,6 +163,7 @@ case an update ever breaks something.
 - Print history dashboard (stats + paginated log, SQLite-backed)
 - Optional per-print-type logos with a global default fallback
 - Web-based settings, split into per-area sub-pages
+- 5 built-in UI color themes (switchable in Settings, no restart needed)
 - German/English UI, including receipt content itself (not just the UI chrome)
 
 ## Roadmap

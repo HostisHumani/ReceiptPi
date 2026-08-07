@@ -114,6 +114,7 @@ Jede Funktion ist als eigener Flask-Blueprint umgesetzt. Nicht abgefangene Ausna
 - `/settings/system-report` – SSH-Ziele für den Systembericht (Proxmox/piNAS/PBS)
 - `/settings/github-watch` – beobachtete GitHub-Repos
 - `/settings/logos` – globaler Logo-Schalter, Standard-Logo, sowie je Druckart eigener Schalter/Upload/Vorschau (fällt auf das Standard-Logo zurück, wenn kein eigenes gesetzt ist)
+- `/settings/design` – Farbschema der Oberfläche (5 mitgelieferte Paletten: Forrest, Dark Lime, Frost, Butter Bean, White Purple)
 
 ## Endpunkte
 
@@ -162,6 +163,7 @@ Referenz, falls ein Update mal etwas kaputt macht.
 - Druckhistorie-Dashboard (Statistik + paginierte Liste, SQLite-basiert)
 - Optionale Logos je Druckart mit globalem Standard-Fallback
 - Webbasierte Einstellungen, aufgeteilt in Unterseiten je Bereich
+- 5 mitgelieferte Farbschemata (in den Einstellungen umschaltbar, kein Neustart nötig)
 - Deutsch/Englisch-UI, inklusive des eigentlichen Bon-Inhalts (nicht nur der UI drumherum)
 
 ## Roadmap
