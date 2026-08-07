@@ -11,6 +11,7 @@
   "history.source.ui": "Web-UI",
   "history.source.api": "API",
   "history.source.system": "System",
+  "history.source.webhook": "Webhook",
   "history.job_type.boot": "Boot-Gruß",
   "history.job_type.other": "Sonstiges",
   "history.empty": "Noch keine Druckjobs aufgezeichnet.",

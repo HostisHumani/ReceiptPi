@@ -50,10 +50,10 @@ LOGO_MAX_WIDTH = 150
 MAX_UPLOAD_BYTES = 3 * 1024 * 1024
 MAX_UPLOAD_DIMENSION = 4000
 
-# The five print types that can carry a logo. Image printing is
-# deliberately excluded - the printed content there already IS an
-# image, stacking a logo on top of it would look odd.
-MODULE_KEYS = ("shopping", "message", "wifi", "weather", "system")
+# The print types that can carry a logo. Image printing is deliberately
+# excluded - the printed content there already IS an image, stacking a
+# logo on top of it would look odd.
+MODULE_KEYS = ("shopping", "message", "wifi", "weather", "system", "automation")
 
 
 def has_custom_logo(module_key):
@@ -165,19 +165,26 @@ def print_logo(p, module_key):
     otherwise - callers don't need to check anything themselves, just
     call this first thing after opening the printer.
 
+    Returns True if a logo was actually printed, False otherwise (logos
+    disabled, no file, or any error) - callers use this to decide
+    whether to add the blank line that separates the logo from the
+    heading (see modules/message/routes.py etc.). Only meaningful for
+    that layout decision, never for control flow that could break the
+    print job itself.
+
     Never raises: a missing/unreadable/corrupt logo file must not break
     the actual print job it's attached to - worst case, the receipt
     just prints without its logo."""
     try:
         logos_settings = settings_store.get_settings().get("logos", {})
         if not logos_settings.get("enabled"):
-            return
+            return False
         if not logos_settings.get("modules", {}).get(module_key, {}).get("enabled"):
-            return
+            return False
 
         logo_path = _resolve_logo_path(module_key)
         if not logo_path:
-            return
+            return False
 
         img = Image.open(logo_path)
         # If the logo has transparency, composite it onto white FIRST -
@@ -201,5 +208,6 @@ def print_logo(p, module_key):
 
         p.set(align="center")
         p.image(img)
+        return True
     except Exception:
-        pass
+        return False

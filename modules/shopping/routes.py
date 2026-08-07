@@ -26,10 +26,14 @@ shopping_bp = Blueprint("shopping", __name__)
 def _raw_print_list(title, items):
     p = get_printer()
     try:
-        print_logo(p, "shopping")
-        p.set(align="center", bold=True, width=2, height=2)
+        logo_printed = print_logo(p, "shopping")
+        if logo_printed:
+            p.set(align="left", bold=False, width=1, height=1)
+            p.text("\n")
+        p.set(align="center", bold=True, width=1, height=2, custom_size=True)
         p.text(f"{title}\n")
-        p.set(align="left", bold=False, width=1, height=1)
+        p.text("\n")
+        p.set(align="left", bold=False, width=1, height=1, custom_size=True)
         p.text("-" * 32 + "\n")
         # ESC 3 n: slightly wider line spacing than the printer's default
         # (~30 dots), just for the item list - makes a long list easier
@@ -49,8 +53,9 @@ def _raw_print_list(title, items):
                 p.text(f"( ) {item.strip()}\n")
         p._raw(bytes([0x1B, 0x32]))  # ESC 2: back to default line spacing
         p.text("-" * 32 + "\n")
+        p.text("\n")
         p.set(align="center")
-        p.text(f"{datetime.now().strftime('%d.%m.%Y %H:%M')}\n")
+        p.text(f"-- {datetime.now().strftime('%d.%m.%Y %H:%M')} --\n")
         p.cut()
     finally:
         p.close()

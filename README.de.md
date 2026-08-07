@@ -22,10 +22,13 @@
 *[English version](README.md)*
 
 Flask-Server für einen ESC/POS-Thermodrucker (getestet mit Epson TM-T88V) an
-einem Raspberry Pi Zero (2) W. Mobile Web-UI zum Drucken von Einkaufszetteln,
-Statusmeldungen, Wetterberichten und Systemberichten, plus optionale
-Automations-Trigger (GitHub-Stars, Fritz!Box-Gästenetz, Zabbix-Webhooks für
-PBS-Fehler).
+einem Raspberry Pi Zero (2) W. Mobile Web-UI (Deutsch/Englisch) zum Drucken
+von Einkaufszetteln, Statusmeldungen, Wetterberichten, Bildern und
+Systemberichten – jede Druckart optional mit vorangestelltem kleinen Logo –
+plus einem generischen Automation-Webhook (kompatibel mit Home Assistant,
+Node-RED, n8n oder jedem Tool, das einen HTTP-POST absetzen kann) und
+weiteren Automations-Triggern (GitHub-Stars, Fritz!Box-Gästenetz,
+Zabbix-Webhooks für PBS-Fehler).
 
 <p align="center">
   <a href="assets/home.png">
@@ -50,29 +53,43 @@ Server läuft dann auf Port 5000, Web-UI unter `http://<pi-hostname>:5000`.
 `python3 app.py` nutzt den Flask-Entwicklungsserver – für den Dauerbetrieb
 läuft der Service stattdessen über Gunicorn mit `gunicorn.conf.py` und genau einem Worker, da die Print-Queue prozesslokal arbeitet.
 
+Die meisten Einstellungen (Ruhezeit-Regeln, Wetter-Standorte, beobachtete
+GitHub-Repos, SSH-Ziele für den Systembericht, Logos je Druckart,
+UI-Sprache) werden komplett über die Settings-Seite der Web-UI verwaltet –
+dafür muss `config.py` nicht angefasst werden. Nur Bootstrap-Werte
+(Secret Key, API-Token, Drucker-USB-IDs, echte Zugangsdaten wie
+HA-Token oder Fritz!Box-Passwort) bleiben in `config.py`, da ReceiptPi
+aktuell keinen Login/Auth-Schutz für die Web-UI selbst hat.
+
 ## Struktur
 
 ```
 receiptpi/
-├── app.py               Flask-App erzeugen, Blueprints registrieren
-├── gunicorn.conf.py      on_starting-Hook für den Boot-Gruß
-├── print_queue.py        zentrale Druck-Queue + Druckregeln-Prüfung
-├── printer.py            Drucker-Hardware-Zugriff (USB)
-├── security.py           CSRF-Schutz, API-Token-Schutz, JSON-Parsing
-├── settings_store.py      zentrale Settings (JSON in STATE_DIR)
-├── config.example.py      Vorlage für config.py (lokal ausfüllen)
+├── app.py                 Flask-App erzeugen, Blueprints registrieren
+├── gunicorn.conf.py       on_starting-Hook für den Boot-Gruß
+├── print_queue.py         zentrale Druck-Queue + Druckregeln-Prüfung
+├── printer.py             Drucker-Hardware-Zugriff (USB)
+├── security.py            CSRF-Schutz, API-Token-Schutz, JSON-Parsing
+├── settings_store.py      zentrale Settings (JSON in STATE_DIR, nicht im Projektordner)
+├── history_store.py       SQLite-Druckhistorie (STATE_DIR), Auto-Pruning nach 180 Tagen
+├── logos.py                Logo-Auflösung je Druckart, Upload-Validierung, Seeding
+├── i18n.py                 minimales Übersetzungs-Lookup (JSON-Dateien, kein Flask-Babel)
+├── config.example.py       Vorlage für config.py (lokal ausfüllen)
 ├── modules/
-│   ├── shopping/          Einkaufszettel
-│   ├── message/            Statusmeldungen (freier Titel + Text)
-│   ├── images/             Bilder drucken
-│   ├── wifi/               Gäste-WLAN-Zettel (Text + QR-Code)
-│   ├── weather/            Wetterbericht (DWD + Netatmo)
-│   ├── system/              Systembericht (Proxmox/PBS/piNAS via SSH)
-│   └── settings/            Settings-Seite (Web-UI) + Settings-API (Druckregeln, Wetter-Standorte)
+│   ├── shopping/            Einkaufszettel
+│   ├── message/               Statusmeldungen (freier Titel + Text)
+│   ├── images/                Bilder drucken
+│   ├── wifi/                  Gäste-WLAN-Zettel (Text + QR-Code)
+│   ├── weather/                Wetterbericht (DWD + Netatmo)
+│   ├── system/                 Systembericht (Proxmox/PBS/piNAS via SSH)
+│   ├── automation/            generischer Automation-Webhook
+│   ├── history/                Druckhistorie-Dashboard
+│   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── watchers/
 │   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
 │   └── fritzbox_wifi_watch.py    Cron: druckt WLAN-Zettel bei aktiviertem Gästenetz
-└── templates/             gemeinsames Layout und Modul-Seiten
+├── assets/example-logos/    mitgelieferter Logo-Startsatz (Strichzeichnungen)
+└── templates/                gemeinsames Layout und Modul-Seiten
     ├── base.html
     ├── home.html
     ├── shopping.html
@@ -81,28 +98,49 @@ receiptpi/
     ├── wifi.html
     ├── weather.html
     ├── system.html
-    └── settings.html
+    ├── history.html
+    └── settings_*.html        Settings-Übersicht + eine Unterseite je Bereich
 ```
 
 Jede Funktion ist als eigener Flask-Blueprint umgesetzt. Nicht abgefangene Ausnahmen betreffen nur den jeweiligen Request; die Module teilen sich weiterhin Prozess, Druck-Queue und Settings-Store.
 
+## Settings-Seiten
+
+`/settings` ist eine Übersichtsseite (Kachel-Grid), die auf eine eigene Unterseite pro Bereich verlinkt – statt eines langen Formulars:
+
+- `/settings/language` – UI-Sprache (Deutsch/Englisch)
+- `/settings/print-rules` – Ruhezeit-Regeln (mehrere unabhängige Regeln, je mit eigenen Wochentagen und Zeitfenster) + Rate-Limit + Duplikat-Sperre
+- `/settings/weather` – Wetter-Standorte
+- `/settings/system-report` – SSH-Ziele für den Systembericht (Proxmox/piNAS/PBS)
+- `/settings/github-watch` – beobachtete GitHub-Repos
+- `/settings/logos` – globaler Logo-Schalter, Standard-Logo, sowie je Druckart eigener Schalter/Upload/Vorschau (fällt auf das Standard-Logo zurück, wenn kein eigenes gesetzt ist)
+
 ## Endpunkte
 
 Alle `/print/*`- und `/settings/*`-Endpunkte verlangen den Header
-`X-Api-Token: <wert>`, sobald `API_TOKEN` in `config.py` gesetzt ist (leer = kein Schutz). 
-Vor jedem Druckauftrag greifen zusätzlich die zentralen Druckregeln: Ruhezeiten, Rate-Limit und Duplikat-Sperre. 
+`X-Api-Token: <wert>`, sobald `API_TOKEN` in `config.py` gesetzt ist (leer = kein Schutz).
+Vor jedem Druckauftrag greifen zusätzlich die zentralen Druckregeln: Ruhezeiten, Rate-Limit und Duplikat-Sperre.
 Ein blockierter Auftrag antwortet mit `429`.
 
+**Drucken**
 - `POST /print/message` – `{ "title": "...", "text": "..." }`
 - `POST /print/list` – `{ "title": "...", "items": ["..."] }`
-- `POST /print/image` – `{ "image_base64": "..." }` (max. 12000px pro Seite, 12MB)
+- `POST /print/image` – Multipart-Upload (max. 12000px pro Seite, 12MB)
 - `POST /print/wifi` – `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort
 - `POST /print/system` – kein Body nötig
+- `POST /print/automation` – `{ "title": "optional", "text": "..." }` – generischer Automation-Webhook (kompatibel mit Home Assistant, Node-RED, n8n oder jedem Tool, das HTTP-POST beherrscht)
+- `GET /health` – Drucker-Erreichbarkeit prüfen (kein Token nötig, läuft aber über dieselbe Queue; nicht Teil der Druckhistorie)
+
+**Settings-API**
 - `GET /settings/api` – aktuelle Druckregeln + Wetter-Standorte (JSON)
-- `POST /settings/print_rules` – Ruhezeiten/Rate-Limit/Duplikat-Fenster ändern
+- `POST /settings/print_rules` – Rate-Limit/Duplikat-Fenster ändern
+- `GET|POST /settings/quiet_hours/rules`, `POST /settings/quiet_hours/rules/<id>/toggle`, `DELETE /settings/quiet_hours/rules/<id>`
 - `GET|POST /settings/weather/locations`, `DELETE /settings/weather/locations/<name>`
-- `GET /health` – Drucker-Erreichbarkeit prüfen (kein Token nötig, läuft aber über dieselbe Queue)
+- `GET|POST /settings/system_report` – SSH-Ziele für den Systembericht
+- `GET|POST /settings/github_watch/repos`, `DELETE /settings/github_watch/repos/<owner>/<repo>`
+- `GET|POST /settings/logos/config` – globale/pro Modul Logo-Schalter
+- `POST /settings/logos/upload/<slot>`, `DELETE /settings/logos/upload/<slot>` – Logo-Bild hochladen/löschen (base64), `slot` ist `default` oder ein Modul-Key
 
 ## Nach der Installation
 
@@ -119,13 +157,20 @@ Referenz, falls ein Update mal etwas kaputt macht.
 - Freie Textmeldungen
 - Bild-Upload und Bilddruck per API
 - Gäste-WLAN-Zugangsdaten und QR-Codes
-- Wetterberichte
-- Systemberichte
-- Webbasierte Einstellungen
+- Wetterberichte (DWD + optional Netatmo)
+- Systemberichte (Proxmox/piNAS/PBS via SSH)
+- Druckhistorie-Dashboard (Statistik + paginierte Liste, SQLite-basiert)
+- Optionale Logos je Druckart mit globalem Standard-Fallback
+- Webbasierte Einstellungen, aufgeteilt in Unterseiten je Bereich
+- Deutsch/Englisch-UI, inklusive des eigentlichen Bon-Inhalts (nicht nur der UI drumherum)
 
 ## Roadmap
 
-Geplant sind unter anderem die mehrsprachige Oberfläche, PWA-Paketierung, zusätzliche Module und eine weiter vereinfachte Installation. Die Roadmap kann sich mit weiteren Hardwaretests ändern.
+Als Nächstes geplant: ein Schriftgrößen-Umschalter (klein/mittel/groß)
+für UI und Bon, NFC-Tag-ausgelöster Druck (nur eine URL im Tag, keine
+App nötig), sowie ein Rezepte-Modul (Tandoor/Mealie) mit über die
+Web-UI konfigurierbaren Zugangsdaten. Die
+Roadmap kann sich mit weiteren Hardwaretests ändern.
 
 ## Mitwirken
 

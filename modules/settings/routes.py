@@ -23,6 +23,7 @@ from flask import Blueprint, jsonify, render_template, request, send_file
 import i18n
 import logos
 import settings_store
+import themes
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 
 settings_bp = Blueprint("settings", __name__)
@@ -159,6 +160,14 @@ def _render_language(message=None, success=None):
     )
 
 
+def _render_design(message=None, success=None):
+    return render_template(
+        "settings_design.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+    )
+
+
 def _render_print_rules(message=None, success=None):
     return render_template(
         "settings_print_rules.html",
@@ -223,6 +232,11 @@ def settings_page():
 @settings_bp.route("/settings/language", methods=["GET"])
 def settings_language_page():
     return _render_language()
+
+
+@settings_bp.route("/settings/design", methods=["GET"])
+def settings_design_page():
+    return _render_design()
 
 
 @settings_bp.route("/settings/print-rules", methods=["GET"])
@@ -439,6 +453,24 @@ def ui_set_language():
         message, success = i18n.t("settings.language.updated", lang), True
 
     return _render_language(message, success)
+
+
+@settings_bp.route("/ui/settings/design", methods=["POST"])
+@csrf_protect
+def ui_set_design():
+    """Sets the UI theme. Same single-shared-setting pattern as the
+    language switcher above - see themes.py for the valid keys."""
+    theme = request.form.get("theme", "")
+    if theme not in themes.SUPPORTED_THEMES:
+        message, success = i18n.tr("settings.design.unsupported", theme=theme), False
+    else:
+        def _mutate(settings):
+            settings["theme"] = theme
+
+        settings_store.update_settings_transaction(_mutate)
+        message, success = i18n.tr("settings.design.updated"), True
+
+    return _render_design(message, success)
 
 
 @settings_bp.route("/ui/settings/system_report", methods=["POST"])

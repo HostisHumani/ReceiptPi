@@ -34,12 +34,17 @@ def _raw_print_message(title, text, module="message"):
     its own configured logo instead of the message module's."""
     p = get_printer()
     try:
-        print_logo(p, module)
-        p.set(align="center", bold=True, width=2, height=2)
+        logo_printed = print_logo(p, module)
+        if logo_printed:
+            p.set(align="left", bold=False, width=1, height=1)
+            p.text("\n")
+        p.set(align="center", bold=True, width=1, height=2, custom_size=True)
         if title:
             p.text(f"{title}\n")
-        p.set(align="left", bold=False, width=1, height=1)
+            p.text("\n")
+        p.set(align="left", bold=False, width=1, height=1, custom_size=True)
         p.text(f"{text}\n")
+        p.text("\n")
         p.set(align="center")
         p.text(f"-- {datetime.now().strftime('%d.%m.%Y %H:%M')} --\n")
         p.cut()

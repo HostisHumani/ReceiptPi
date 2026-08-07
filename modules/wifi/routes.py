@@ -59,10 +59,14 @@ def _raw_print_wifi(ssid, password, auth_type="WPA"):
 
     p = get_printer()
     try:
-        print_logo(p, "wifi")
-        p.set(align="center", bold=True, width=2, height=2)
+        logo_printed = print_logo(p, "wifi")
+        if logo_printed:
+            p.set(align="left", bold=False, width=1, height=1)
+            p.text("\n")
+        p.set(align="center", bold=True, width=1, height=2, custom_size=True)
         p.text(i18n.tr("receipt.wifi.title") + "\n")
-        p.set(align="left", bold=False, width=1, height=1)
+        p.text("\n")
+        p.set(align="left", bold=False, width=1, height=1, custom_size=True)
         p.text(i18n.tr("receipt.wifi.ssid_label", value=ssid) + "\n")
         p.text(i18n.tr("receipt.wifi.password_label", value=password) + "\n")
         p.set(align="center")

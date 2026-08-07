@@ -141,10 +141,13 @@ def _raw_print_weather(location_name=None):
 
     p = get_printer()
     try:
-        print_logo(p, "weather")
-        p.set(align="center", bold=True, width=2, height=2)
+        logo_printed = print_logo(p, "weather")
+        if logo_printed:
+            p.set(align="left", bold=False, width=1, height=1)
+            p.text("\n")
+        p.set(align="center", bold=True, width=1, height=2, custom_size=True)
         p.text(i18n.tr("receipt.weather.title", location=location_display) + "\n")
-        p.set(align="left", bold=False, width=1, height=1)
+        p.set(align="left", bold=False, width=1, height=1, custom_size=True)
         p.text("\n")
 
         p.set(align="left", bold=True, width=1, height=1)

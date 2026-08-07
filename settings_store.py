@@ -47,6 +47,7 @@ DEFAULT_SETTINGS = {
         "default_location": "Standard",
     },
     "language": "de",
+    "theme": "forrest",
     "system_report": {
         # Three FIXED roles (not a generic host list) - each backed by
         # different SSH commands in modules/system/routes.py (Proxmox:
@@ -70,6 +71,7 @@ DEFAULT_SETTINGS = {
             "wifi": {"enabled": False},
             "weather": {"enabled": False},
             "system": {"enabled": False},
+            "automation": {"enabled": False},
         },
     },
 }

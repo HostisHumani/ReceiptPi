@@ -22,10 +22,13 @@
 *[Deutsche Version / German version](README.de.md)*
 
 Flask server for an ESC/POS thermal receipt printer (tested with an Epson
-TM-T88V) on a Raspberry Pi Zero (2) W. Mobile web UI for printing shopping
-lists, status messages, weather reports and system reports, plus optional
-automation triggers (GitHub stars, Fritz!Box guest network, Zabbix webhooks
-for backup failures).
+TM-T88V) on a Raspberry Pi Zero (2) W. Mobile web UI (German/English) for
+printing shopping lists, status messages, weather reports, images and
+system reports - each print type optionally prefixed with a small logo -
+plus a generic automation webhook (compatible with Home Assistant,
+Node-RED, n8n, or any tool that can do an HTTP POST) and other automation
+triggers (GitHub stars, Fritz!Box guest network, Zabbix webhooks for
+backup failures).
 
 <p align="center">
   <a href="assets/home.png">
@@ -50,29 +53,43 @@ The server then runs on port 5000, web UI at `http://<pi-hostname>:5000`.
 `python3 app.py` uses Flask's development server - for production the
 service runs via Gunicorn with `gunicorn.conf.py` and exactly 1 worker, which is required because the print queue is process-local.
 
+Most settings (quiet-hour rules, weather locations, GitHub-watched repos,
+SSH targets for the system report, per-module logos, UI language) are
+configured entirely through the web UI's Settings page - no need to touch
+`config.py` for those. Only bootstrap-level values (secret key, API token,
+printer USB IDs, real credentials such as the Home Assistant token or
+Fritz!Box password) stay in `config.py`, since ReceiptPi currently has no
+login/auth for the web UI itself.
+
 ## Structure
 
 ```
 receiptpi/
-├── app.py               Create the Flask app, register blueprints
-├── gunicorn.conf.py      on_starting hook for the boot greeting
-├── print_queue.py        central print queue + print-rule checks
-├── printer.py            printer hardware access (USB)
-├── security.py           CSRF protection, API token protection, JSON parsing
-├── settings_store.py      central settings (JSON in STATE_DIR)
-├── config.example.py      template for config.py (fill in locally)
+├── app.py                 Create the Flask app, register blueprints
+├── gunicorn.conf.py       on_starting hook for the boot greeting
+├── print_queue.py         central print queue + print-rule checks
+├── printer.py             printer hardware access (USB)
+├── security.py            CSRF protection, API token protection, JSON parsing
+├── settings_store.py      central settings (JSON in STATE_DIR, not in the project folder)
+├── history_store.py       SQLite print history (STATE_DIR), auto-pruned after 180 days
+├── logos.py                per-print-type logo resolution, upload validation, seeding
+├── i18n.py                 minimal translation lookup (JSON files, no Flask-Babel)
+├── config.example.py       template for config.py (fill in locally)
 ├── modules/
-│   ├── shopping/          shopping list
-│   ├── message/            status messages (free title + text)
-│   ├── images/             print images
-│   ├── wifi/               guest wifi slip (text + QR code)
-│   ├── weather/            weather report (DWD + Netatmo)
-│   ├── system/              system report (Proxmox/PBS/piNAS via SSH)
-│   └── settings/            settings page (web UI) + settings API (print rules, weather locations)
+│   ├── shopping/            shopping list
+│   ├── message/               status messages (free title + text)
+│   ├── images/                print images
+│   ├── wifi/                  guest wifi slip (text + QR code)
+│   ├── weather/                weather report (DWD + Netatmo)
+│   ├── system/                 system report (Proxmox/PBS/piNAS via SSH)
+│   ├── automation/            generic automation webhook
+│   ├── history/                print history dashboard
+│   └── settings/                settings pages (web UI) + settings API
 ├── watchers/
 │   ├── github_star_watch.py     cron: prints on a new GitHub star
 │   └── fritzbox_wifi_watch.py    cron: prints a wifi slip once the guest network is enabled
-└── templates/             shared layout and module pages
+├── assets/example-logos/    bundled starter logo set (outline icons)
+└── templates/                shared layout and module pages
     ├── base.html
     ├── home.html
     ├── shopping.html
@@ -81,28 +98,49 @@ receiptpi/
     ├── wifi.html
     ├── weather.html
     ├── system.html
-    └── settings.html
+    ├── history.html
+    └── settings_*.html        settings overview + one sub-page per area
 ```
 
 Each feature is implemented as its own Flask blueprint. Unhandled exceptions are isolated to the current request; modules share the same process, print queue and settings store.
 
+## Settings pages
+
+`/settings` is an overview page (tile grid) linking to a dedicated sub-page per area, instead of one long form:
+
+- `/settings/language` - UI language (German/English)
+- `/settings/print-rules` - quiet-hour rules (multiple independent rules, each with its own weekdays and time window) + rate limiting + duplicate suppression
+- `/settings/weather` - weather locations
+- `/settings/system-report` - SSH targets for the system report (Proxmox/piNAS/PBS)
+- `/settings/github-watch` - watched GitHub repositories
+- `/settings/logos` - global logo toggle, default logo, and a per-print-type toggle/upload/preview (falls back to the default logo if no custom one is set)
+
 ## Endpoints
 
 All `/print/*` and `/settings/*` endpoints require the `X-Api-Token: <value>`
-header once `API_TOKEN` is set in `config.py` (empty = no protection). 
-Every print job also passes through the central print rules: quiet hours, rate limiting and duplicate suppression. 
+header once `API_TOKEN` is set in `config.py` (empty = no protection).
+Every print job also passes through the central print rules: quiet hours, rate limiting and duplicate suppression.
 A blocked job responds with `429`.
 
+**Printing**
 - `POST /print/message` - `{ "title": "...", "text": "..." }`
 - `POST /print/list` - `{ "title": "...", "items": ["..."] }`
-- `POST /print/image` - `{ "image_base64": "..." }` (max. 12000px per side, 12MB)
+- `POST /print/image` - multipart upload (max. 12000px per side, 12MB)
 - `POST /print/wifi` - `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` - optional `{ "location": "Berlin" }`, otherwise the default location
 - `POST /print/system` - no body needed
+- `POST /print/automation` - `{ "title": "optional", "text": "..." }` - generic automation webhook (compatible with Home Assistant, Node-RED, n8n, or any tool that can do an HTTP POST)
+- `GET /health` - check printer reachability (no token needed, but runs through the same queue; excluded from print history)
+
+**Settings API**
 - `GET /settings/api` - current print rules + weather locations (JSON)
-- `POST /settings/print_rules` - change quiet hours/rate limit/duplicate window
+- `POST /settings/print_rules` - change rate limit/duplicate window
+- `GET|POST /settings/quiet_hours/rules`, `POST /settings/quiet_hours/rules/<id>/toggle`, `DELETE /settings/quiet_hours/rules/<id>`
 - `GET|POST /settings/weather/locations`, `DELETE /settings/weather/locations/<name>`
-- `GET /health` - check printer reachability (no token needed, but runs through the same queue)
+- `GET|POST /settings/system_report` - SSH targets for the system report
+- `GET|POST /settings/github_watch/repos`, `DELETE /settings/github_watch/repos/<owner>/<repo>`
+- `GET|POST /settings/logos/config` - global/per-module logo toggles
+- `POST /settings/logos/upload/<slot>`, `DELETE /settings/logos/upload/<slot>` - logo image upload/removal (base64), `slot` is `default` or a module key
 
 ## After installation
 
@@ -119,13 +157,20 @@ case an update ever breaks something.
 - Free-form messages
 - Image uploads and API image printing
 - Guest Wi-Fi credentials and QR codes
-- Weather reports
-- System reports
-- Web-based settings
+- Weather reports (DWD + optional Netatmo)
+- System reports (Proxmox/piNAS/PBS via SSH)
+- Print history dashboard (stats + paginated log, SQLite-backed)
+- Optional per-print-type logos with a global default fallback
+- Web-based settings, split into per-area sub-pages
+- German/English UI, including receipt content itself (not just the UI chrome)
 
 ## Roadmap
 
-Planned work includes the multilingual UI, PWA packaging, additional modules and improved installation automation. The roadmap may change as ReceiptPi is tested on more hardware.
+Next up: a font-size switcher (small/medium/large) for both the UI and
+receipts, NFC-tag-triggered printing (just a URL in the tag, no app
+needed), and a recipe module (Tandoor/Mealie) with credentials
+configurable via the web UI. The roadmap may change as
+ReceiptPi is tested on more hardware.
 
 ## Contributing
 

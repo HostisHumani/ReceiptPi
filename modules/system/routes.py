@@ -170,7 +170,7 @@ def fetch_update_counts():
 
 
 def _raw_print_system_report():
-    report_lines = [i18n.tr("receipt.system.title"), datetime.now().strftime('%d.%m.%Y %H:%M')]
+    report_lines = []
 
     sections = [
         (i18n.tr("receipt.system.section.proxmox"), fetch_pve_status),
@@ -190,7 +190,12 @@ def _raw_print_system_report():
             report_lines.append(i18n.tr("print.error_prefix") + str(e))
 
     text = "\n".join(report_lines)
-    _raw_print_message(None, text, module="system")
+    # Title goes through _raw_print_message's own title parameter now
+    # (centered/bold, same as every other print type) instead of being
+    # baked into text as a plain first line - also drops the timestamp
+    # that used to be duplicated here, since the shared "-- dd.mm.yyyy
+    # HH:MM --" footer already covers that.
+    _raw_print_message(i18n.tr("receipt.system.title"), text, module="system")
 
 
 @system_bp.route("/system", methods=["GET"])

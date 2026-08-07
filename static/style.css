@@ -1,15 +1,109 @@
-/* ReceiptPi - gemeinsames Farbschema (Emerald Ink / Champagne) */
+/* ReceiptPi - Theme-System.
+   :root ist der Fallback (identisch zu "forrest"), falls data-theme aus
+   irgendeinem Grund fehlt - der Normalfall ist aber, dass base.html
+   IMMER ein data-theme-Attribut auf <html> setzt (siehe app.py
+   inject_i18n / current_theme, gespeist aus settings_store["theme"]).
+   Jedes [data-theme="..."]-Fall überschreibt exakt dieselben
+   Variablen - neues Theme hinzufügen = ein neuer Block hier plus ein
+   Eintrag in themes.py, sonst nichts im restlichen CSS/den Templates
+   anfassen.
+
+   --color-accent-text: Kontrastfarbe für Text auf dem Accent-Button -
+   je nach Theme hell oder dunkel (z.B. dunkler Text auf hellem Lime bei
+   Dark Lime, heller Text auf dunklem Grün bei Forrest).
+   --color-status-offline: Farbe des Offline-Punkts im Header - war
+   früher hartcodiert (#e05a5a), jetzt pro Theme austauschbar.
+   .msg.ok/.msg.err nutzen color-mix() statt fester rgba()-Werte, damit
+   die Hinweis-Boxen automatisch zu Accent/Danger jedes Themes passen,
+   ohne dass jedes Theme eigene Zusatzwerte dafür mitbringen muss. */
 :root {
-  --color-bg: #08211a;          /* dunkler als Emerald Ink selbst - Seitenhintergrund */
-  --color-surface: #0d3327;     /* Kachel-/Kartenflächen, angelehnt an Emerald Ink #064E3B */
+  --color-bg: #08211a;
+  --color-surface: #0d3327;
   --color-surface-hover: #124a37;
   --color-border: rgba(248, 231, 201, 0.14);
-  --color-text: #f8e7c9;        /* Champagne - Haupttext */
-  --color-text-muted: #c9b489;  /* gedämpftes Champagne für Sekundärtext */
-  --color-accent: #2fae66;      /* kräftigeres Grün für Buttons/Aktionen */
+  --color-text: #f8e7c9;
+  --color-text-muted: #c9b489;
+  --color-accent: #2fae66;
   --color-accent-hover: #279457;
+  --color-accent-text: #08211a;
   --color-danger: #7a2f2f;
+  --color-status-offline: #e05a5a;
   --radius: 14px;
+}
+
+/* 1. Forrest - Emerald Ink / Champagne (Original, unverändert) */
+[data-theme="forrest"] {
+  --color-bg: #08211a;
+  --color-surface: #0d3327;
+  --color-surface-hover: #124a37;
+  --color-border: rgba(248, 231, 201, 0.14);
+  --color-text: #f8e7c9;
+  --color-text-muted: #c9b489;
+  --color-accent: #2fae66;
+  --color-accent-hover: #279457;
+  --color-accent-text: #08211a;
+  --color-danger: #7a2f2f;
+  --color-status-offline: #e05a5a;
+}
+
+/* 2. Dark Lime - Charcoal + Neon Lime */
+[data-theme="dark-lime"] {
+  --color-bg: #1a1c22;
+  --color-surface: #23262f;
+  --color-surface-hover: #2c2f3a;
+  --color-border: rgba(182, 255, 46, 0.16);
+  --color-text: #edeff2;
+  --color-text-muted: #9a9da6;
+  --color-accent: #b6ff2e;
+  --color-accent-hover: #9fe028;
+  --color-accent-text: #14151a;
+  --color-danger: #3a2126;
+  --color-status-offline: #ff5c5c;
+}
+
+/* 3. Frost - Nord-inspiriert (nicht 1:1 Nord) */
+[data-theme="frost"] {
+  --color-bg: #2e3440;
+  --color-surface: #3b4252;
+  --color-surface-hover: #4c566a;
+  --color-border: rgba(216, 222, 233, 0.14);
+  --color-text: #eceff4;
+  --color-text-muted: #d8dee9;
+  --color-accent: #81a1c1;
+  --color-accent-hover: #5e81ac;
+  --color-accent-text: #2e3440;
+  --color-danger: #bf616a;
+  --color-status-offline: #bf616a;
+}
+
+/* 4. Butter Bean - warmes helles Theme */
+[data-theme="butter-bean"] {
+  --color-bg: #fff5d6;
+  --color-surface: #ffefb3;
+  --color-surface-hover: #ffe59a;
+  --color-border: rgba(1, 62, 55, 0.16);
+  --color-text: #1a2e2b;
+  --color-text-muted: #5c6f6a;
+  --color-accent: #013e37;
+  --color-accent-hover: #025c50;
+  --color-accent-text: #ffefb3;
+  --color-danger: #a14b3d;
+  --color-status-offline: #d1483a;
+}
+
+/* 5. White Purple - helles Theme */
+[data-theme="white-purple"] {
+  --color-bg: #f6f1f9;
+  --color-surface: #fffbff;
+  --color-surface-hover: #ede0f2;
+  --color-border: rgba(70, 11, 106, 0.16);
+  --color-text: #2b1533;
+  --color-text-muted: #7a6b82;
+  --color-accent: #460b6a;
+  --color-accent-hover: #5c1688;
+  --color-accent-text: #fffbff;
+  --color-danger: #a83246;
+  --color-status-offline: #d64550;
 }
 
 * { box-sizing: border-box; }
@@ -57,7 +151,7 @@ body {
   transition: color 0.2s ease;
 }
 .printer-status.online { color: var(--color-accent); }
-.printer-status.offline { color: #e05a5a; }
+.printer-status.offline { color: var(--color-status-offline); }
 
 .back-link {
   color: var(--color-text-muted);
@@ -134,7 +228,7 @@ button, .btn {
   border: none;
   border-radius: 10px;
   background: var(--color-accent);
-  color: #08211a;
+  color: var(--color-accent-text);
   margin-top: 18px;
   cursor: pointer;
 }
@@ -146,8 +240,14 @@ button:active, .btn:active { background: var(--color-accent-hover); }
   margin-bottom: 16px;
   font-size: 0.92em;
 }
-.msg.ok { background: rgba(47, 174, 102, 0.18); border: 1px solid rgba(47, 174, 102, 0.4); }
-.msg.err { background: rgba(122, 47, 47, 0.25); border: 1px solid rgba(122, 47, 47, 0.5); }
+.msg.ok {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+.msg.err {
+  background: color-mix(in srgb, var(--color-danger) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 50%, transparent);
+}
 
 .hint {
   font-size: 0.8em;
@@ -193,3 +293,22 @@ button:active, .btn:active { background: var(--color-accent-hover); }
   font-size: 0.95em;
 }
 .burger-dropdown a:hover { background: var(--color-surface-hover); }
+
+/* Theme-Auswahl (settings_design.html): kleine Farb-Vorschaupunkte pro
+   Radio-Option, damit man sieht, was man auswählt, statt nur den Namen
+   zu lesen. */
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 6px;
+}
+.theme-option:first-child { margin-top: 0; }
+.theme-swatch {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}

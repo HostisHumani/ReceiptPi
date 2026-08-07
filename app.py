@@ -31,7 +31,9 @@ from flask import Flask, render_template
 
 import i18n
 import settings_store
+import themes
 from logos import ensure_default_logo_seeded
+from modules.automation.routes import automation_bp
 from modules.history.routes import history_bp
 from modules.images.routes import images_bp
 from modules.message.routes import message_bp
@@ -62,21 +64,26 @@ start_worker()  # start the print queue worker thread
 i18n.load_translations()  # load translation JSON files once at startup
 ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see logos.py
 
-for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, settings_bp, history_bp):
+for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp, history_bp):
     app.register_blueprint(blueprint)
 
 
 @app.context_processor
 def inject_i18n():
-    """Makes t() and the current language available in every template
-    without each route having to pass them explicitly. Language is a
-    single, shared setting (see settings_store) rather than per-session,
-    since this is a single-user home appliance."""
-    lang = settings_store.get_settings().get("language", i18n.DEFAULT_LANGUAGE)
+    """Makes t() and the current language/theme available in every
+    template without each route having to pass them explicitly.
+    Language and theme are single, shared settings (see settings_store)
+    rather than per-session, since this is a single-user home
+    appliance."""
+    settings = settings_store.get_settings()
+    lang = settings.get("language", i18n.DEFAULT_LANGUAGE)
+    theme = settings.get("theme", themes.DEFAULT_THEME)
     return {
         "t": lambda key, **kw: i18n.t(key, lang, **kw),
         "current_language": lang,
         "supported_languages": i18n.SUPPORTED_LANGUAGES,
+        "current_theme": theme,
+        "supported_themes": themes.SUPPORTED_THEMES,
     }
 
 
