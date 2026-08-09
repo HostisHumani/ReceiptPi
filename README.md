@@ -126,7 +126,7 @@ A blocked job responds with `429`.
 **Printing**
 - `POST /print/message` - `{ "title": "...", "text": "..." }`
 - `POST /print/list` - `{ "title": "...", "items": ["..."] }`
-- `POST /print/image` - multipart upload (max. 12000px per side, 12MB)
+- `POST /print/image` - multipart upload (max. 6000px per side, 12MB)
 - `POST /print/wifi` - `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` - optional `{ "location": "Berlin" }`, otherwise the default location
 - `POST /print/system` - no body needed
@@ -148,9 +148,9 @@ A blocked job responds with `429`.
 ```bash
 pip freeze > requirements.lock.txt
 ```
-Freezes the actually installed versions - `requirements.txt` itself is
-deliberately left unpinned, `requirements.lock.txt` is only a reference in
-case an update ever breaks something.
+Freezes the actually installed versions - `requirements.txt` itself
+deliberately has no version pins (no `==x.y.z`), `requirements.lock.txt`
+is only a reference in case an update ever breaks something.
 
 ## Current modules
 

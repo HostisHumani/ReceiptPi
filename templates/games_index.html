@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block header %}{{ t('tile.games.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
+
+<div class="tile-grid">
+  <a class="tile" href="/games/sudoku">
+    <span class="tile-icon">🔢</span>
+    <span class="tile-name">{{ t('games.index.sudoku.name') }}</span>
+    <span class="tile-desc">{{ t('games.index.sudoku.desc') }}</span>
+  </a>
+
+  <a class="tile" href="/games/dice">
+    <span class="tile-icon">🎲</span>
+    <span class="tile-name">{{ t('games.index.dice.name') }}</span>
+    <span class="tile-desc">{{ t('games.index.dice.desc') }}</span>
+  </a>
+
+  <a class="tile" href="/games/tictactoe">
+    <span class="tile-icon">⭕</span>
+    <span class="tile-name">{{ t('games.index.tictactoe.name') }}</span>
+    <span class="tile-desc">{{ t('games.index.tictactoe.desc') }}</span>
+  </a>
+</div>
+{% endblock %}

@@ -114,6 +114,19 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   min-height: 100vh;
+  font-size: 16px;
+}
+
+/* Easy-Read (settings.print_rules.text_size = "large", see base.html
+   data-text-scale): moderately larger UI base font - almost everything
+   else in this file is sized in em, so it scales along with this.
+   Tile grid also drops from 2 to 1 column so each tile gets double the
+   width instead of shrinking to fit a cramped second column. */
+[data-text-scale="large"] body {
+  font-size: 19px;
+}
+[data-text-scale="large"] .tile-grid {
+  grid-template-columns: 1fr;
 }
 
 .page {

@@ -3,8 +3,9 @@ Module: status messages (free title + text). Used to be called "status",
 which could be confused with the server status module (now "system") -
 "message" is clearer: just a text message on the receipt.
 
-_raw_print_message is also used by other modules (weather, system, boot
-greeting) as the shared "plain text on receipt" primitive.
+_raw_print_message is also used by other modules (weather storm alerts,
+system report, automation webhook, boot greeting) as the shared "plain
+text on receipt" primitive.
 """
 from datetime import datetime
 
@@ -22,30 +23,43 @@ from security import (
     get_json_body,
     require_api_token,
 )
+from text_style import SCALES, get_text_scale, wrap_body_text
 
 message_bp = Blueprint("message", __name__)
 
 
-def _raw_print_message(title, text, module="message"):
+def _raw_print_message(title, text, module="message", use_text_scale=True):
     """module: which logo-settings entry to use (see logos.py). Defaults
     to "message" for the direct /message route - the system report
     (modules/system/routes.py) reuses this exact function as its "plain
     text on receipt" primitive but passes module="system", so it prints
-    its own configured logo instead of the message module's."""
+    its own configured logo instead of the message module's.
+
+    use_text_scale=False keeps heading/body at their normal (1x2/1x1)
+    size regardless of the print_rules.text_size setting - used by the
+    boot greeting (gunicorn.conf.py/app.py), which is a technical status
+    notice, not user content, and shouldn't grow just because Easy-Read
+    is turned on for actual receipts."""
+    scale = get_text_scale() if use_text_scale else SCALES["normal"]
     p = get_printer()
     try:
         logo_printed = print_logo(p, module)
         if logo_printed:
             p.set(align="left", bold=False, width=1, height=1)
             p.text("\n")
-        p.set(align="center", bold=True, width=1, height=2, custom_size=True)
+        p.set(align="center", bold=True, width=scale.heading_width, height=scale.heading_height, custom_size=True)
         if title:
             p.text(f"{title}\n")
             p.text("\n")
-        p.set(align="left", bold=False, width=1, height=1, custom_size=True)
-        p.text(f"{text}\n")
+        p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
+        p.text(f"{wrap_body_text(text, scale)}\n")
         p.text("\n")
-        p.set(align="center")
+        # custom_size=True is required here even though width/height are
+        # both 1 - set()'s size branch is skipped entirely unless
+        # custom_size is truthy (see escpos.set()), so without it the
+        # PREVIOUS custom size (2x1 body in Easy-Read) would stay active
+        # and the footer would print at that size instead of resetting.
+        p.set(align="center", bold=False, width=1, height=1, custom_size=True)
         p.text(f"-- {datetime.now().strftime('%d.%m.%Y %H:%M')} --\n")
         p.cut()
     finally:

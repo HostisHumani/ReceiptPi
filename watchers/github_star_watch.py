@@ -3,7 +3,7 @@ Polls the GitHub API for new stars across one or more repos and prints a
 status message via the ReceiptPi server (app.py) whenever any of them
 gains a star.
 
-Runs best as a cronjob every few minutes, see ANLEITUNG.md. No open
+Runs best as a cronjob every few minutes. No open
 port, no webhook needed - purely an outbound poll.
 """
 

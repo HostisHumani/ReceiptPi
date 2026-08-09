@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block header %}🎲 {{ t('games.index.dice.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/games">&larr; {{ t('back_link') }}</a>
+
+<form method="post" action="/ui/games/dice" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="num_players" style="margin-top:0;">{{ t('games.dice.player_count_label') }}</label>
+  <input type="number" id="num_players" name="num_players" min="1" max="12" value="1">
+  <div class="hint">{{ t('games.dice.hint') }}</div>
+
+  <button type="submit">{{ t('games.dice.button') }}</button>
+</form>
+{% endblock %}

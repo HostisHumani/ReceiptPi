@@ -36,7 +36,7 @@ _recent_job_times = []
 _recent_job_hashes = {}
 
 # Protects _recent_job_times/_recent_job_hashes from concurrent access
-# by multiple Gunicorn threads (--threads 4, see ANLEITUNG.md) - without
+# by multiple Gunicorn threads (--threads 4) - without
 # the lock, two parallel requests could both pass the same duplicate
 # check before either one records its fingerprint.
 _rules_lock = threading.Lock()
@@ -241,22 +241,3 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     ok = result.get("ok", False)
     detail = result.get("detail", i18n.tr("print_queue.unknown_error"))
     return ok, detail, (200 if ok else 500)
-
-
-def enqueue_print_async(func, *args, bypass_rules=False, dedupe_key=None,
-                         job_type="other", summary="", source="system", log_history=True):
-    """Enqueues a print job without waiting for the result. For
-    fire-and-forget cases like the boot greeting, so the server startup
-    doesn't block if the printer happens to be unreachable. See
-    enqueue_print() for job_type/summary/source/log_history."""
-    if not bypass_rules:
-        allowed, reason = check_print_rules(func, args, dedupe_key)
-        if not allowed:
-            if log_history:
-                history_store.log_job(job_type, summary, source, "blocked", reason)
-            return  # silently skip the boot greeting/etc. instead of raising
-    meta = {"job_type": job_type, "summary": summary, "source": source, "log_history": log_history}
-    try:
-        PRINT_QUEUE.put((func, args, {}, threading.Event(), meta), timeout=5)
-    except queue.Full:
-        pass

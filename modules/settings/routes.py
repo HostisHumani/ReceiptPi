@@ -56,6 +56,9 @@ def validate_print_rules_updates(updates):
         if type(value) is not int or value < 0:
             return "settings.validation.duplicate_window", {}
 
+    if "text_size" in updates and updates["text_size"] not in ("normal", "large"):
+        return "settings.validation.text_size", {}
+
     return None
 
 
@@ -286,6 +289,7 @@ def ui_update_print_rules():
         updates = {
             "max_jobs_per_hour": int(request.form.get("max_jobs_per_hour", 20)),
             "duplicate_window_seconds": int(request.form.get("duplicate_window_seconds", 60)),
+            "text_size": request.form.get("text_size", "normal"),
         }
     except ValueError:
         message, success = i18n.tr("settings.print_rules.invalid_numbers"), False

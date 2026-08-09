@@ -39,6 +39,9 @@ DEFAULT_SETTINGS = {
         "quiet_hours_rules": [],
         "max_jobs_per_hour": 20,
         "duplicate_window_seconds": 60,
+        # "normal" or "large" - see text_style.py. Affects heading/body
+        # size on the receipt, not the print rules above.
+        "text_size": "normal",
     },
     "weather": {
         "locations": {
@@ -114,6 +117,20 @@ DEFAULT_SETTINGS = {
 # file lock (e.g. fcntl.flock) would be needed too, not just an
 # in-process lock.
 _settings_lock = threading.Lock()
+
+# In-memory cache of the parsed settings file, keyed by the file's last
+# modification time - avoids re-reading and re-parsing settings.json on
+# every single get_settings() call, which happens very often (once per
+# page render via app.py's context processor, plus every i18n.tr() call
+# internally reads the current language via get_settings() too). Safe
+# because the project deliberately runs with exactly one Gunicorn worker
+# (see app.py) - this cache would go stale across multiple worker
+# processes, since each has its own memory. get_settings() always
+# returns a deep copy of the cached dict, never the cached object
+# itself, so a caller mutating the result (e.g. update_settings_transaction's
+# mutate_fn) can never corrupt the cache before the write actually lands.
+_cache_mtime = None
+_cache_data = None
 
 
 # Keys whose content is NOT merged field-by-field with the defaults,
@@ -231,16 +248,34 @@ def _ensure_file():
 def _write(data):
     """Atomic write (temp file + os.replace) so the file doesn't end up
     corrupted if power is lost mid-write."""
+    global _cache_mtime, _cache_data
     tmp_path = SETTINGS_FILE + ".tmp"
     with open(tmp_path, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp_path, SETTINGS_FILE)
+    # Refresh the cache immediately with what was just written, rather
+    # than just invalidating it - the very next get_settings() call
+    # (often in the same request, e.g. update_settings_transaction's
+    # caller re-rendering a page) would otherwise pay for a redundant
+    # disk read of the file we just wrote ourselves.
+    _cache_mtime = os.path.getmtime(SETTINGS_FILE)
+    _cache_data = json.loads(json.dumps(data))  # defensive copy
 
 
 def get_settings():
+    global _cache_mtime, _cache_data
     _ensure_file()
+
+    try:
+        current_mtime = os.path.getmtime(SETTINGS_FILE)
+    except OSError:
+        current_mtime = None
+
+    if current_mtime is not None and current_mtime == _cache_mtime and _cache_data is not None:
+        return json.loads(json.dumps(_cache_data))  # defensive copy - never hand out the cached object itself
+
     try:
         with open(SETTINGS_FILE) as f:
             data = json.load(f)
@@ -253,7 +288,10 @@ def get_settings():
     migrated = migrated_quiet_hours or migrated_config_values
     data = _deep_merge_defaults(data, DEFAULT_SETTINGS)
     if migrated:
-        _write(data)  # persist once, so the next read doesn't re-migrate
+        _write(data)  # persist once (also refreshes the cache), so the next read doesn't re-migrate
+    else:
+        _cache_mtime = current_mtime
+        _cache_data = json.loads(json.dumps(data))  # defensive copy
     return data
 
 

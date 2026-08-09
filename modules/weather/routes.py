@@ -29,6 +29,7 @@ from modules.weather.alerts import fetch_open_meteo_forecast
 from print_queue import enqueue_print
 from printer import get_printer
 from security import csrf_protect, get_csrf_token, require_api_token
+from text_style import get_text_scale, wrap_body_text
 
 weather_bp = Blueprint("weather", __name__)
 
@@ -73,8 +74,20 @@ def fetch_dwd_forecast(lat, lon):
     return best
 
 
+def _is_netatmo_placeholder(value):
+    """Recognizes both the current English placeholder text
+    (config.example.py, since 2026-08-08) and the older German one
+    ("Platzhalter...") - an existing config.py is deliberately never
+    overwritten by an update (see config.example.py's own comments), so
+    someone still running an older config.py with the original German
+    placeholder must keep being detected as "not configured" too,
+    instead of suddenly being treated as a real entity ID and firing a
+    request at Home Assistant with garbage."""
+    return not value or value.startswith(("Placeholder", "Platzhalter"))
+
+
 def fetch_ha_sensor(entity_id):
-    if not entity_id or entity_id.startswith("Platzhalter"):
+    if _is_netatmo_placeholder(entity_id):
         return None
     url = f"{config.HA_BASE_URL}/api/states/{entity_id}"
     req = urllib.request.Request(
@@ -132,9 +145,9 @@ def _raw_print_weather(location_name=None):
     # Netatmo station.
     netatmo_lines = []
     netatmo_configured = bool(
-        getattr(config, "NETATMO_INDOOR_ENTITY", None) and not config.NETATMO_INDOOR_ENTITY.startswith("Platzhalter")
+        getattr(config, "NETATMO_INDOOR_ENTITY", None) and not _is_netatmo_placeholder(config.NETATMO_INDOOR_ENTITY)
     ) or bool(
-        getattr(config, "NETATMO_OUTDOOR_ENTITY", None) and not config.NETATMO_OUTDOOR_ENTITY.startswith("Platzhalter")
+        getattr(config, "NETATMO_OUTDOOR_ENTITY", None) and not _is_netatmo_placeholder(config.NETATMO_OUTDOOR_ENTITY)
     )
     if netatmo_configured:
         try:
@@ -149,33 +162,34 @@ def _raw_print_weather(location_name=None):
         except Exception as e:
             netatmo_lines.append(i18n.tr("receipt.weather.netatmo_error", error=e))
 
+    scale = get_text_scale()
     p = get_printer()
     try:
         logo_printed = print_logo(p, "weather")
         if logo_printed:
             p.set(align="left", bold=False, width=1, height=1)
             p.text("\n")
-        p.set(align="center", bold=True, width=1, height=2, custom_size=True)
+        p.set(align="center", bold=True, width=scale.heading_width, height=scale.heading_height, custom_size=True)
         p.text(i18n.tr("receipt.weather.title", location=location_display) + "\n")
-        p.set(align="left", bold=False, width=1, height=1, custom_size=True)
+        p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
         p.text("\n")
 
-        p.set(align="left", bold=True, width=1, height=1)
+        p.set(align="left", bold=True, width=scale.body_width, height=scale.body_height, custom_size=True)
         p.text(i18n.tr("receipt.weather.dwd_heading", provider=provider_label) + "\n")
-        p.set(align="left", bold=False, width=1, height=1)
+        p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
         for line in dwd_lines:
-            p.text(line + "\n")
+            p.text(wrap_body_text(line, scale) + "\n")
         p.text("\n")
 
         if netatmo_lines:
-            p.set(align="left", bold=True, width=1, height=1)
+            p.set(align="left", bold=True, width=scale.body_width, height=scale.body_height, custom_size=True)
             p.text(i18n.tr("receipt.weather.netatmo_heading") + "\n")
-            p.set(align="left", bold=False, width=1, height=1)
+            p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
             for line in netatmo_lines:
-                p.text(line + "\n")
+                p.text(wrap_body_text(line, scale) + "\n")
             p.text("\n")
 
-        p.set(align="center", bold=False, width=1, height=1)
+        p.set(align="center", bold=False, width=1, height=1, custom_size=True)
         p.text(f"-- {datetime.now().strftime('%d.%m.%Y %H:%M')} --\n")
         p.cut()
     finally:

@@ -34,6 +34,7 @@ import settings_store
 import themes
 from logos import ensure_default_logo_seeded
 from modules.automation.routes import automation_bp
+from modules.games.routes import games_bp
 from modules.history.routes import history_bp
 from modules.images.routes import images_bp
 from modules.message.routes import message_bp
@@ -50,7 +51,8 @@ app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB - headroom over MAX_
 
 INVALID_SECRET_KEYS = {
     "",
-    "Hier zufälligen Wert per secrets.token_hex(32) einsetzen",
+    "Insert a random value here via secrets.token_hex(32)",
+    "Hier zufälligen Wert per secrets.token_hex(32) einsetzen",  # older config.example.py wording, kept for upgrade compatibility
 }
 if getattr(config, "SECRET_KEY", "") in INVALID_SECRET_KEYS:
     raise RuntimeError(
@@ -64,7 +66,7 @@ start_worker()  # start the print queue worker thread
 i18n.load_translations()  # load translation JSON files once at startup
 ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see logos.py
 
-for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp, history_bp):
+for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp, history_bp, games_bp):
     app.register_blueprint(blueprint)
 
 
@@ -78,12 +80,17 @@ def inject_i18n():
     settings = settings_store.get_settings()
     lang = settings.get("language", i18n.DEFAULT_LANGUAGE)
     theme = settings.get("theme", themes.DEFAULT_THEME)
+    # UI text scale follows the same Easy-Read setting used for print
+    # jobs (settings.print_rules.text_size) - one switch for both,
+    # rather than a separate UI-only preference.
+    text_scale = settings.get("print_rules", {}).get("text_size", "normal")
     return {
         "t": lambda key, **kw: i18n.t(key, lang, **kw),
         "current_language": lang,
         "supported_languages": i18n.SUPPORTED_LANGUAGES,
         "current_theme": theme,
         "supported_themes": themes.SUPPORTED_THEMES,
+        "current_text_scale": text_scale,
     }
 
 
@@ -102,7 +109,7 @@ def index():
 
 if __name__ == "__main__":
     # Only for local test runs (`python3 app.py`). In production the
-    # server runs via Gunicorn with gunicorn.conf.py (see ANLEITUNG.md).
+    # server runs via Gunicorn with gunicorn.conf.py.
     import socket
 
     import history_store
@@ -112,8 +119,8 @@ if __name__ == "__main__":
     hostname = socket.gethostname()
     try:
         ip = get_local_ip()
-        text = f"Hostname: {hostname}\nIP: {ip}\nReceiptPi server started (dev mode)"
-        _raw_print_message("ONLINE", text)
+        text = i18n.tr("receipt.boot.body", hostname=hostname, ip=ip) + " (dev mode)"
+        _raw_print_message(i18n.tr("receipt.boot.title"), text, use_text_scale=False)
     except Exception:
         pass  # the boot greeting is "nice to have", not a reason to block the dev server
     else:

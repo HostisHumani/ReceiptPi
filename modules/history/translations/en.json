@@ -13,6 +13,7 @@
   "history.source.system": "System",
   "history.source.webhook": "Webhook",
   "history.job_type.boot": "Boot greeting",
+  "history.job_type.weather_alert": "Storm warning",
   "history.job_type.other": "Other",
   "history.empty": "No print jobs recorded yet.",
   "history.pagination.prev": "Previous",

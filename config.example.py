@@ -1,48 +1,47 @@
 """
-Zentrale Konfiguration für den ReceiptPi-Server und die Trigger-Scripts.
-Platzhalter durch echte Werte ersetzen, bevor die jeweiligen Features genutzt
-werden. Diese Datei NICHT ins Git-Repo committen, wenn echte Werte drinstehen
-(z.B. in .gitignore aufnehmen).
+Central configuration for the ReceiptPi server and the trigger scripts.
+Replace the placeholders with real values before using the respective
+features. Do NOT commit this file to Git with real values in it (add it
+to .gitignore).
 """
 
-# --- Drucker ---------------------------------------------------------------
-# Werte per `lsusb` ermitteln, siehe ANLEITUNG.md Schritt 6.
+# --- Printer -----------------------------------------------------------
+# Determine via `lsusb`.
 VENDOR_ID = 0x04b8
 PRODUCT_ID = 0x0202
 
-# --- Home Assistant (für Netatmo-Werte) ------------------------------------
+# --- Home Assistant (for Netatmo values) --------------------------------
 HA_BASE_URL = "http://homeassistant.local:8123"
-HA_TOKEN = "Hier HA Token"
-NETATMO_INDOOR_ENTITY = "Platzhalter für netatmo innen"
-NETATMO_OUTDOOR_ENTITY = "Platzhalter für netatmo außen"
+HA_TOKEN = "Your HA token here"
+NETATMO_INDOOR_ENTITY = "Placeholder for netatmo indoor"
+NETATMO_OUTDOOR_ENTITY = "Placeholder for netatmo outdoor"
 
-# --- Weather (DWD via Bright Sky, no API key needed) ------------------------
+# --- Weather (DWD via Bright Sky, no API key needed) ---------------------
 WEATHER_LAT = 52.52
 WEATHER_LON = 13.40
 WEATHER_LOCATION_NAME = "Berlin"
 
-# --- Fritz!Box (für WLAN-Gäste-QR) ------------------------------------------
+# --- Fritz!Box (for guest wifi QR) ---------------------------------------
 FRITZBOX_ADDRESS = "192.168.178.1"
-FRITZBOX_USER = "Platzhalter Fritzbox User"
-FRITZBOX_PASSWORD = "Platzhalter Fritzbox Passwort"
-WIFI_QR_AUTH_TYPE = "WPA"  # WPA deckt WPA/WPA2/WPA3-Mixed ab; "nopass" für offene Netze
+FRITZBOX_USER = "Placeholder Fritzbox user"
+FRITZBOX_PASSWORD = "Placeholder Fritzbox password"
+WIFI_QR_AUTH_TYPE = "WPA"  # WPA covers WPA/WPA2/WPA3-mixed; "nopass" for open networks
 
-# --- Flask-Session (für CSRF-Schutz der Web-UI) -----------------------------
-# Generieren mit: python3 -c "import secrets; print(secrets.token_hex(32))"
-# Pflichtfeld: der Server verweigert den Start, solange hier noch der
-# Platzhalter oder ein leerer String steht.
-SECRET_KEY = "Hier zufälligen Wert per secrets.token_hex(32) einsetzen"
+# --- Flask session (for the web UI's CSRF protection) ---------------------
+# Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
+# Required: the server refuses to start as long as this is still the
+# placeholder or an empty string.
+SECRET_KEY = "Insert a random value here via secrets.token_hex(32)"
 
-# --- SSH-Direktabfragen für Systembericht (CPU/RAM/LXC/Docker/Backups) ------
-# Setzt passwortlosen SSH-Zugriff vom ReceiptPi-Pi zu diesen Hosts voraus
-# (siehe ANLEITUNG.md, Abschnitt 15) - dieselben Befehle wie im Termux Lab
-# Commander (scripts/termux-lab-commander.sh), kein Zabbix nötig.
-# Beispiel-IPs unten - durch die tatsächlichen Adressen in deinem Netz ersetzen.
-# HINWEIS: Diese Werte werden nur EINMALIG beim allerersten Start als
-# Ausgangspunkt nach settings.json übernommen (siehe settings_store.py).
-# Danach ist die Web-UI (Einstellungen -> System-Report) die eigentliche
-# Verwaltungsstelle - Änderungen hier in config.py haben ab dann keine
-# Wirkung mehr.
+# --- Direct SSH queries for the system report (CPU/RAM/LXC/Docker/backups) --
+# Requires passwordless SSH access from the ReceiptPi Pi to these hosts -
+# the same commands as in the Termux Lab Commander
+# (scripts/termux-lab-commander.sh), no Zabbix needed.
+# Example IPs below - replace with the actual addresses on your network.
+# NOTE: these values are only used ONCE, as a starting point copied into
+# settings.json on the very first start (see settings_store.py). After
+# that, the web UI (Settings -> System Report) is the actual place to
+# manage them - changes here in config.py no longer have any effect.
 SSH_PROXMOX_HOST = "192.168.1.10"
 SSH_PROXMOX_USER = "root"
 SSH_PINAS_HOST = "192.168.1.11"
@@ -50,23 +49,24 @@ SSH_PINAS_USER = "root"
 SSH_PBS_HOST = "192.168.1.12"
 SSH_PBS_USER = "root"
 
-# --- API-Absicherung ---------------------------------------------------------
-# Falls gesetzt (nicht leer), verlangen alle /print/*-Endpunkte
-# (status, list, image, wifi, weather) den Header "X-Api-Token: <wert>".
-# Leer lassen ("") deaktiviert den Schutz komplett (nur fürs rein interne
-# Netz empfohlen, siehe ANLEITUNG.md).
+# --- API protection -------------------------------------------------------
+# If set (non-empty), all /print/* endpoints (status, list, image, wifi,
+# weather, system, automation) require the header "X-Api-Token: <value>".
+# Leave empty ("") to disable the protection entirely (recommended only
+# for a purely internal network).
 API_TOKEN = ""
 
-# --- Laufzeitdaten der Watch-Scripts -----------------------------------------
-# FHS-konformer Pfad statt im Projekt-/Quellcode-Verzeichnis - muss vorher
-# angelegt und dem Service-User gehören (siehe ANLEITUNG.md).
+# --- Runtime data for the watch scripts -----------------------------------
+# FHS-compliant path instead of inside the project/source directory -
+# must be created beforehand and owned by the service user.
 STATE_DIR = "/var/lib/receiptpi"
 
-# --- GitHub-Star-Watch -------------------------------------------------------
+# --- GitHub star watch -----------------------------------------------------
 # List of repos to watch for new stars - each entry gets its own baseline
 # and its own print notification. Add as many as you like.
-# HINWEIS: Wird ebenfalls nur EINMALIG initial nach settings.json übernommen
-# (Einstellungen -> GitHub-Watch) - siehe Hinweis bei den SSH-Einstellungen oben.
+# NOTE: also only used ONCE, as an initial starting point copied into
+# settings.json (Settings -> GitHub Watch) - see the note at the SSH
+# settings above.
 GITHUB_REPOS = [
     {"owner": "your-github-username", "repo": "your-repo"},
 ]

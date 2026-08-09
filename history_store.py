@@ -16,6 +16,7 @@ the source directory.
 import os
 import sqlite3
 import threading
+import time
 from datetime import datetime, timedelta
 
 import config
@@ -36,6 +37,21 @@ RETENTION_DAYS = 180
 # (print_queue.enqueue_print), so this is sufficient today.
 _lock = threading.Lock()
 
+# Whether _ensure_schema_once() has already run once in this process - the
+# schema virtually never changes after the table exists, so re-running
+# "CREATE TABLE/INDEX IF NOT EXISTS" on every single log_job()/
+# get_recent()/get_stats() call (i.e. on every print job and every
+# dashboard view) is pure overhead. Safe as a plain module-level flag
+# for the same reason as settings_store's cache: the project
+# deliberately runs with exactly one Gunicorn worker.
+_schema_ready = False
+
+# Throttles how often _prune_locked() actually runs its DELETE query.
+# RETENTION_DAYS=180 means pruning is only ever relevant once in a very
+# long while - running it on every single print job is wasted work.
+_last_prune = 0
+_PRUNE_INTERVAL_SECONDS = 3600  # once per hour is plenty for a 180-day retention window
+
 
 def _connect():
     os.makedirs(STATE_DIR, exist_ok=True)
@@ -44,7 +60,12 @@ def _connect():
     return conn
 
 
-def _ensure_schema(conn):
+def _ensure_schema_once(conn):
+    """Runs the schema-creation statements only the first time this is
+    called in the process's lifetime (see _schema_ready above)."""
+    global _schema_ready
+    if _schema_ready:
+        return
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS print_history (
@@ -59,6 +80,7 @@ def _ensure_schema(conn):
         """
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_print_history_timestamp ON print_history(timestamp)")
+    _schema_ready = True
 
 
 def log_job(job_type, summary, source, status, detail=""):
@@ -79,7 +101,7 @@ def log_job(job_type, summary, source, status, detail=""):
         with _lock:
             conn = _connect()
             try:
-                _ensure_schema(conn)
+                _ensure_schema_once(conn)
                 conn.execute(
                     "INSERT INTO print_history (timestamp, job_type, summary, source, status, detail) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
@@ -88,7 +110,7 @@ def log_job(job_type, summary, source, status, detail=""):
                         job_type, (summary or "")[:200], source, status, (detail or "")[:500],
                     ),
                 )
-                _prune_locked(conn)
+                _prune_if_due(conn)
                 conn.commit()
             finally:
                 conn.close()
@@ -96,9 +118,19 @@ def log_job(job_type, summary, source, status, detail=""):
         pass
 
 
-def _prune_locked(conn):
+def _prune_if_due(conn):
+    """Runs the retention DELETE at most once per _PRUNE_INTERVAL_SECONDS
+    - with a 180-day retention window, pruning has nothing to do on
+    almost every call, so gating it behind a timer avoids running a
+    DELETE query (even an indexed, cheap one) on every single print job
+    for no benefit."""
+    global _last_prune
+    now = time.time()
+    if now - _last_prune < _PRUNE_INTERVAL_SECONDS:
+        return
     cutoff = (datetime.now() - timedelta(days=RETENTION_DAYS)).isoformat(timespec="seconds")
     conn.execute("DELETE FROM print_history WHERE timestamp < ?", (cutoff,))
+    _last_prune = now
 
 
 def get_recent(limit=25, offset=0):
@@ -106,7 +138,7 @@ def get_recent(limit=25, offset=0):
     with _lock:
         conn = _connect()
         try:
-            _ensure_schema(conn)
+            _ensure_schema_once(conn)
             rows = conn.execute(
                 "SELECT id, timestamp, job_type, summary, source, status, detail "
                 "FROM print_history ORDER BY id DESC LIMIT ? OFFSET ?",
@@ -125,7 +157,7 @@ def get_stats():
     with _lock:
         conn = _connect()
         try:
-            _ensure_schema(conn)
+            _ensure_schema_once(conn)
             total = conn.execute("SELECT COUNT(*) FROM print_history").fetchone()[0]
             by_status = {
                 row["status"]: row["count"]

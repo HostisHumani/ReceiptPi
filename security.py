@@ -1,7 +1,7 @@
 """
-CSRF-Schutz für die Web-UI-Formulare (/ui/*), Token-Schutz für die
-JSON-/Automations-Endpunkte (/print/*), robustes JSON-Parsing, sowie
-gemeinsame Eingabe-Längenlimits, die von mehreren Modulen genutzt werden.
+CSRF protection for the web UI forms (/ui/*), token protection for the
+JSON/automation endpoints (/print/*), robust JSON parsing, plus shared
+input length limits used by several modules.
 """
 import secrets as secrets_module
 from functools import wraps
@@ -9,7 +9,7 @@ from functools import wraps
 import config
 from flask import abort, jsonify, request, session
 
-# Gemeinsame Eingabe-Limits (u.a. von shopping und status genutzt)
+# Shared input limits (used by shopping, message, and others)
 MAX_TITLE_LEN = 100
 MAX_TEXT_LEN = 2000
 MAX_ITEMS = 100
@@ -17,17 +17,16 @@ MAX_ITEM_LEN = 200
 
 
 def csrf_protect(view_func):
-    """Schützt die /ui/*-Formulare gegen Cross-Site-POSTs aus dem lokalen
-    Netz: jede ausgelieferte Seite trägt ein Session-gebundenes Token im
-    versteckten Formularfeld, das beim Absenden mit der Session
-    verglichen wird."""
+    """Protects the /ui/* forms against cross-site POSTs from the local
+    network: every rendered page carries a session-bound token in a
+    hidden form field, checked against the session on submit."""
     @wraps(view_func)
     def wrapper(*args, **kwargs):
         form_token = request.form.get("csrf_token")
         session_token = session.get("csrf_token")
-        # Explizite Prüfung zuerst: ohne sie würde ein POST ganz ohne
-        # vorherigen Seitenaufruf (beide Werte None) den Vergleich
-        # bestehen, da None != None zu False auswertet.
+        # Explicit check first: without it, a POST with no prior page
+        # load (both values None) would pass the comparison below,
+        # since None != None evaluates to False.
         if not form_token or not session_token or not secrets_module.compare_digest(form_token, session_token):
             abort(403)
         return view_func(*args, **kwargs)
@@ -41,25 +40,29 @@ def get_csrf_token():
 
 
 def require_api_token(view_func):
-    """Schützt die JSON-/Automations-Endpunkte mit einem statischen Token
-    (Header X-Api-Token). Die Web-UI (/ui/*) bleibt davon unberührt, da
-    sie nur im internen Netz per Browser genutzt wird - siehe ANLEITUNG.md
-    zur Empfehlung, den Port zusätzlich per Firewall auf das LAN zu
-    beschränken."""
+    """Protects the JSON/automation endpoints with a static token
+    (X-Api-Token header). The web UI (/ui/*) is unaffected - it's only
+    used from a browser on the internal network. Additionally
+    restricting the port to the LAN via firewall is recommended."""
     @wraps(view_func)
     def wrapper(*args, **kwargs):
         token = getattr(config, "API_TOKEN", None)
-        if token and request.headers.get("X-Api-Token") != token:
-            return jsonify({"status": "error", "detail": "ungültiges oder fehlendes X-Api-Token"}), 401
+        # compare_digest instead of != : a plain string comparison
+        # short-circuits on the first mismatched character, which
+        # leaks (via response timing) how many leading characters of a
+        # guess were correct. Low real-world risk on a home LAN, but
+        # free to avoid.
+        if token and not secrets_module.compare_digest(request.headers.get("X-Api-Token", ""), token):
+            return jsonify({"status": "error", "detail": "invalid or missing X-Api-Token"}), 401
         return view_func(*args, **kwargs)
     return wrapper
 
 
 def get_json_body():
-    """Parst den JSON-Body robust. Gibt (data, error_response) zurück -
-    bei ungültigem/fehlendem JSON ist data None und error_response ein
-    fertiges (jsonify(...), 400)-Tupel zum direkten Zurückgeben."""
+    """Parses the JSON body robustly. Returns (data, error_response) -
+    on invalid/missing JSON, data is None and error_response is a ready
+    (jsonify(...), 400) tuple to return directly."""
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
-        return None, (jsonify({"status": "error", "detail": "Ungültiger oder fehlender JSON-Body"}), 400)
+        return None, (jsonify({"status": "error", "detail": "Invalid or missing JSON body"}), 400)
     return data, None

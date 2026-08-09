@@ -24,8 +24,10 @@ JOB_TYPE_LABELS = {
     "images": "tile.images.name",
     "wifi": "tile.wifi.name",
     "weather": "tile.weather.name",
+    "weather_alert": "history.job_type.weather_alert",
     "system": "tile.system.name",
     "automation": "tile.automation.name",
+    "games": "tile.games.name",
     "boot": "history.job_type.boot",
     "other": "history.job_type.other",
 }

@@ -1,6 +1,7 @@
 flask
 gunicorn
 python-escpos
+pyusb
 pillow
 qrcode
 fritzconnection

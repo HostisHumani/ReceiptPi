@@ -2,6 +2,7 @@
 Module: shopping list / lists - title + one item per line, prints a list
 with checkboxes.
 """
+import textwrap
 from datetime import datetime
 
 from flask import Blueprint, jsonify, render_template, request
@@ -19,28 +20,35 @@ from security import (
     get_json_body,
     require_api_token,
 )
+from text_style import BODY_COLUMNS, get_text_scale
 
 shopping_bp = Blueprint("shopping", __name__)
 
 
 def _raw_print_list(title, items):
+    scale = get_text_scale()
     p = get_printer()
     try:
         logo_printed = print_logo(p, "shopping")
         if logo_printed:
             p.set(align="left", bold=False, width=1, height=1)
             p.text("\n")
-        p.set(align="center", bold=True, width=1, height=2, custom_size=True)
+        p.set(align="center", bold=True, width=scale.heading_width, height=scale.heading_height, custom_size=True)
         p.text(f"{title}\n")
         p.text("\n")
+        # Separator stays at normal size on purpose, even in Easy-Read
+        # mode - it's a plain divider line, not content to read.
         p.set(align="left", bold=False, width=1, height=1, custom_size=True)
         p.text("-" * 32 + "\n")
+        p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
         # ESC 3 n: slightly wider line spacing than the printer's default
         # (~30 dots), just for the item list - makes a long list easier
         # to read without wasting much extra paper. Reset back to the
         # default afterward so it doesn't affect anything printed after
         # the list (footer date, subsequent jobs, etc.).
         p._raw(bytes([0x1B, 0x33, 38]))
+        checkbox_prefix = "( ) "
+        cols = max(BODY_COLUMNS.get(scale.body_width, 42) - len(checkbox_prefix), 10)
         for item in items:
             if item.strip():
                 # "( )" instead of "[ ]": square brackets fall in the
@@ -50,8 +58,16 @@ def _raw_print_list(title, items):
                 # the actual fix). Parentheses aren't affected by any of
                 # the common national variants, so they print correctly
                 # as a checkbox even if that fix somehow doesn't apply.
-                p.text(f"( ) {item.strip()}\n")
+                # Word-wrapped (not the printer's own mid-word hard
+                # wrap) with continuation lines indented to line up
+                # under the item text, past the checkbox.
+                wrapped = textwrap.fill(
+                    item.strip(), width=cols,
+                    initial_indent=checkbox_prefix, subsequent_indent=" " * len(checkbox_prefix),
+                )
+                p.text(wrapped + "\n")
         p._raw(bytes([0x1B, 0x32]))  # ESC 2: back to default line spacing
+        p.set(align="left", bold=False, width=1, height=1, custom_size=True)
         p.text("-" * 32 + "\n")
         p.text("\n")
         p.set(align="center")

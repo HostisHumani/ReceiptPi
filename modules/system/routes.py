@@ -1,12 +1,12 @@
 """
-Modul: Systembericht - nutzt größtenteils dieselben SSH-Befehle wie der
-bestehende Termux Lab Commander (scripts/termux-lab-commander.sh im
-HomeLab-Repo): CPU-Temp/-Last, RAM, NVMe-Speicherplatz, LXC/VM-Liste,
-PBS-Backups und Update-Check (dort noch ohne PBS, hier ergänzt). Der
-allgemeine OMV-Docker-Status (fetch_docker_status) ist NICHT aus dem
-Commander übernommen, der checkt nur Frigate auf einem separaten Host -
-hier eigenständig für alle OMV-Container ergänzt. Bewusst ohne Zabbix,
-um keine zusätzliche Item-/Template-Konfiguration zu brauchen.
+Module: system report - largely uses the same SSH commands as the
+existing Termux Lab Commander (scripts/termux-lab-commander.sh in the
+HomeLab repo): CPU temp/load, RAM, NVMe disk space, LXC/VM list, PBS
+backups, and update check (the Commander's version doesn't cover PBS,
+this one does). The general OMV Docker status (fetch_docker_status) is NOT taken from the
+Commander - that only checks Frigate on a separate host - it's added
+here independently for all OMV containers. Deliberately no Zabbix, to
+avoid needing extra item/template configuration.
 """
 import json
 import subprocess
@@ -32,10 +32,9 @@ def _ssh_target(role):
 
 
 def ssh_run(user, host, remote_command, timeout=10):
-    """Führt einen Befehl per SSH auf einem anderen Host aus. Setzt
-    voraus, dass der ReceiptPi-Pi sich per Key ohne Passwort dort
-    anmelden kann (siehe ANLEITUNG.md). Gibt stdout als String zurück,
-    wirft eine Exception bei Fehlern/Timeout."""
+    """Runs a command via SSH on another host. Requires the ReceiptPi
+    Pi to be able to log in there passwordlessly via key. Returns
+    stdout as a string, raises an exception on errors/timeout."""
     result = subprocess.run(
         [
             "ssh",
@@ -56,8 +55,8 @@ def ssh_run(user, host, remote_command, timeout=10):
 
 
 def fetch_pve_status():
-    """CPU-Temp, CPU-Last, RAM auf dem Proxmox-Host - identische Befehle
-    wie im Termux Commander (check_status())."""
+    """CPU temp, CPU load, RAM on the Proxmox host - identical commands
+    to the Termux Commander (check_status())."""
     user, host = _ssh_target("proxmox")
     lines = []
     cpu_temp = ssh_run(user, host,
@@ -73,7 +72,7 @@ def fetch_pve_status():
 
 
 def fetch_lxc_vm_status():
-    """LXC- und VM-Liste vom Proxmox-Host (pct list / qm list)."""
+    """LXC and VM list from the Proxmox host (pct list / qm list)."""
     user, host = _ssh_target("proxmox")
     lines = []
     lxc_output = ssh_run(user, host, "pct list")
@@ -92,8 +91,8 @@ def fetch_lxc_vm_status():
 
 
 def fetch_omv_status():
-    """NVMe-Speicherplatz auf piNAS (OMV) - identischer Befehl wie im
-    Termux Commander."""
+    """NVMe disk space on piNAS (OMV) - identical command to the Termux
+    Commander."""
     user, host = _ssh_target("pinas")
     disk = ssh_run(user, host,
                     "df -h /dev/nvme0n1p2 | awk 'NR==2{print $3\"/\"$2\" (\"$5\")\"}'")
@@ -101,10 +100,10 @@ def fetch_omv_status():
 
 
 def fetch_docker_status():
-    """Docker-Container-Status per SSH direkt von piNAS/OMV (docker ps).
-    Anders als die anderen fetch_*-Funktionen NICHT 1:1 aus dem Termux
-    Commander übernommen - der checkt nur Frigate auf einem separaten
-    Host, keinen allgemeinen OMV-Docker-Stack."""
+    """Docker container status via SSH directly from piNAS/OMV (docker
+    ps). Unlike the other fetch_* functions, NOT taken 1:1 from the
+    Termux Commander - that only checks Frigate on a separate host, not
+    a general OMV Docker stack."""
     user, host = _ssh_target("pinas")
     output = ssh_run(
         user, host,
@@ -114,9 +113,9 @@ def fetch_docker_status():
 
 
 def fetch_pbs_recent_backups(limit=5):
-    """Letzte PBS-Backup-Tasks (Backup/Sync/Prune/Verify/GC), analog zur
-    Python-Auswertung im Termux Commander, hier lokal statt remote per
-    eingebettetem Python-Aufruf geparst."""
+    """Most recent PBS backup tasks (Backup/Sync/Prune/Verify/GC),
+    analogous to the Python evaluation in the Termux Commander, parsed
+    here locally instead of remotely via an embedded Python call."""
     user, host = _ssh_target("pbs")
     output = ssh_run(user, host,
                       "proxmox-backup-manager task list --all --output-format json-pretty")
@@ -131,13 +130,13 @@ def fetch_pbs_recent_backups(limit=5):
     return lines or [i18n.tr("receipt.system.no_backup_tasks")]
 
 
-UPDATE_LIST_THRESHOLD = 10  # bis zu dieser Anzahl Paketnamen ausdrucken, sonst nur die Zahl
+UPDATE_LIST_THRESHOLD = 10  # print package names individually up to this count, otherwise just the number
 
 
 def fetch_updates_for_host(label, user, host):
-    """Liefert Update-Zeilen für einen Host. Bei wenigen offenen Updates
-    (<= UPDATE_LIST_THRESHOLD) werden die Paketnamen einzeln aufgelistet,
-    darüber nur die Anzahl."""
+    """Returns update lines for one host. With few open updates
+    (<= UPDATE_LIST_THRESHOLD), the package names are listed
+    individually; above that, just the count."""
     # "|| true" is necessary here: grep exits 1 when it finds NO matching
     # lines - which simply means "no updates available", not an actual
     # error. Without it, ssh_run() would treat that as a failed SSH
@@ -157,8 +156,8 @@ def fetch_updates_for_host(label, user, host):
 
 
 def fetch_update_counts():
-    """Update-Status für PVE, OMV und PBS, wie im Termux Commander unter
-    'u) Update-Check' - dort bisher ohne PBS, hier ergänzt."""
+    """Update status for PVE, OMV and PBS, like the Termux Commander's
+    'u) Update-Check' - PBS wasn't covered there, added here."""
     lines = []
     pve_user, pve_host = _ssh_target("proxmox")
     pinas_user, pinas_host = _ssh_target("pinas")
@@ -203,7 +202,7 @@ def system_page():
     return render_template("system.html", message=None, success=None, csrf_token=get_csrf_token())
 
 
-@system_bp.route("/print/system", methods=["POST", "GET"])
+@system_bp.route("/print/system", methods=["POST"])
 @require_api_token
 def print_system():
     ok, detail, status_code = enqueue_print(_raw_print_system_report, job_type="system", source="api")

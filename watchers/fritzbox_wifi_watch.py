@@ -1,15 +1,16 @@
 """
-Pollt die Fritz!Box auf den Gästenetz-Status. Wird das Gästenetz aktiviert,
-schickt dieses Script SSID + Passwort an den ReceiptPi-Server, der
-daraus einen kombinierten Ausdruck (lesbarer Text + WLAN-QR-Code) erzeugt.
+Polls the Fritz!Box for the guest network status. When the guest network
+gets enabled, this script sends SSID + password to the ReceiptPi server,
+which produces a combined printout from it (readable text + wifi QR
+code).
 
-Läuft per Cronjob alle 1-2 Minuten, siehe ANLEITUNG.md.
+Runs as a cronjob every 1-2 minutes.
 
-Benötigt: pip install fritzconnection
+Requires: pip install fritzconnection
 
-Die eigentliche Fritz!Box-Abfrage (get_guest_wifi_status) liegt zentral in
-modules/wifi/routes.py - der manuelle "Jetzt drucken"-Button in der Web-UI
-nutzt dieselbe Funktion, statt sie doppelt zu pflegen.
+The actual Fritz!Box query (get_guest_wifi_status) lives centrally in
+modules/wifi/routes.py - the manual "print now" button in the web UI
+uses the same function instead of maintaining the query twice.
 """
 
 import json
@@ -17,8 +18,8 @@ import os
 import sys
 import urllib.request
 
-# config.py und modules/ liegen im Projekt-Wurzelverzeichnis, watchers/
-# ist eine Ebene darunter - daher explizit ins sys.path aufnehmen.
+# config.py and modules/ live in the project root, watchers/ is one
+# level below - add it to sys.path explicitly.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import config
 
@@ -26,7 +27,7 @@ from modules.wifi.routes import get_guest_wifi_status
 
 PRINTER_URL = "http://localhost:5000/print/wifi"
 API_TOKEN = getattr(config, "API_TOKEN", "")
-STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # Fallback: Projekt-Wurzelverzeichnis
+STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # fallback: project root
 STATE_FILE = os.path.join(STATE_DIR, "wifi_state.json")
 
 
@@ -41,8 +42,8 @@ def load_last_state():
 
 
 def save_last_state(enabled):
-    """Atomarer Schreibvorgang (temp-Datei + os.replace), damit die Datei
-    bei einem Stromausfall mitten im Schreiben nicht beschädigt zurückbleibt."""
+    """Atomic write (temp file + os.replace), so the file doesn't end up
+    corrupted if power is lost mid-write."""
     tmp_path = STATE_FILE + ".tmp"
     with open(tmp_path, "w") as f:
         json.dump({"enabled": enabled}, f)
@@ -70,14 +71,14 @@ def main():
     last_enabled = load_last_state()
 
     if last_enabled is None:
-        # Erster Lauf: nur Baseline speichern, nichts drucken
+        # First run: only save the baseline, don't print anything.
         save_last_state(status["enabled"])
-        print(f"Baseline gesetzt: Gästenetz {'an' if status['enabled'] else 'aus'}")
+        print(f"Baseline set: guest network {'on' if status['enabled'] else 'off'}")
         return
 
     if status["enabled"] and not last_enabled:
         print_wifi(status["ssid"], status["password"])
-        print("Gästenetz aktiviert -> WLAN-Zettel gedruckt")
+        print("Guest network enabled -> wifi slip printed")
 
     save_last_state(status["enabled"])
 

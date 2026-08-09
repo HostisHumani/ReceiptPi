@@ -5,7 +5,7 @@ whenever a NEW active warning appears - same "poll every few minutes via
 cron, print through the normal HTTP API" pattern as
 github_star_watch.py/fritzbox_wifi_watch.py.
 
-Runs as a cronjob every 15 minutes, see ANLEITUNG.md. No open port, no
+Runs as a cronjob every 15 minutes. No open port, no
 webhook needed - purely an outbound poll.
 
 Reads the provider choice AND the "ignore quiet hours" opt-in live from

@@ -71,16 +71,28 @@
 </form>
 
 <h2 style="font-size:1.05em; margin: 24px 0 8px;">{{ t('settings.print_rules.heading') }}</h2>
-<form method="post" action="/ui/settings/print_rules" class="card">
+<form method="post" action="/ui/settings/print_rules">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label for="max_jobs_per_hour" style="margin-top:0;">{{ t('settings.print_rules.max_jobs') }}</label>
-  <input type="number" id="max_jobs_per_hour" name="max_jobs_per_hour" min="1"
-         value="{{ settings.print_rules.max_jobs_per_hour }}">
+  <div class="card">
+    <label for="max_jobs_per_hour" style="margin-top:0;">{{ t('settings.print_rules.max_jobs') }}</label>
+    <input type="number" id="max_jobs_per_hour" name="max_jobs_per_hour" min="1"
+           value="{{ settings.print_rules.max_jobs_per_hour }}">
 
-  <label for="duplicate_window_seconds">{{ t('settings.print_rules.duplicate_window') }}</label>
-  <input type="number" id="duplicate_window_seconds" name="duplicate_window_seconds" min="0"
-         value="{{ settings.print_rules.duplicate_window_seconds }}">
+    <label for="duplicate_window_seconds">{{ t('settings.print_rules.duplicate_window') }}</label>
+    <input type="number" id="duplicate_window_seconds" name="duplicate_window_seconds" min="0"
+           value="{{ settings.print_rules.duplicate_window_seconds }}">
+  </div>
+
+  <h2 style="font-size:1.05em; margin: 24px 0 8px;">{{ t('settings.print_rules.text_size_heading') }}</h2>
+  <div class="card">
+    <label for="text_size" style="margin-top:0;">{{ t('settings.print_rules.text_size_label') }}</label>
+    <select id="text_size" name="text_size">
+      <option value="normal" {% if settings.print_rules.text_size == "normal" %}selected{% endif %}>{{ t('settings.print_rules.text_size_normal') }}</option>
+      <option value="large" {% if settings.print_rules.text_size == "large" %}selected{% endif %}>{{ t('settings.print_rules.text_size_large') }}</option>
+    </select>
+    <div class="hint">{{ t('settings.print_rules.text_size_hint') }}</div>
+  </div>
 
   <button type="submit">{{ t('settings.save') }}</button>
 </form>

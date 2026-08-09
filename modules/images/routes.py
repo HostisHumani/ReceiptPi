@@ -25,10 +25,14 @@ from security import csrf_protect, get_csrf_token, get_json_body, require_api_to
 
 images_bp = Blueprint("images", __name__)
 
-# High enough for real, uncompressed phone photos (even newer high-res
-# cameras), but still bounded enough to catch a deliberate decompression
-# bomb (tiny file, huge pixel dimensions in the header).
-MAX_IMAGE_DIMENSION = 12000
+# High enough for real phone photos (even higher-res sensors), while
+# keeping worst-case decoded memory in check on a 512MB Pi Zero 2 W: a
+# fully decoded RGB image at this cap is roughly 6000*6000*3 ≈ 108MB,
+# versus 400MB+ at the previous 12000px cap - large enough to risk
+# taking down the single worker process on a genuinely huge (not even
+# malicious, just unusually large) upload. Still comfortably above what
+# any real phone camera produces.
+MAX_IMAGE_DIMENSION = 6000
 MAX_IMAGE_BYTES = 12 * 1024 * 1024  # 12MB - covers larger JPEGs/PNGs from modern phone cameras too
 
 

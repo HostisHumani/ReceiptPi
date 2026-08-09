@@ -1,11 +1,10 @@
 """
 Weather report and storm-warning providers.
 
-Report providers (regular /print/weather content): DWD (existing, via
-Bright Sky - see modules/weather/routes.py fetch_dwd_forecast) and
-Open-Meteo here, since it's free, needs no API key, and covers the
-whole world (combines the best available national model per location)
-- picked as the international-friendly alternative to DWD, see the
+Report providers (regular /print/weather content): DWD (via Bright Sky,
+see modules/weather/routes.py fetch_dwd_forecast) and Open-Meteo here -
+free, no API key, worldwide coverage (combines the best available
+national model per location). Selectable independently via the
 report_provider weather setting.
 
 Storm-warning providers (only used by watchers/storm_warning_watch.py):
@@ -13,35 +12,21 @@ each national weather service publishes warnings differently, so there
 is no single global API - see settings_store.DEFAULT_SETTINGS["weather"]
 ["storm_warning"] for the provider choice.
 
-  - DWD: implemented, verified against a realistic sample payload.
-    Uses the community-standard (undocumented but widely used, e.g. by
-    the official Home Assistant DWD integration) warnings.json feed,
-    keyed by Bundesland+Landkreis rather than lat/lon - see
-    fetch_dwd_alert().
-  - NWS (USA): implemented, verified against a realistic sample
-    payload. api.weather.gov works natively with lat/lon, no API key
+  - DWD: community-standard (undocumented but widely used, e.g. by the
+    official Home Assistant DWD integration) warnings.json feed, keyed
+    by Bundesland+Landkreis rather than lat/lon - see fetch_dwd_alert().
+  - NWS (USA): api.weather.gov, works natively with lat/lon, no API key
     needed - see fetch_nws_alert().
-  - MeteoAlarm (Europe): implemented. Uses the official public Atom
-    feed per country at feeds.meteoalarm.org (confirmed real, free, no
-    key, actively maintained - the OLDER RSS variant was sunset
-    2026-01-14, do not use it). Parses CAP fields directly from the
-    Atom XML (cap:areaDesc/severity/event/expires) - CORRECTED
-    2026-08-07 against a real active warning on the live feed after an
-    earlier version (based on 2021-2023 community reference code using
-    an "awt:N level:M" image-alt pattern) turned out to be checking a
-    format MeteoAlarm has since replaced; see fetch_meteoalarm_alert()'s
-    docstring for what to check if this drifts again. The official
-    modern MeteoAlarm EDR API (api.meteoalarm.org) was deliberately NOT
-    used - it requires being a registered MeteoAlarm Member/
-    Re-distributor, not just an API call, so it isn't usable for a
-    self-hosted hobby project.
-  - ECCC (Canada): REMOVED (2026-08-07). Was briefly added with guessed
-    GeoJSON property names for api.weather.gc.ca/collections/
-    weather-alerts, never verified against a live response - shipping
-    code based on a guess is not acceptable here, so it was pulled out
-    entirely rather than left as a dead stub. Not in the settings
-    dropdown. If this comes back later, it needs a real verified
-    response first, same standard as the three providers above.
+  - MeteoAlarm (Europe): official public Atom feed per country at
+    feeds.meteoalarm.org (the older RSS variant was sunset 2026-01-14,
+    do not use it). Parses CAP fields directly from the Atom XML
+    (cap:areaDesc/severity/event/expires) - see fetch_meteoalarm_alert().
+    The official MeteoAlarm EDR API (api.meteoalarm.org) isn't used
+    here since it requires being a registered Member/Re-distributor,
+    not just an API call.
+  - ECCC (Canada): not implemented. Only add it with field names
+    verified against a real live response - guessed/unverified provider
+    code doesn't ship here.
 """
 import json
 import re
@@ -191,22 +176,14 @@ def fetch_meteoalarm_alert(country_slug, region_name):
     "czechia", "republic-of-north-macedonia" - not ISO codes, and not
     always the plain English name).
 
-    Parsing approach (REVISED 2026-08-07): each <entry> carries its
-    warning data as CAP fields directly in the XML - cap:areaDesc,
-    cap:severity, cap:event, cap:expires, etc. An EARLIER version of
-    this function looked for an "awt:N level:M" pattern instead (based
-    on real, but apparently outdated, 2021-2023 community reference
-    code) - that pattern no longer exists in the live feed, MeteoAlarm
-    has since modernized the format. This version was corrected against
-    field names read directly off a real active warning on the live
-    feed ("Yellow Wind Warning issued for Germany - Kreis Harburg",
-    2026-08-07) rather than a secondhand code reference - still worth
-    double-checking if MeteoAlarm changes format again; a mismatch here
-    fails soft (returns active=False) rather than crashing, but that
-    also means a format change could silently miss a real warning, not
-    just error out. If storm warnings stop showing up despite one
-    clearly being active on meteoalarm.org, this function is the first
-    place to check.
+    Each <entry> carries its warning data as CAP fields directly in the
+    XML - cap:areaDesc, cap:severity, cap:event, cap:expires, etc.
+    (verified against a real active warning on the live feed). A format
+    mismatch fails soft (returns active=False) rather than crashing,
+    which also means a future format change could silently miss a real
+    warning instead of erroring out - if storm warnings stop showing up
+    despite one clearly being active on meteoalarm.org, this function
+    is the first place to check.
 
     region_name must match EXACTLY as MeteoAlarm spells it for that
     country (cap:areaDesc content) - visible on the country's page at

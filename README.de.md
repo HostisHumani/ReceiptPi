@@ -126,7 +126,7 @@ Ein blockierter Auftrag antwortet mit `429`.
 **Drucken**
 - `POST /print/message` – `{ "title": "...", "text": "..." }`
 - `POST /print/list` – `{ "title": "...", "items": ["..."] }`
-- `POST /print/image` – Multipart-Upload (max. 12000px pro Seite, 12MB)
+- `POST /print/image` – Multipart-Upload (max. 6000px pro Seite, 12MB)
 - `POST /print/wifi` – `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort
 - `POST /print/system` – kein Body nötig
@@ -149,8 +149,9 @@ Ein blockierter Auftrag antwortet mit `429`.
 pip freeze > requirements.lock.txt
 ```
 Friert die tatsächlich installierten Versionen ein – `requirements.txt`
-selbst bleibt bewusst unversioniert, `requirements.lock.txt` dient nur als
-Referenz, falls ein Update mal etwas kaputt macht.
+selbst enthält bewusst keine Versionsnummern (kein `==x.y.z`),
+`requirements.lock.txt` dient nur als Referenz, falls ein Update mal
+etwas kaputt macht.
 
 ## Aktuelle Module
 

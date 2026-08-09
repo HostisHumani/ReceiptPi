@@ -19,6 +19,7 @@ from logos import print_logo
 from print_queue import enqueue_print
 from printer import get_printer
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
+from text_style import get_text_scale
 
 wifi_bp = Blueprint("wifi", __name__)
 
@@ -51,25 +52,40 @@ def _raw_print_wifi(ssid, password, auth_type="WPA"):
         f"WIFI:T:{auth_type};S:{escape_wifi_qr_value(ssid)};"
         f"P:{escape_wifi_qr_value(password)};;"
     )
-    qr_img = qrcode.make(qr_source)
+    # qrcode.make() returns a qrcode.image.pil.PilImage wrapper whose
+    # .width/.height are NOT pixel dimensions (.width is the QR module
+    # count, e.g. 29 for a small code) - only .get_image() returns the
+    # actual underlying PIL Image with correct pixel .width/.height/
+    # .size. Using the wrapper's attributes directly (as an earlier
+    # version of this code did) computed a wildly wrong resize ratio
+    # and printed a hugely stretched, distorted QR code - found via a
+    # real hardware test on 2026-08-09.
+    qr_img = qrcode.make(qr_source).get_image()
     qr_target_width = 450
     if qr_img.width < qr_target_width:
         ratio = qr_target_width / qr_img.width
         qr_img = qr_img.resize((qr_target_width, int(qr_img.height * ratio)), Image.NEAREST)
 
+    scale = get_text_scale()
     p = get_printer()
     try:
         logo_printed = print_logo(p, "wifi")
         if logo_printed:
             p.set(align="left", bold=False, width=1, height=1)
             p.text("\n")
-        p.set(align="center", bold=True, width=1, height=2, custom_size=True)
+        p.set(align="center", bold=True, width=scale.heading_width, height=scale.heading_height, custom_size=True)
         p.text(i18n.tr("receipt.wifi.title") + "\n")
         p.text("\n")
-        p.set(align="left", bold=False, width=1, height=1, custom_size=True)
+        p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
         p.text(i18n.tr("receipt.wifi.ssid_label", value=ssid) + "\n")
+        p.text("\n")
         p.text(i18n.tr("receipt.wifi.password_label", value=password) + "\n")
-        p.set(align="center")
+        p.text("\n")
+        # Always normal (1x1) size for the QR code regardless of
+        # print_rules.text_size - explicit bold=False/underline=0 too,
+        # not just size, since the image is unrelated to any of this
+        # ESC/POS text state and shouldn't inherit it.
+        p.set(align="center", bold=False, underline=0, width=1, height=1, custom_size=True)
         p.image(qr_img)
         p.cut()
     finally:
