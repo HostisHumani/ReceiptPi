@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block header %}<span class="icon icon-shopping-cart" aria-hidden="true"></span> {{ t('tile.shopping.name') }}{% endblock %}
+{% block header %}<span class="icon icon-list-todo" aria-hidden="true"></span> {{ t('lists.index.todo.name') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/lists"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
-<form method="post" action="/ui/list" class="card">
+<form method="post" action="/ui/todo" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <label for="title">{{ t('shopping.title_label') }}</label>
   <input type="text" id="title" name="title" value="{{ default_title }}">
 
   <label for="items">{{ t('shopping.items_label') }}</label>
-  <textarea id="items" name="items" placeholder="{{ t('shopping.items_placeholder') }}"></textarea>
+  <textarea id="items" name="items" placeholder="{{ t('lists.todo.items_placeholder') }}"></textarea>
 
-  <button type="submit">{{ t('shopping.button') }}</button>
+  <button type="submit">{{ t('lists.todo.button') }}</button>
 </form>
 {% endblock %}

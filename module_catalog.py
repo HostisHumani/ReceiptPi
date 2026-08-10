@@ -21,7 +21,7 @@ redesign.
 """
 
 MODULES = [
-    {"key": "shopping", "icon": "shopping-cart", "url": "/shopping"},
+    {"key": "lists", "icon": "list-checks", "url": "/lists"},
     {"key": "message", "icon": "message-square", "url": "/message"},
     {"key": "weather", "icon": "cloud-sun", "url": "/weather"},
     {"key": "images", "icon": "image", "url": "/images"},

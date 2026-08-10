@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block header %}<span class="icon icon-clipboard-list" aria-hidden="true"></span> {{ t('lists.index.task.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/lists"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<form method="post" action="/ui/task" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="title">{{ t('lists.task.title_label') }}</label>
+  <input type="text" id="title" name="title" placeholder="{{ t('lists.task.title_placeholder') }}">
+
+  <label for="description">{{ t('lists.task.description_label') }}</label>
+  <textarea id="description" name="description" placeholder="{{ t('lists.task.description_placeholder') }}" class="textarea-compact"></textarea>
+
+  <label for="items">{{ t('lists.task.items_label') }}</label>
+  <textarea id="items" name="items" placeholder="{{ t('lists.todo.items_placeholder') }}"></textarea>
+
+  <label for="priority">{{ t('lists.task.priority_label') }}</label>
+  <select id="priority" name="priority">
+    <option value="">{{ t('lists.task.priority_none') }}</option>
+    <option value="low">{{ t('priority.low') }}</option>
+    <option value="medium">{{ t('priority.medium') }}</option>
+    <option value="high">{{ t('priority.high') }}</option>
+  </select>
+
+  <label for="due_date">{{ t('lists.task.due_label') }}</label>
+  <input type="date" id="due_date" name="due_date">
+
+  <button type="submit">{{ t('lists.task.button') }}</button>
+</form>
+{% endblock %}

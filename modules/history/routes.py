@@ -20,6 +20,8 @@ PAGE_SIZE = 25
 # presentation concern, not storage.
 JOB_TYPE_LABELS = {
     "shopping": "tile.shopping.name",
+    "todo": "history.job_type.todo",
+    "task": "history.job_type.task",
     "message": "tile.message.name",
     "images": "tile.images.name",
     "wifi": "tile.wifi.name",

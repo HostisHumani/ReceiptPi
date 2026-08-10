@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block header %}<span class="icon icon-list-checks" aria-hidden="true"></span> {{ t('tile.lists.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<div class="tile-grid">
+  <a class="tile" href="/lists/shopping">
+    <span class="tile-icon-badge"><span class="icon icon-shopping-cart" aria-hidden="true"></span></span>
+    <span class="tile-name">{{ t('tile.shopping.name') }}</span>
+    <span class="tile-desc">{{ t('tile.shopping.desc') }}</span>
+  </a>
+
+  <a class="tile" href="/lists/todo">
+    <span class="tile-icon-badge"><span class="icon icon-list-todo" aria-hidden="true"></span></span>
+    <span class="tile-name">{{ t('lists.index.todo.name') }}</span>
+    <span class="tile-desc">{{ t('lists.index.todo.desc') }}</span>
+  </a>
+
+  <a class="tile" href="/lists/task">
+    <span class="tile-icon-badge"><span class="icon icon-clipboard-list" aria-hidden="true"></span></span>
+    <span class="tile-name">{{ t('lists.index.task.name') }}</span>
+    <span class="tile-desc">{{ t('lists.index.task.desc') }}</span>
+  </a>
+</div>
+{% endblock %}

@@ -39,9 +39,9 @@ from modules.automation.routes import automation_bp
 from modules.games.routes import games_bp
 from modules.history.routes import history_bp
 from modules.images.routes import images_bp
+from modules.lists.routes import lists_bp
 from modules.message.routes import message_bp
 from modules.settings.routes import settings_bp
-from modules.shopping.routes import shopping_bp
 from modules.system.routes import system_bp
 from modules.weather.routes import weather_bp
 from modules.wifi.routes import wifi_bp
@@ -68,7 +68,7 @@ start_worker()  # start the print queue worker thread
 i18n.load_translations()  # load translation JSON files once at startup
 ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see logos.py
 
-for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp, history_bp, games_bp):
+for blueprint in (lists_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp, history_bp, games_bp):
     app.register_blueprint(blueprint)
 
 

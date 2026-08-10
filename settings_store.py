@@ -86,7 +86,7 @@ DEFAULT_SETTINGS = {
     # disabled module's routes (UI + /print/*) get blocked with a 404,
     # not just hidden from the tile grid.
     "enabled_modules": {
-        "shopping": True,
+        "lists": True,
         "message": True,
         "weather": True,
         "images": True,
@@ -252,6 +252,23 @@ def _migrate_legacy_config_values(data):
     return changed
 
 
+def _migrate_shopping_module_key(data):
+    """One-time migration: the enabled_modules key for the list-printing
+    module was "shopping" before it grew into shopping+to-do+task under
+    one "lists" module (see module_catalog.py). Carries over whatever
+    on/off state was already configured under the old key, then removes
+    it entirely - "shopping" isn't a valid module_catalog key anymore,
+    so leaving it behind would sit as inert clutter in settings.json
+    forever. Idempotent without a separate flag: once the old key is
+    gone, this is a no-op on every later call. Mutates data in place,
+    returns True if anything changed."""
+    modules = data.get("enabled_modules")
+    if not isinstance(modules, dict) or "shopping" not in modules:
+        return False
+    modules["lists"] = modules.pop("shopping")
+    return True
+
+
 def _ensure_file():
     os.makedirs(STATE_DIR, exist_ok=True)
     if not os.path.exists(SETTINGS_FILE):
@@ -294,11 +311,12 @@ def get_settings():
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         data = json.loads(json.dumps(DEFAULT_SETTINGS))  # defensive copy
-    # Both migrations must always run (not short-circuited by `or`) - each
-    # guards its own section independently via its own flag.
+    # Each migration guards its own section independently via its own
+    # flag/presence check, so all must run - never short-circuited.
     migrated_quiet_hours = _migrate_legacy_quiet_hours(data)
     migrated_config_values = _migrate_legacy_config_values(data)
-    migrated = migrated_quiet_hours or migrated_config_values
+    migrated_module_key = _migrate_shopping_module_key(data)
+    migrated = migrated_quiet_hours or migrated_config_values or migrated_module_key
     data = _deep_merge_defaults(data, DEFAULT_SETTINGS)
     if migrated:
         _write(data)  # persist once (also refreshes the cache), so the next read doesn't re-migrate

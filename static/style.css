@@ -408,6 +408,9 @@ body {
 /* Standalone hint text used as the sole content in an empty-state
    card (no preceding field to inherit spacing from). */
 .hint-standalone { margin-top: 0; }
+/* Shorter textarea for a single-paragraph field (task description)
+   where the full clamp()-based list height would be excessive. */
+.textarea-compact { min-height: 80px; }
 /* Standalone intro hint directly above a form/card (e.g. a page's
    description text) needs spacing below it, since form/card doesn't
    automatically follow a .hint the way it follows another form/card. */
@@ -444,7 +447,7 @@ label {
    label tags differ, so the label is still "first of its type". */
 label:first-of-type { margin-top: 0; }
 
-input[type="text"], input[type="number"], input[type="time"], input[type="file"], textarea, select {
+input[type="text"], input[type="number"], input[type="time"], input[type="date"], input[type="file"], textarea, select {
   width: 100%;
   background: var(--color-bg);
   color: var(--color-text);
@@ -638,6 +641,9 @@ button:active, .btn:active { background: var(--color-accent-hover); transform: s
 }
 
 .icon-shopping-cart { -webkit-mask-image: url("/static/icons/shopping-cart.svg"); mask-image: url("/static/icons/shopping-cart.svg"); }
+.icon-list-checks { -webkit-mask-image: url("/static/icons/list-checks.svg"); mask-image: url("/static/icons/list-checks.svg"); }
+.icon-list-todo { -webkit-mask-image: url("/static/icons/list-todo.svg"); mask-image: url("/static/icons/list-todo.svg"); }
+.icon-clipboard-list { -webkit-mask-image: url("/static/icons/clipboard-list.svg"); mask-image: url("/static/icons/clipboard-list.svg"); }
 .icon-message-square { -webkit-mask-image: url("/static/icons/message-square.svg"); mask-image: url("/static/icons/message-square.svg"); }
 .icon-cloud-sun { -webkit-mask-image: url("/static/icons/cloud-sun.svg"); mask-image: url("/static/icons/cloud-sun.svg"); }
 .icon-image { -webkit-mask-image: url("/static/icons/image.svg"); mask-image: url("/static/icons/image.svg"); }
