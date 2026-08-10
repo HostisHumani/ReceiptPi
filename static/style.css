@@ -1,21 +1,17 @@
-/* ReceiptPi - Theme-System.
-   :root ist der Fallback (identisch zu "forrest"), falls data-theme aus
-   irgendeinem Grund fehlt - der Normalfall ist aber, dass base.html
-   IMMER ein data-theme-Attribut auf <html> setzt (siehe app.py
-   inject_i18n / current_theme, gespeist aus settings_store["theme"]).
-   Jedes [data-theme="..."]-Fall überschreibt exakt dieselben
-   Variablen - neues Theme hinzufügen = ein neuer Block hier plus ein
-   Eintrag in themes.py, sonst nichts im restlichen CSS/den Templates
-   anfassen.
+/* Theme system. :root is the fallback (same values as "forrest") in
+   case data-theme is ever missing - base.html always sets data-theme
+   on <html> from settings_store["theme"] (see app.py inject_i18n).
+   Each [data-theme="..."] block overrides the same variable set;
+   adding a theme means one new block here plus an entry in themes.py,
+   nothing else needs touching.
 
-   --color-accent-text: Kontrastfarbe für Text auf dem Accent-Button -
-   je nach Theme hell oder dunkel (z.B. dunkler Text auf hellem Lime bei
-   Dark Lime, heller Text auf dunklem Grün bei Forrest).
-   --color-status-offline: Farbe des Offline-Punkts im Header - war
-   früher hartcodiert (#e05a5a), jetzt pro Theme austauschbar.
-   .msg.ok/.msg.err nutzen color-mix() statt fester rgba()-Werte, damit
-   die Hinweis-Boxen automatisch zu Accent/Danger jedes Themes passen,
-   ohne dass jedes Theme eigene Zusatzwerte dafür mitbringen muss. */
+   --color-accent-text: contrast color for text on the accent button,
+   light or dark depending on the theme's accent brightness.
+   --color-status-offline: the header's offline-dot color, themeable
+   per theme instead of a fixed red.
+   .msg.ok/.msg.err use color-mix() instead of fixed rgba() values so
+   they automatically match each theme's accent/danger color without
+   needing theme-specific extra values. */
 :root {
   --color-bg: #08211a;
   --color-surface: #0d3327;
@@ -31,7 +27,7 @@
   --radius: 14px;
 }
 
-/* 1. Forrest - Emerald Ink / Champagne (Original, unverändert) */
+/* 1. Forrest - Emerald Ink / Champagne */
 [data-theme="forrest"] {
   --color-bg: #08211a;
   --color-surface: #0d3327;
@@ -61,7 +57,7 @@
   --color-status-offline: #ff5c5c;
 }
 
-/* 3. Frost - Nord-inspiriert (nicht 1:1 Nord) */
+/* 3. Frost - Nord-inspired */
 [data-theme="frost"] {
   --color-bg: #2e3440;
   --color-surface: #3b4252;
@@ -76,7 +72,7 @@
   --color-status-offline: #bf616a;
 }
 
-/* 4. Butter Bean - warmes helles Theme */
+/* 4. Butter Bean - warm light theme */
 [data-theme="butter-bean"] {
   --color-bg: #fff5d6;
   --color-surface: #ffefb3;
@@ -91,7 +87,7 @@
   --color-status-offline: #d1483a;
 }
 
-/* 5. White Purple - helles Theme */
+/* 5. White Purple - light theme */
 [data-theme="white-purple"] {
   --color-bg: #f6f1f9;
   --color-surface: #fffbff;
@@ -106,6 +102,25 @@
   --color-status-offline: #d64550;
 }
 
+/* ==========================================================================
+   Design system: spacing/typography scale, components, icons. Works
+   exclusively through the --color-* variables above.
+   ========================================================================== */
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Monospace is reserved for genuine technical values (IPs, time
+     windows, coordinates, timestamps) via .mono - regular UI text
+     stays on the system font. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -115,56 +130,89 @@ body {
   color: var(--color-text);
   min-height: 100vh;
   font-size: 16px;
+  line-height: 1.45;
 }
 
 /* Easy-Read (settings.print_rules.text_size = "large", see base.html
-   data-text-scale): moderately larger UI base font - almost everything
-   else in this file is sized in em, so it scales along with this.
-   Tile grid also drops from 2 to 1 column so each tile gets double the
-   width instead of shrinking to fit a cramped second column. */
+   data-text-scale): larger base font size; most of this file is sized
+   in em so it scales along automatically. Grid layouts drop to a
+   single column so each item gets the extra width instead of being
+   squeezed into a cramped second column. */
 [data-text-scale="large"] body {
   font-size: 19px;
 }
-[data-text-scale="large"] .tile-grid {
+[data-text-scale="large"] .tile-grid,
+[data-text-scale="large"] .status-strip {
   grid-template-columns: 1fr;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .page {
   max-width: 520px;
   margin: 0 auto;
-  padding: 20px 16px 40px;
+  padding: var(--space-5) var(--space-4) 40px;
 }
 
+/* ---------------------------------------------------------------------
+   Header / wordmark
+   --------------------------------------------------------------------- */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 0 20px;
+  padding: 4px 0 var(--space-5);
 }
 
-.topbar h1 {
-  font-size: 1.4em;
-  margin: 0;
+/* Icon + text as one unit, used for both the app wordmark (home) and
+   every page title (subpages override the block content with their
+   own icon). A future logo image can replace the icon at this spot
+   without any layout change. */
+.wordmark {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 1.3em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
+.wordmark .icon { width: 24px; height: 24px; color: var(--color-accent); }
 
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .printer-status {
-  font-size: 1.1em;
-  line-height: 1;
-  color: var(--color-text-muted);  /* "checking" state - neutral until the first /health response arrives */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82em;
+  color: var(--color-text-muted);
   cursor: default;
-  transition: color 0.2s ease;
+}
+.printer-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 .printer-status.online { color: var(--color-accent); }
 .printer-status.offline { color: var(--color-status-offline); }
+.js-printer-status.online { color: var(--color-accent); }
+.js-printer-status.offline { color: var(--color-status-offline); }
 
 .back-link {
   color: var(--color-text-muted);
@@ -173,54 +221,230 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 .back-link:hover { color: var(--color-text); }
+.back-link .icon { width: 16px; height: 16px; }
 
-/* Startseite: Kachel-Grid */
+/* ---------------------------------------------------------------------
+   Home dashboard status strip
+   --------------------------------------------------------------------- */
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+/* Variant for a 4-value row (history stats) instead of the default 3
+   (home dashboard). */
+.status-strip-4 { grid-template-columns: repeat(4, 1fr); margin-bottom: var(--space-4); }
+
+.status-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.status-card .hint { margin-top: 0; }
+.status-card .status-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.78em;
+}
+.status-card .status-icon-row .icon { width: 14px; height: 14px; }
+.status-value {
+  font-size: 1.3em;
+  font-weight: 600;
+}
+.status-value.mono { font-size: 1.15em; }
+.status-value-accent { color: var(--color-accent); }
+.status-value-danger { color: var(--color-status-offline); }
+.status-value-muted { color: var(--color-text-muted); }
+
+/* ---------------------------------------------------------------------
+   Tile grid (home, settings overview, games overview)
+   --------------------------------------------------------------------- */
 .tile-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .tile {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--space-2);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 18px 16px;
+  padding: var(--space-4);
   text-decoration: none;
   color: var(--color-text);
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
 }
 .tile:active { transform: scale(0.98); }
-.tile:hover { background: var(--color-surface-hover); }
+.tile:hover { background: var(--color-surface-hover); border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border)); }
 
-.tile .tile-icon { font-size: 1.8em; }
-.tile .tile-name { font-weight: 700; font-size: 1.05em; }
-.tile .tile-desc { font-size: 0.82em; color: var(--color-text-muted); line-height: 1.3; }
+.tile .tile-icon-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tile .tile-icon-badge .icon { width: 22px; height: 22px; color: var(--color-accent); }
 
-/* Unterseiten: Formular-Karte */
+.tile .tile-name { font-weight: 600; font-size: 1.05em; }
+.tile .tile-desc { font-size: 0.82em; color: var(--color-text-muted); line-height: 1.35; }
+
+/* ---------------------------------------------------------------------
+   Settings overview: grouped sections instead of one flat tile list.
+   --------------------------------------------------------------------- */
+.settings-group {
+  margin-bottom: var(--space-5);
+}
+.settings-group:last-child { margin-bottom: 0; }
+.settings-group-title {
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-2) 2px;
+}
+
+/* ---------------------------------------------------------------------
+   Cards (forms + info blocks)
+   --------------------------------------------------------------------- */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: var(--space-5);
+}
+.card + .card, .card + form, form + .card { margin-top: var(--space-4); }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.card-header h2, .card-header h3 {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
 }
 
+/* Section headings between grouped cards on a page (e.g. quiet hours,
+   weather locations, logos - each with a list + an "add new" form
+   below it). .section-title is the primary heading per section,
+   .section-subtitle the smaller "add new" sub-heading. */
+.section-title {
+  font-size: 1.05em;
+  font-weight: 600;
+  margin: var(--space-5) 0 var(--space-2);
+}
+/* Explicit modifier for the first heading on a page, rather than a
+   structural :first-child/:first-of-type selector - those behave
+   inconsistently depending on unrelated nesting (e.g. a heading
+   wrapped in a <form> vs. a plain sibling), which caused an incorrect
+   margin reset on a later heading during development. */
+.section-title-flush { margin-top: 0; }
+.section-subtitle {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+/* Row inside a card (quiet-hour rules, weather locations, history
+   entries, logo modules) - replaces repeated flex/border inline
+   styles. -top aligns to the top instead of centering (for rows with
+   multi-line content); -flush drops the row's own padding/border for
+   rows that sit inside an otherwise already-padded card. */
+.list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.list-row:not(:last-child) { border-bottom: 1px solid var(--color-border); }
+.list-row-top { align-items: flex-start; }
+.list-row-flush { padding: 0; border-bottom: none; }
+.list-row-main { min-width: 0; }
+.list-row-title { font-weight: 600; }
+.list-row-subtitle { font-size: 0.92em; margin-top: 2px; }
+.list-row-meta { font-size: 0.8em; color: var(--color-text-muted); margin-top: 2px; }
+.list-row-timestamp { flex-shrink: 0; }
+.list-row-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+
+/* Small action forms nested inside a list row or info block (toggle,
+   delete, set-default) shouldn't carry the default button spacing. */
+.inline-form { margin: 0; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  font-weight: 600;
+}
+.badge-accent { background: color-mix(in srgb, var(--color-accent) 18%, transparent); color: var(--color-accent); }
+.badge-muted { background: color-mix(in srgb, var(--color-text-muted) 16%, transparent); color: var(--color-text-muted); }
+.badge-danger { background: color-mix(in srgb, var(--color-danger) 25%, transparent); color: var(--color-text); }
+
+/* Standalone hint text used as the sole content in an empty-state
+   card (no preceding field to inherit spacing from). */
+.hint-standalone { margin-top: 0; }
+/* Standalone intro hint directly above a form/card (e.g. a page's
+   description text) needs spacing below it, since form/card doesn't
+   automatically follow a .hint the way it follows another form/card. */
+.hint + form, .hint + .card { margin-top: var(--space-4); }
+
+/* Fixed-size logo preview thumbnail (default + per-module logos). */
+.logo-preview { max-width: 150px; max-height: 80px; display: block; margin: 10px 0; }
+
+/* Horizontal wrap of day-of-week checkboxes (quiet-hours rule form). */
+.day-picker { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.day-picker .checkbox-row { margin: 0; }
+
+/* Prev/next navigation row (history pagination). */
+.pagination { display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-4); }
+.pagination .hint { margin: 0; }
+
+/* Paired secondary input directly below a primary one (e.g. an SSH
+   host + its user field) - tighter spacing than the standard label
+   gap. */
+.input-tight { margin-top: var(--space-2); }
+
+/* ---------------------------------------------------------------------
+   Forms
+   --------------------------------------------------------------------- */
 label {
   display: block;
   font-size: 0.85em;
+  font-weight: 500;
   color: var(--color-text-muted);
-  margin: 14px 0 6px;
+  margin: var(--space-4) 0 6px;
 }
-label:first-child { margin-top: 0; }
+/* :first-of-type (not :first-child) so this still applies when a
+   hidden CSRF input precedes the first visible label - the input and
+   label tags differ, so the label is still "first of its type". */
+label:first-of-type { margin-top: 0; }
 
-input[type="text"], input[type="number"], input[type="file"], textarea, select {
+input[type="text"], input[type="number"], input[type="time"], input[type="file"], textarea, select {
   width: 100%;
   background: var(--color-bg);
   color: var(--color-text);
@@ -229,30 +453,86 @@ input[type="text"], input[type="number"], input[type="file"], textarea, select {
   padding: 11px 12px;
   font-size: 1em;
   font-family: inherit;
+  transition: border-color 0.15s ease;
 }
-textarea { min-height: 120px; resize: vertical; }
+input:hover, textarea:hover, select:hover { border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border)); }
+
+/* Scales with the viewport instead of a fixed height, and stays
+   manually resizable via the drag handle (resize: vertical) on top of
+   that; clamp() bounds it on very short or very tall screens. */
+textarea { min-height: clamp(120px, 32vh, 340px); resize: vertical; }
 input::placeholder, textarea::placeholder { color: var(--color-text-muted); opacity: 0.7; }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 400;
+  margin: var(--space-3) 0;
+}
+.checkbox-row input { width: auto; }
+
+/* ---------------------------------------------------------------------
+   Buttons - primary (default), secondary (subtle outline, for
+   toggle/edit actions in a list row), danger (destructive actions).
+   --------------------------------------------------------------------- */
 button, .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   width: 100%;
   padding: 14px;
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: 1.02em;
+  font-weight: 600;
+  font-family: inherit;
   border: none;
   border-radius: 10px;
   background: var(--color-accent);
   color: var(--color-accent-text);
-  margin-top: 18px;
+  margin-top: var(--space-5);
   cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
-button:active, .btn:active { background: var(--color-accent-hover); }
+button:active, .btn:active { background: var(--color-accent-hover); transform: scale(0.98); }
+
+.btn-secondary {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 14px;
+  font-size: 0.85em;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+.btn-secondary:active { background: var(--color-surface-hover); transform: scale(0.98); }
+
+.btn-danger {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 14px;
+  font-size: 0.85em;
+  font-weight: 500;
+  background: var(--color-danger);
+  color: var(--color-text);
+}
+.btn-danger:active { transform: scale(0.98); }
+/* Full-width variant for a danger button used as a form's sole
+   submit action rather than an inline row action. */
+.btn-block { width: 100%; padding: 14px; font-size: 1.02em; font-weight: 600; margin-top: var(--space-5); }
 
 .msg {
   padding: 12px 14px;
   border-radius: 10px;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
   font-size: 0.92em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+.msg .icon { width: 16px; height: 16px; flex-shrink: 0; }
 .msg.ok {
   background: color-mix(in srgb, var(--color-accent) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
@@ -266,21 +546,25 @@ button:active, .btn:active { background: var(--color-accent-hover); }
   font-size: 0.8em;
   color: var(--color-text-muted);
   margin-top: 6px;
+  line-height: 1.4;
 }
 
-/* Burger-Menü: natives <details>/<summary>, kein JS nötig */
+/* ---------------------------------------------------------------------
+   Burger menu: native <details>/<summary>, no JS needed.
+   --------------------------------------------------------------------- */
 .burger-menu {
   position: relative;
 }
 .burger-menu summary {
   list-style: none;
   cursor: pointer;
-  font-size: 1.3em;
-  padding: 6px 10px;
+  padding: 8px;
   border-radius: 8px;
   color: var(--color-text);
   user-select: none;
+  display: flex;
 }
+.burger-menu summary .icon { width: 20px; height: 20px; }
 .burger-menu summary::-webkit-details-marker { display: none; }
 .burger-menu summary:hover { background: var(--color-surface-hover); }
 .burger-menu[open] summary { background: var(--color-surface-hover); }
@@ -293,28 +577,32 @@ button:active, .btn:active { background: var(--color-accent-hover); }
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  min-width: 180px;
+  min-width: 190px;
   overflow: hidden;
   z-index: 10;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .burger-dropdown a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 12px 16px;
   color: var(--color-text);
   text-decoration: none;
   font-size: 0.95em;
 }
+.burger-dropdown a .icon { width: 17px; height: 17px; color: var(--color-text-muted); }
 .burger-dropdown a:hover { background: var(--color-surface-hover); }
 
-/* Theme-Auswahl (settings_design.html): kleine Farb-Vorschaupunkte pro
-   Radio-Option, damit man sieht, was man auswählt, statt nur den Namen
-   zu lesen. */
+/* Theme picker (settings_design.html): a small color swatch per radio
+   option so the choice is visible, not just the name. The swatch's
+   background color is set inline per option since it's dynamic data
+   (looked up from the theme key), not a fixed style. */
 .theme-option {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 14px 0 6px;
+  margin: var(--space-4) 0 6px;
 }
 .theme-option:first-child { margin-top: 0; }
 .theme-swatch {
@@ -325,3 +613,54 @@ button:active, .btn:active { background: var(--color-accent-hover); }
   border: 1px solid var(--color-border);
   flex-shrink: 0;
 }
+
+/* ---------------------------------------------------------------------
+   Icons: CSS mask-image with currentColor instead of inline SVG or a
+   JS icon library. One reusable class per icon (.icon-<name>)
+   references the matching local SVG file - no inline style needed in
+   templates. Size/color come from the base .icon class and the
+   surrounding text color. Source: static/icons/ (Lucide, ISC license,
+   see static/icons/LICENSE).
+   --------------------------------------------------------------------- */
+.icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.icon-shopping-cart { -webkit-mask-image: url("/static/icons/shopping-cart.svg"); mask-image: url("/static/icons/shopping-cart.svg"); }
+.icon-message-square { -webkit-mask-image: url("/static/icons/message-square.svg"); mask-image: url("/static/icons/message-square.svg"); }
+.icon-cloud-sun { -webkit-mask-image: url("/static/icons/cloud-sun.svg"); mask-image: url("/static/icons/cloud-sun.svg"); }
+.icon-image { -webkit-mask-image: url("/static/icons/image.svg"); mask-image: url("/static/icons/image.svg"); }
+.icon-wifi { -webkit-mask-image: url("/static/icons/wifi.svg"); mask-image: url("/static/icons/wifi.svg"); }
+.icon-server { -webkit-mask-image: url("/static/icons/server.svg"); mask-image: url("/static/icons/server.svg"); }
+.icon-gamepad-2 { -webkit-mask-image: url("/static/icons/gamepad-2.svg"); mask-image: url("/static/icons/gamepad-2.svg"); }
+.icon-grid-3x3 { -webkit-mask-image: url("/static/icons/grid-3x3.svg"); mask-image: url("/static/icons/grid-3x3.svg"); }
+.icon-dice-5 { -webkit-mask-image: url("/static/icons/dice-5.svg"); mask-image: url("/static/icons/dice-5.svg"); }
+.icon-hash { -webkit-mask-image: url("/static/icons/hash.svg"); mask-image: url("/static/icons/hash.svg"); }
+.icon-globe { -webkit-mask-image: url("/static/icons/globe.svg"); mask-image: url("/static/icons/globe.svg"); }
+.icon-sliders-horizontal { -webkit-mask-image: url("/static/icons/sliders-horizontal.svg"); mask-image: url("/static/icons/sliders-horizontal.svg"); }
+.icon-star { -webkit-mask-image: url("/static/icons/star.svg"); mask-image: url("/static/icons/star.svg"); }
+.icon-tag { -webkit-mask-image: url("/static/icons/tag.svg"); mask-image: url("/static/icons/tag.svg"); }
+.icon-palette { -webkit-mask-image: url("/static/icons/palette.svg"); mask-image: url("/static/icons/palette.svg"); }
+.icon-puzzle { -webkit-mask-image: url("/static/icons/puzzle.svg"); mask-image: url("/static/icons/puzzle.svg"); }
+.icon-printer { -webkit-mask-image: url("/static/icons/printer.svg"); mask-image: url("/static/icons/printer.svg"); }
+.icon-menu { -webkit-mask-image: url("/static/icons/menu.svg"); mask-image: url("/static/icons/menu.svg"); }
+.icon-history { -webkit-mask-image: url("/static/icons/history.svg"); mask-image: url("/static/icons/history.svg"); }
+.icon-settings { -webkit-mask-image: url("/static/icons/settings.svg"); mask-image: url("/static/icons/settings.svg"); }
+.icon-arrow-left { -webkit-mask-image: url("/static/icons/arrow-left.svg"); mask-image: url("/static/icons/arrow-left.svg"); }
+.icon-arrow-right { -webkit-mask-image: url("/static/icons/arrow-right.svg"); mask-image: url("/static/icons/arrow-right.svg"); }
+.icon-trash-2 { -webkit-mask-image: url("/static/icons/trash-2.svg"); mask-image: url("/static/icons/trash-2.svg"); }
+.icon-list { -webkit-mask-image: url("/static/icons/list.svg"); mask-image: url("/static/icons/list.svg"); }
+.icon-layout-grid { -webkit-mask-image: url("/static/icons/layout-grid.svg"); mask-image: url("/static/icons/layout-grid.svg"); }
+.icon-circle-check { -webkit-mask-image: url("/static/icons/circle-check.svg"); mask-image: url("/static/icons/circle-check.svg"); }
+.icon-circle-alert { -webkit-mask-image: url("/static/icons/circle-alert.svg"); mask-image: url("/static/icons/circle-alert.svg"); }

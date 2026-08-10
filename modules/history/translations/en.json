@@ -1,6 +1,6 @@
 {
-  "menu.history": "📋 History",
-  "history.header": "📋 Print History",
+  "menu.history": "History",
+  "history.header": "Print History",
   "history.stats.total": "Total",
   "history.stats.ok": "Printed",
   "history.stats.error": "Errors",

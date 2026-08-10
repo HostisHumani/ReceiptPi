@@ -1,56 +1,54 @@
 {% extends "base.html" %}
-{% block header %}{{ t('settings.index.print_rules.name') }}{% endblock %}
+{% block header %}<span class="icon icon-sliders-horizontal" aria-hidden="true"></span> {{ t('settings.index.print_rules.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
-<h2 style="font-size:1.05em; margin: 0 0 8px;">{{ t('settings.quiet_hours.heading') }}</h2>
+<h2 class="section-title section-title-flush">{{ t('settings.quiet_hours.heading') }}</h2>
 <div class="card">
   {% if settings.print_rules.quiet_hours_rules %}
     {% for rule in settings.print_rules.quiet_hours_rules %}
-      <div style="padding:10px 0; {% if not loop.last %}border-bottom:1px solid var(--color-border);{% endif %}">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-          <div>
-            <strong>{{ rule.label if rule.label else t('settings.quiet_hours.unnamed') }}</strong>
-            {% if not rule.enabled %}<span style="color:var(--color-text-muted); font-size:0.8em;"> ({{ t('settings.quiet_hours.disabled_badge') }})</span>{% endif %}
-            <div class="hint" style="margin-top:2px;">
-              {% for d in rule.days %}{{ t('settings.quiet_hours.day.' + d|string) }}{% if not loop.last %}, {% endif %}{% endfor %}
-              &middot; {{ rule.start }}&ndash;{{ rule.end }}
-            </div>
+      <div class="list-row">
+        <div class="list-row-main">
+          <span class="list-row-title">{{ rule.label if rule.label else t('settings.quiet_hours.unnamed') }}</span>
+          {% if not rule.enabled %}<span class="badge badge-muted">{{ t('settings.quiet_hours.disabled_badge') }}</span>{% endif %}
+          <div class="list-row-meta">
+            {% for d in rule.days %}{{ t('settings.quiet_hours.day.' + d|string) }}{% if not loop.last %}, {% endif %}{% endfor %}
+            &middot; <span class="mono">{{ rule.start }}&ndash;{{ rule.end }}</span>
           </div>
-          <div style="display:flex; gap:6px; flex-shrink:0;">
-            <form method="post" action="/ui/settings/quiet_hours/toggle" style="margin:0;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <input type="hidden" name="id" value="{{ rule.id }}">
-              <button type="submit" style="width:auto; margin:0; padding:8px 10px; font-size:0.8em; background:transparent; border:1px solid var(--color-border); color:var(--color-text);">
-                {{ t('settings.quiet_hours.toggle_off') if rule.enabled else t('settings.quiet_hours.toggle_on') }}
-              </button>
-            </form>
-            <form method="post" action="/ui/settings/quiet_hours/delete" style="margin:0;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <input type="hidden" name="id" value="{{ rule.id }}">
-              <button type="submit" style="width:auto; margin:0; padding:8px 10px; font-size:0.8em; background:var(--color-danger); color:var(--color-text);">{{ t('settings.quiet_hours.delete') }}</button>
-            </form>
-          </div>
+        </div>
+        <div class="list-row-actions">
+          <form method="post" action="/ui/settings/quiet_hours/toggle" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="id" value="{{ rule.id }}">
+            <button type="submit" class="btn btn-secondary">
+              {{ t('settings.quiet_hours.toggle_off') if rule.enabled else t('settings.quiet_hours.toggle_on') }}
+            </button>
+          </form>
+          <form method="post" action="/ui/settings/quiet_hours/delete" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="id" value="{{ rule.id }}">
+            <button type="submit" class="btn btn-danger" aria-label="{{ t('settings.quiet_hours.delete') }}"><span class="icon icon-trash-2" aria-hidden="true"></span></button>
+          </form>
         </div>
       </div>
     {% endfor %}
   {% else %}
-    <div class="hint" style="margin-top:0;">{{ t('settings.quiet_hours.empty') }}</div>
+    <div class="hint hint-standalone">{{ t('settings.quiet_hours.empty') }}</div>
   {% endif %}
 </div>
 
-<h3 style="font-size:0.95em; margin: 18px 0 8px; color:var(--color-text-muted);">{{ t('settings.quiet_hours.add_heading') }}</h3>
+<h3 class="section-subtitle">{{ t('settings.quiet_hours.add_heading') }}</h3>
 <form method="post" action="/ui/settings/quiet_hours/add" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label for="label" style="margin-top:0;">{{ t('settings.quiet_hours.label') }}</label>
+  <label for="label">{{ t('settings.quiet_hours.label') }}</label>
   <input type="text" id="label" name="label" placeholder="{{ t('settings.quiet_hours.label_placeholder') }}" maxlength="50">
 
   <label>{{ t('settings.quiet_hours.days') }}</label>
-  <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+  <div class="day-picker">
     {% for d in range(7) %}
-    <label style="display:flex; align-items:center; gap:4px; font-weight:normal; margin:0;">
-      <input type="checkbox" name="days" value="{{ d }}" style="width:auto;">
+    <label class="checkbox-row">
+      <input type="checkbox" name="days" value="{{ d }}">
       {{ t('settings.quiet_hours.day.' + d|string) }}
     </label>
     {% endfor %}
@@ -62,20 +60,20 @@
   <label for="end">{{ t('settings.quiet_hours.end') }}</label>
   <input type="time" id="end" name="end" value="07:00">
 
-  <label style="display:flex; align-items:center; gap:8px;">
-    <input type="checkbox" name="enabled" style="width:auto;" checked>
+  <label class="checkbox-row">
+    <input type="checkbox" name="enabled" checked>
     {{ t('settings.quiet_hours.enabled') }}
   </label>
 
   <button type="submit">{{ t('settings.quiet_hours.add') }}</button>
 </form>
 
-<h2 style="font-size:1.05em; margin: 24px 0 8px;">{{ t('settings.print_rules.heading') }}</h2>
+<h2 class="section-title">{{ t('settings.print_rules.heading') }}</h2>
 <form method="post" action="/ui/settings/print_rules">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <div class="card">
-    <label for="max_jobs_per_hour" style="margin-top:0;">{{ t('settings.print_rules.max_jobs') }}</label>
+    <label for="max_jobs_per_hour">{{ t('settings.print_rules.max_jobs') }}</label>
     <input type="number" id="max_jobs_per_hour" name="max_jobs_per_hour" min="1"
            value="{{ settings.print_rules.max_jobs_per_hour }}">
 
@@ -84,9 +82,9 @@
            value="{{ settings.print_rules.duplicate_window_seconds }}">
   </div>
 
-  <h2 style="font-size:1.05em; margin: 24px 0 8px;">{{ t('settings.print_rules.text_size_heading') }}</h2>
+  <h2 class="section-title">{{ t('settings.print_rules.text_size_heading') }}</h2>
   <div class="card">
-    <label for="text_size" style="margin-top:0;">{{ t('settings.print_rules.text_size_label') }}</label>
+    <label for="text_size">{{ t('settings.print_rules.text_size_label') }}</label>
     <select id="text_size" name="text_size">
       <option value="normal" {% if settings.print_rules.text_size == "normal" %}selected{% endif %}>{{ t('settings.print_rules.text_size_normal') }}</option>
       <option value="large" {% if settings.print_rules.text_size == "large" %}selected{% endif %}>{{ t('settings.print_rules.text_size_large') }}</option>

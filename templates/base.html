@@ -9,23 +9,26 @@
 <body>
   <div class="page">
     <div class="topbar">
-      <h1>{% block header %}🖨️ ReceiptPi{% endblock %}</h1>
+      <h1 class="wordmark">{% block header %}<span class="icon icon-printer" aria-hidden="true"></span> ReceiptPi{% endblock %}</h1>
       <div class="topbar-right">
-        <span id="printer-status" class="printer-status" title="{{ t('status.checking') }}"
+        <span id="printer-status" class="printer-status js-printer-status" title="{{ t('status.checking') }}"
               data-online="{{ t('status.online') }}" data-offline="{{ t('status.offline') }}"
-              data-checking="{{ t('status.checking') }}">●</span>
+              data-checking="{{ t('status.checking') }}"><span class="dot" aria-hidden="true"></span></span>
         <details class="burger-menu">
-          <summary aria-label="Menu">☰</summary>
+          <summary aria-label="Menu"><span class="icon icon-menu" aria-hidden="true"></span></summary>
           <div class="burger-dropdown">
-            <a href="/history">{{ t('menu.history') }}</a>
-            <a href="/settings">{{ t('menu.settings') }}</a>
+            <a href="/history"><span class="icon icon-history" aria-hidden="true"></span> {{ t('menu.history') }}</a>
+            <a href="/settings"><span class="icon icon-settings" aria-hidden="true"></span> {{ t('menu.settings') }}</a>
           </div>
         </details>
       </div>
     </div>
 
     {% if message %}
-      <div class="msg {{ 'ok' if success else 'err' }}">{{ message }}</div>
+      <div class="msg {{ 'ok' if success else 'err' }}">
+        <span class="icon {{ 'icon-circle-check' if success else 'icon-circle-alert' }}" aria-hidden="true"></span>
+        <span>{{ message }}</span>
+      </div>
     {% endif %}
 
     {% block content %}{% endblock %}
@@ -36,14 +39,30 @@
     // as a small status dot instead of only surfacing when a print job
     // fails. Deliberately plain JS, no framework/build step - matches
     // the rest of the project staying dependency-light.
+    //
+    // Updates every element with .js-printer-status (there can be more
+    // than one on a page since the redesign: the small topbar dot AND
+    // the home dashboard's status card both show it) - each element
+    // supplies its own online/offline/checking text via data-* attrs,
+    // set from the same i18n keys as before.
     (function () {
-      var el = document.getElementById('printer-status');
-      if (!el) return;
+      var els = document.querySelectorAll('.js-printer-status');
+      if (!els.length) return;
 
       function setStatus(state) {
-        el.classList.remove('online', 'offline', 'checking');
-        el.classList.add(state);
-        el.title = el.dataset[state];
+        els.forEach(function (el) {
+          el.classList.remove('online', 'offline', 'checking');
+          el.classList.add(state);
+          var text = el.dataset[state];
+          if (text) {
+            el.title = text;
+            // Home dashboard's .status-value shows the word itself;
+            // the topbar dot only ever shows the dot + a title tooltip,
+            // never inline text - so only overwrite text content on
+            // elements that don't contain the dot span.
+            if (!el.querySelector('.dot')) el.textContent = text;
+          }
+        });
       }
 
       async function checkPrinterStatus() {

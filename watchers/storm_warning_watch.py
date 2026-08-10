@@ -76,7 +76,12 @@ def print_warning(headline, description):
 
 
 def main():
-    weather_settings = settings_store.get_settings()["weather"]
+    settings = settings_store.get_settings()
+    if not settings.get("enabled_modules", {}).get("weather", True):
+        print("weather module disabled, skipping")
+        return
+
+    weather_settings = settings["weather"]
     storm = weather_settings.get("storm_warning", {})
 
     if not storm.get("enabled"):

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block header %}📶 {{ t('tile.wifi.name') }}{% endblock %}
+{% block header %}<span class="icon icon-wifi" aria-hidden="true"></span> {{ t('tile.wifi.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/wifi" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <div class="hint" style="margin-top:0;">
+  <div class="hint">
     {{ t('wifi.hint') }}
   </div>
   <button type="submit">{{ t('wifi.button') }}</button>

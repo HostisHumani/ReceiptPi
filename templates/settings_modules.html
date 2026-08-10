@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block header %}<span class="icon icon-puzzle" aria-hidden="true"></span> {{ t('settings.index.modules.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<form method="post" action="/ui/settings/modules" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  {% for m in all_modules %}
+  <label class="checkbox-row">
+    <input type="checkbox" name="enabled_{{ m.key }}"
+           {% if enabled_modules.get(m.key, True) %}checked{% endif %}>
+    <span class="icon icon-{{ m.icon }}" aria-hidden="true"></span> {{ t('tile.' ~ m.key ~ '.name') }}
+  </label>
+  {% endfor %}
+  <div class="hint">{{ t('settings.modules.hint') }}</div>
+
+  <button type="submit">{{ t('settings.save') }}</button>
+</form>
+{% endblock %}

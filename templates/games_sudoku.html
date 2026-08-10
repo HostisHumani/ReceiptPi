@@ -1,20 +1,20 @@
 {% extends "base.html" %}
-{% block header %}🔢 {{ t('games.index.sudoku.name') }}{% endblock %}
+{% block header %}<span class="icon icon-grid-3x3" aria-hidden="true"></span> {{ t('games.index.sudoku.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/games">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/games"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/games/sudoku" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label for="difficulty" style="margin-top:0;">{{ t('games.sudoku.difficulty_label') }}</label>
+  <label for="difficulty">{{ t('games.sudoku.difficulty_label') }}</label>
   <select id="difficulty" name="difficulty">
     <option value="easy">{{ t('games.sudoku.difficulty_easy') }}</option>
     <option value="medium" selected>{{ t('games.sudoku.difficulty_medium') }}</option>
     <option value="hard">{{ t('games.sudoku.difficulty_hard') }}</option>
   </select>
 
-  <label style="display:flex; align-items:center; gap:8px; margin-top:16px;">
-    <input type="checkbox" name="print_solution" style="width:auto;">
+  <label class="checkbox-row">
+    <input type="checkbox" name="print_solution">
     {{ t('games.sudoku.print_solution_label') }}
   </label>
   <div class="hint">{{ t('games.sudoku.print_solution_hint') }}</div>

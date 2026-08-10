@@ -1,6 +1,6 @@
 {
-  "menu.history": "📋 Verlauf",
-  "history.header": "📋 Druckverlauf",
+  "menu.history": "Verlauf",
+  "history.header": "Druckverlauf",
   "history.stats.total": "Gesamt",
   "history.stats.ok": "Gedruckt",
   "history.stats.error": "Fehler",

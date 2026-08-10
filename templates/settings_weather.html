@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block header %}{{ t('settings.index.weather.name') }}{% endblock %}
+{% block header %}<span class="icon icon-cloud-sun" aria-hidden="true"></span> {{ t('settings.index.weather.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
-<h2 style="font-size:1.05em; margin: 0 0 8px;">{{ t('settings.weather_provider.heading') }}</h2>
+<h2 class="section-title section-title-flush">{{ t('settings.weather_provider.heading') }}</h2>
 <form method="post" action="/ui/settings/weather/provider" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="report_provider">{{ t('settings.weather_provider.report_label') }}</label>
@@ -15,12 +15,12 @@
   <button type="submit">{{ t('settings.save') }}</button>
 </form>
 
-<h2 style="font-size:1.05em; margin: 18px 0 8px;">{{ t('settings.storm_warning.heading') }}</h2>
+<h2 class="section-title">{{ t('settings.storm_warning.heading') }}</h2>
 <form method="post" action="/ui/settings/weather/storm-warning" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label style="display:flex; align-items:center; gap:8px;">
-    <input type="checkbox" name="enabled" style="width:auto;" {% if settings.weather.storm_warning.enabled %}checked{% endif %}>
+  <label class="checkbox-row">
+    <input type="checkbox" name="enabled" {% if settings.weather.storm_warning.enabled %}checked{% endif %}>
     {{ t('settings.storm_warning.enabled_label') }}
   </label>
 
@@ -45,8 +45,8 @@
   <input type="text" id="meteoalarm_region" name="meteoalarm_region" value="{{ settings.weather.storm_warning.meteoalarm_region }}" placeholder="z.B. Bayerischer Wald">
   <div class="hint">{{ t('settings.storm_warning.meteoalarm_hint') }}</div>
 
-  <label style="display:flex; align-items:center; gap:8px; margin-top:16px;">
-    <input type="checkbox" name="ignore_quiet_hours" style="width:auto;" {% if settings.weather.storm_warning.ignore_quiet_hours %}checked{% endif %}>
+  <label class="checkbox-row">
+    <input type="checkbox" name="ignore_quiet_hours" {% if settings.weather.storm_warning.ignore_quiet_hours %}checked{% endif %}>
     {{ t('settings.storm_warning.ignore_quiet_hours_label') }}
   </label>
   <div class="hint">{{ t('settings.storm_warning.ignore_quiet_hours_hint') }}</div>
@@ -54,28 +54,28 @@
   <button type="submit">{{ t('settings.save') }}</button>
 </form>
 
-<h2 style="font-size:1.05em; margin: 18px 0 8px;">{{ t('settings.weather_locations.heading') }}</h2>
+<h2 class="section-title">{{ t('settings.weather_locations.heading') }}</h2>
 <div class="card">
   {% for name, loc in settings.weather.locations.items() %}
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--color-border);">
-      <div>
-        <strong>{{ name }}</strong>
-        {% if name == settings.weather.default_location %}<span style="color:var(--color-accent); font-size:0.8em;"> {{ t('settings.weather_locations.default_badge') }}</span>{% endif %}
-        <div class="hint" style="margin-top:2px;">{{ loc.lat }}, {{ loc.lon }}</div>
+    <div class="list-row">
+      <div class="list-row-main">
+        <span class="list-row-title">{{ name }}</span>
+        {% if name == settings.weather.default_location %}<span class="badge badge-accent">{{ t('settings.weather_locations.default_badge') }}</span>{% endif %}
+        <div class="list-row-meta mono">{{ loc.lat }}, {{ loc.lon }}</div>
       </div>
-      <div style="display:flex; gap:6px;">
+      <div class="list-row-actions">
         {% if name != settings.weather.default_location %}
-        <form method="post" action="/ui/settings/weather/default" style="margin:0;">
+        <form method="post" action="/ui/settings/weather/default" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="name" value="{{ name }}">
-          <button type="submit" style="width:auto; margin:0; padding:8px 10px; font-size:0.8em; background:transparent; border:1px solid var(--color-border); color:var(--color-text);">{{ t('settings.weather_locations.set_default') }}</button>
+          <button type="submit" class="btn btn-secondary">{{ t('settings.weather_locations.set_default') }}</button>
         </form>
         {% endif %}
         {% if settings.weather.locations|length > 1 %}
-        <form method="post" action="/ui/settings/weather/delete" style="margin:0;">
+        <form method="post" action="/ui/settings/weather/delete" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="name" value="{{ name }}">
-          <button type="submit" style="width:auto; margin:0; padding:8px 10px; font-size:0.8em; background:var(--color-danger); color:var(--color-text);">{{ t('settings.weather_locations.delete') }}</button>
+          <button type="submit" class="btn btn-danger" aria-label="{{ t('settings.weather_locations.delete') }}"><span class="icon icon-trash-2" aria-hidden="true"></span></button>
         </form>
         {% endif %}
       </div>
@@ -83,7 +83,7 @@
   {% endfor %}
 </div>
 
-<h3 style="font-size:0.95em; margin: 18px 0 8px; color:var(--color-text-muted);">{{ t('settings.weather_locations.add_heading') }}</h3>
+<h3 class="section-subtitle">{{ t('settings.weather_locations.add_heading') }}</h3>
 <form method="post" action="/ui/settings/weather/add" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
@@ -96,8 +96,8 @@
   <label for="loc_lon">{{ t('settings.weather_locations.lon') }}</label>
   <input type="text" id="loc_lon" name="lon" placeholder="e.g. 13.40">
 
-  <label style="display:flex; align-items:center; gap:8px;">
-    <input type="checkbox" name="set_default" style="width:auto;">
+  <label class="checkbox-row">
+    <input type="checkbox" name="set_default">
     {{ t('settings.weather_locations.set_default_checkbox') }}
   </label>
 

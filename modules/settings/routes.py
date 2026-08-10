@@ -22,6 +22,7 @@ from flask import Blueprint, jsonify, render_template, request, send_file
 
 import i18n
 import logos
+import module_catalog
 import settings_store
 import themes
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
@@ -171,6 +172,14 @@ def _render_design(message=None, success=None):
     )
 
 
+def _render_modules(message=None, success=None):
+    return render_template(
+        "settings_modules.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+    )
+
+
 def _render_print_rules(message=None, success=None):
     return render_template(
         "settings_print_rules.html",
@@ -240,6 +249,11 @@ def settings_language_page():
 @settings_bp.route("/settings/design", methods=["GET"])
 def settings_design_page():
     return _render_design()
+
+
+@settings_bp.route("/settings/modules", methods=["GET"])
+def settings_modules_page():
+    return _render_modules()
 
 
 @settings_bp.route("/settings/print-rules", methods=["GET"])
@@ -510,6 +524,23 @@ def ui_set_design():
         message, success = i18n.tr("settings.design.updated"), True
 
     return _render_design(message, success)
+
+
+@settings_bp.route("/ui/settings/modules", methods=["POST"])
+@csrf_protect
+def ui_set_modules():
+    """Turns individual home-page modules on/off. An unchecked box
+    simply doesn't appear in the form data at all (standard HTML
+    checkbox behavior) - so absence means False, not "leave
+    unchanged"."""
+    def _mutate(settings):
+        enabled = settings.setdefault("enabled_modules", {})
+        for m in module_catalog.MODULES:
+            enabled[m["key"]] = request.form.get(f"enabled_{m['key']}") == "on"
+
+    settings_store.update_settings_transaction(_mutate)
+    message, success = i18n.tr("settings.modules.updated"), True
+    return _render_modules(message, success)
 
 
 @settings_bp.route("/ui/settings/system_report", methods=["POST"])

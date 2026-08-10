@@ -27,9 +27,11 @@ once in the master process, regardless of worker count. For a direct
 since that's a single, non-forking process anyway.
 """
 import config
-from flask import Flask, render_template
+from flask import Flask, abort, render_template, request
 
+import history_store
 import i18n
+import module_catalog
 import settings_store
 import themes
 from logos import ensure_default_logo_seeded
@@ -70,6 +72,22 @@ for blueprint in (shopping_bp, message_bp, images_bp, wifi_bp, weather_bp, syste
     app.register_blueprint(blueprint)
 
 
+@app.before_request
+def _enforce_enabled_modules():
+    """Blocks every route (UI page, /ui/* form post, AND /print/*
+    API) of a disabled module with a 404 - not just hiding its home
+    page tile. request.blueprint is None for routes not in any
+    blueprint (e.g. /, /health), so those are always left alone. See
+    module_catalog.py for why the blueprint name and the module key
+    are guaranteed to match."""
+    bp = request.blueprint
+    if bp not in module_catalog.MODULE_KEYS:
+        return
+    enabled = settings_store.get_settings().get("enabled_modules", {})
+    if not enabled.get(bp, True):
+        abort(404)
+
+
 @app.context_processor
 def inject_i18n():
     """Makes t() and the current language/theme available in every
@@ -91,6 +109,8 @@ def inject_i18n():
         "current_theme": theme,
         "supported_themes": themes.SUPPORTED_THEMES,
         "current_text_scale": text_scale,
+        "all_modules": module_catalog.MODULES,
+        "enabled_modules": settings.get("enabled_modules", {}),
     }
 
 
@@ -104,7 +124,15 @@ def health():
 
 @app.route("/", methods=["GET"])
 def index():
-    return render_template("home.html")
+    enabled = settings_store.get_settings().get("enabled_modules", {})
+    active_count = sum(1 for m in module_catalog.MODULES if enabled.get(m["key"], True))
+    total_prints = history_store.get_stats()["total"]
+    return render_template(
+        "home.html",
+        active_module_count=active_count,
+        total_module_count=len(module_catalog.MODULES),
+        total_prints=total_prints,
+    )
 
 
 if __name__ == "__main__":
@@ -112,7 +140,6 @@ if __name__ == "__main__":
     # server runs via Gunicorn with gunicorn.conf.py.
     import socket
 
-    import history_store
     from modules.message.routes import _raw_print_message
     from printer import get_local_ip
 

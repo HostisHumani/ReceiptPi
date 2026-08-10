@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block header %}⭕ {{ t('games.index.tictactoe.name') }}{% endblock %}
+{% block header %}<span class="icon icon-hash" aria-hidden="true"></span> {{ t('games.index.tictactoe.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/games">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/games"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/games/tictactoe" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label for="rounds" style="margin-top:0;">{{ t('games.tictactoe.rounds_label') }}</label>
+  <label for="rounds">{{ t('games.tictactoe.rounds_label') }}</label>
   <select id="rounds" name="rounds">
     <option value="3">3</option>
     <option value="6">6</option>

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block header %}{{ t('settings.index.design.name') }}{% endblock %}
+{% block header %}<span class="icon icon-palette" aria-hidden="true"></span> {{ t('settings.index.design.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/settings/design" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   {% for key, name in supported_themes.items() %}
   <label class="theme-option">
-    <input type="radio" name="theme" value="{{ key }}" style="width:auto;"
+    <input type="radio" name="theme" value="{{ key }}"
            {% if current_theme == key %}checked{% endif %}>
     <span class="theme-swatch" style="background:{{ {
       'forrest': '#2fae66',

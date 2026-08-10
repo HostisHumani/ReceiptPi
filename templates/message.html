@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block header %}📝 {{ t('tile.message.name') }}{% endblock %}
+{% block header %}<span class="icon icon-message-square" aria-hidden="true"></span> {{ t('tile.message.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/message" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

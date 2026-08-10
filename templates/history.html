@@ -1,66 +1,64 @@
 {% extends "base.html" %}
-{% block header %}{{ t('history.header') }}{% endblock %}
+{% block header %}<span class="icon icon-history" aria-hidden="true"></span> {{ t('history.header') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
-<div class="card" style="margin-bottom:16px;">
-  <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-    <div>
-      <div class="hint" style="margin-top:0;">{{ t('history.stats.total') }}</div>
-      <div style="font-size:1.4em; font-weight:700;">{{ stats.total }}</div>
-    </div>
-    <div>
-      <div class="hint" style="margin-top:0;">{{ t('history.stats.ok') }}</div>
-      <div style="font-size:1.4em; font-weight:700; color:var(--color-accent);">{{ stats.by_status.get('ok', 0) }}</div>
-    </div>
-    <div>
-      <div class="hint" style="margin-top:0;">{{ t('history.stats.error') }}</div>
-      <div style="font-size:1.4em; font-weight:700; color:#e05a5a;">{{ stats.by_status.get('error', 0) }}</div>
-    </div>
-    <div>
-      <div class="hint" style="margin-top:0;">{{ t('history.stats.blocked') }}</div>
-      <div style="font-size:1.4em; font-weight:700; color:var(--color-text-muted);">{{ stats.by_status.get('blocked', 0) }}</div>
-    </div>
+<div class="status-strip status-strip-4">
+  <div class="status-card">
+    <span class="hint">{{ t('history.stats.total') }}</span>
+    <span class="status-value">{{ stats.total }}</span>
+  </div>
+  <div class="status-card">
+    <span class="hint">{{ t('history.stats.ok') }}</span>
+    <span class="status-value status-value-accent">{{ stats.by_status.get('ok', 0) }}</span>
+  </div>
+  <div class="status-card">
+    <span class="hint">{{ t('history.stats.error') }}</span>
+    <span class="status-value status-value-danger">{{ stats.by_status.get('error', 0) }}</span>
+  </div>
+  <div class="status-card">
+    <span class="hint">{{ t('history.stats.blocked') }}</span>
+    <span class="status-value status-value-muted">{{ stats.by_status.get('blocked', 0) }}</span>
   </div>
 </div>
 
 {% if entries %}
 <div class="card">
   {% for entry in entries %}
-    <div style="padding:10px 0; {% if not loop.last %}border-bottom:1px solid var(--color-border);{% endif %}">
-      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px;">
-        <strong>{{ entry.type_label }}</strong>
-        <span class="hint" style="margin:0;">{{ entry.timestamp[:16].replace('T', ' ') }}</span>
-      </div>
-      {% if entry.summary %}
-        <div style="font-size:0.92em; margin-top:2px;">{{ entry.summary }}</div>
-      {% endif %}
-      <div style="margin-top:4px; font-size:0.8em;">
-        <span style="color: {% if entry.status == 'ok' %}var(--color-accent){% elif entry.status == 'error' %}#e05a5a{% else %}var(--color-text-muted){% endif %};">
-          {{ t('history.status.' + entry.status) }}
-        </span>
-        {% if entry.status != 'ok' and entry.detail %}
-          <span class="hint" style="margin:0 0 0 6px;">{{ entry.detail }}</span>
+    <div class="list-row list-row-top">
+      <div class="list-row-main">
+        <div class="list-row-title">{{ entry.type_label }}</div>
+        {% if entry.summary %}
+          <div class="list-row-subtitle">{{ entry.summary }}</div>
         {% endif %}
-        <span class="hint" style="margin:0 0 0 6px;">· {{ t('history.source.' + entry.source) }}</span>
+        <div class="list-row-meta">
+          <span class="badge {{ 'badge-accent' if entry.status == 'ok' else ('badge-danger' if entry.status == 'error' else 'badge-muted') }}">
+            {{ t('history.status.' + entry.status) }}
+          </span>
+          {% if entry.status != 'ok' and entry.detail %}
+            <span>&middot; {{ entry.detail }}</span>
+          {% endif %}
+          <span>&middot; {{ t('history.source.' + entry.source) }}</span>
+        </div>
       </div>
+      <span class="mono list-row-meta list-row-timestamp">{{ entry.timestamp[:16].replace('T', ' ') }}</span>
     </div>
   {% endfor %}
 </div>
 
 {% if total_pages > 1 %}
-<div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+<div class="pagination">
   {% if page > 1 %}
-    <a class="btn" style="width:auto; margin:0; padding:10px 16px;" href="/history?page={{ page - 1 }}">&larr; {{ t('history.pagination.prev') }}</a>
+    <a class="btn btn-secondary" href="/history?page={{ page - 1 }}"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('history.pagination.prev') }}</a>
   {% else %}<span></span>{% endif %}
-  <span class="hint" style="margin:0;">{{ page }} / {{ total_pages }}</span>
+  <span class="hint">{{ page }} / {{ total_pages }}</span>
   {% if page < total_pages %}
-    <a class="btn" style="width:auto; margin:0; padding:10px 16px;" href="/history?page={{ page + 1 }}">{{ t('history.pagination.next') }} &rarr;</a>
+    <a class="btn btn-secondary" href="/history?page={{ page + 1 }}">{{ t('history.pagination.next') }} <span class="icon icon-arrow-right" aria-hidden="true"></span></a>
   {% else %}<span></span>{% endif %}
 </div>
 {% endif %}
 
 {% else %}
-<div class="card hint" style="margin-top:0;">{{ t('history.empty') }}</div>
+<div class="card hint hint-standalone">{{ t('history.empty') }}</div>
 {% endif %}
 {% endblock %}

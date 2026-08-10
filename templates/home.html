@@ -1,46 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="status-strip">
+  <div class="status-card">
+    <span class="status-icon-row"><span class="icon icon-printer" aria-hidden="true"></span> {{ t('home.status.printer') }}</span>
+    <span id="home-printer-status" class="status-value js-printer-status" data-online="{{ t('status.online') }}" data-offline="{{ t('status.offline') }}" data-checking="{{ t('status.checking') }}">{{ t('status.checking') }}</span>
+  </div>
+  <div class="status-card">
+    <span class="status-icon-row"><span class="icon icon-layout-grid" aria-hidden="true"></span> {{ t('home.status.modules') }}</span>
+    <span class="status-value mono">{{ active_module_count }}/{{ total_module_count }}</span>
+  </div>
+  <div class="status-card">
+    <span class="status-icon-row"><span class="icon icon-list" aria-hidden="true"></span> {{ t('home.status.prints') }}</span>
+    <span class="status-value mono">{{ total_prints }}</span>
+  </div>
+</div>
+
 <div class="tile-grid">
-  <a class="tile" href="/shopping">
-    <span class="tile-icon">🛒</span>
-    <span class="tile-name">{{ t('tile.shopping.name') }}</span>
-    <span class="tile-desc">{{ t('tile.shopping.desc') }}</span>
+  {% for m in all_modules if enabled_modules.get(m.key, True) %}
+  <a class="tile" href="{{ m.url }}">
+    <span class="tile-icon-badge"><span class="icon icon-{{ m.icon }}" aria-hidden="true"></span></span>
+    <span class="tile-name">{{ t('tile.' ~ m.key ~ '.name') }}</span>
+    <span class="tile-desc">{{ t('tile.' ~ m.key ~ '.desc') }}</span>
   </a>
-
-  <a class="tile" href="/message">
-    <span class="tile-icon">📝</span>
-    <span class="tile-name">{{ t('tile.message.name') }}</span>
-    <span class="tile-desc">{{ t('tile.message.desc') }}</span>
-  </a>
-
-  <a class="tile" href="/weather">
-    <span class="tile-icon">🌤️</span>
-    <span class="tile-name">{{ t('tile.weather.name') }}</span>
-    <span class="tile-desc">{{ t('tile.weather.desc') }}</span>
-  </a>
-
-  <a class="tile" href="/images">
-    <span class="tile-icon">🖼️</span>
-    <span class="tile-name">{{ t('tile.images.name') }}</span>
-    <span class="tile-desc">{{ t('tile.images.desc') }}</span>
-  </a>
-
-  <a class="tile" href="/wifi">
-    <span class="tile-icon">📶</span>
-    <span class="tile-name">{{ t('tile.wifi.name') }}</span>
-    <span class="tile-desc">{{ t('tile.wifi.desc') }}</span>
-  </a>
-
-  <a class="tile" href="/system">
-    <span class="tile-icon">🖥️</span>
-    <span class="tile-name">{{ t('tile.system.name') }}</span>
-    <span class="tile-desc">{{ t('tile.system.desc') }}</span>
-  </a>
-
-  <a class="tile" href="/games">
-    <span class="tile-icon">🎲</span>
-    <span class="tile-name">{{ t('tile.games.name') }}</span>
-    <span class="tile-desc">{{ t('tile.games.desc') }}</span>
-  </a>
+  {% endfor %}
 </div>
 {% endblock %}

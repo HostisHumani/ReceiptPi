@@ -23,12 +23,28 @@ import urllib.request
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import config
 
+import settings_store
 from modules.wifi.routes import get_guest_wifi_status
 
 PRINTER_URL = "http://localhost:5000/print/wifi"
 API_TOKEN = getattr(config, "API_TOKEN", "")
 STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # fallback: project root
 STATE_FILE = os.path.join(STATE_DIR, "wifi_state.json")
+
+# Exact strings from config.example.py - if config.py still has these,
+# the Fritz!Box integration was never actually set up (e.g. no Fritz!Box
+# in this household at all). Unlike FRITZBOX_ADDRESS, whose default
+# (192.168.178.1) is a real, legitimately-used factory address and can't
+# double as a "not configured" signal, user/password have no valid
+# real-world value that collides with the placeholder text.
+_PLACEHOLDER_USER = "Placeholder Fritzbox user"
+_PLACEHOLDER_PASSWORD = "Placeholder Fritzbox password"
+
+
+def _fritzbox_configured():
+    user = getattr(config, "FRITZBOX_USER", "")
+    password = getattr(config, "FRITZBOX_PASSWORD", "")
+    return user not in ("", _PLACEHOLDER_USER) and password not in ("", _PLACEHOLDER_PASSWORD)
 
 
 def load_last_state():
@@ -67,6 +83,18 @@ def print_wifi(ssid, password):
 
 
 def main():
+    if not settings_store.get_settings().get("enabled_modules", {}).get("wifi", True):
+        print("wifi module disabled, skipping")
+        return
+    if not _fritzbox_configured():
+        # Was previously attempted unconditionally on every run (every
+        # 1-2 minutes per this script's cron interval) - anyone without
+        # a Fritz!Box, or who just hasn't filled in config.py yet, got a
+        # failed connection attempt every single cycle, forever. Bail
+        # out cheaply and clearly instead.
+        print("Fritz!Box credentials not configured (still placeholder), skipping")
+        return
+
     status = get_guest_wifi_status()
     last_enabled = load_last_state()
 

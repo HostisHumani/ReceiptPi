@@ -1,49 +1,69 @@
 {% extends "base.html" %}
-{% block header %}{{ t('settings.header') }}{% endblock %}
+{% block header %}<span class="icon icon-settings" aria-hidden="true"></span> {{ t('settings.header') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
-<div class="tile-grid">
-  <a class="tile" href="/settings/language">
-    <span class="tile-icon">🌐</span>
-    <span class="tile-name">{{ t('settings.index.language.name') }}</span>
-    <span class="tile-desc">{{ t('settings.index.language.desc') }}</span>
-  </a>
+<div class="settings-group">
+  <div class="settings-group-title">{{ t('settings.group.general') }}</div>
+  <div class="tile-grid">
+    <a class="tile" href="/settings/language">
+      <span class="tile-icon-badge"><span class="icon icon-globe" aria-hidden="true"></span></span>
+      <span class="tile-name">{{ t('settings.index.language.name') }}</span>
+      <span class="tile-desc">{{ t('settings.index.language.desc') }}</span>
+    </a>
+    <a class="tile" href="/settings/design">
+      <span class="tile-icon-badge"><span class="icon icon-palette" aria-hidden="true"></span></span>
+      <span class="tile-name">{{ t('settings.index.design.name') }}</span>
+      <span class="tile-desc">{{ t('settings.index.design.desc') }}</span>
+    </a>
+    <a class="tile" href="/settings/modules">
+      <span class="tile-icon-badge"><span class="icon icon-puzzle" aria-hidden="true"></span></span>
+      <span class="tile-name">{{ t('settings.index.modules.name') }}</span>
+      <span class="tile-desc">{{ t('settings.index.modules.desc') }}</span>
+    </a>
+  </div>
+</div>
 
-  <a class="tile" href="/settings/print-rules">
-    <span class="tile-icon">🖨️</span>
-    <span class="tile-name">{{ t('settings.index.print_rules.name') }}</span>
-    <span class="tile-desc">{{ t('settings.index.print_rules.desc') }}</span>
-  </a>
+<div class="settings-group">
+  <div class="settings-group-title">{{ t('settings.group.printing') }}</div>
+  <div class="tile-grid">
+    <a class="tile" href="/settings/print-rules">
+      <span class="tile-icon-badge"><span class="icon icon-sliders-horizontal" aria-hidden="true"></span></span>
+      <span class="tile-name">{{ t('settings.index.print_rules.name') }}</span>
+      <span class="tile-desc">{{ t('settings.index.print_rules.desc') }}</span>
+    </a>
+    <a class="tile" href="/settings/logos">
+      <span class="tile-icon-badge"><span class="icon icon-tag" aria-hidden="true"></span></span>
+      <span class="tile-name">{{ t('settings.index.logos.name') }}</span>
+      <span class="tile-desc">{{ t('settings.index.logos.desc') }}</span>
+    </a>
+  </div>
+</div>
 
-  <a class="tile" href="/settings/weather">
-    <span class="tile-icon">🌦️</span>
-    <span class="tile-name">{{ t('settings.index.weather.name') }}</span>
-    <span class="tile-desc">{{ t('settings.index.weather.desc') }}</span>
-  </a>
+<div class="settings-group">
+  <div class="settings-group-title">{{ t('settings.group.integrations') }}</div>
+  <div class="tile-grid">
+    <a class="tile" href="/settings/weather">
+      <span class="tile-icon-badge"><span class="icon icon-cloud-sun" aria-hidden="true"></span></span>
+      <span class="tile-name">{{ t('settings.index.weather.name') }}</span>
+      <span class="tile-desc">{{ t('settings.index.weather.desc') }}</span>
+    </a>
+    <a class="tile" href="/settings/github-watch">
+      <span class="tile-icon-badge"><span class="icon icon-star" aria-hidden="true"></span></span>
+      <span class="tile-name">{{ t('settings.index.github_watch.name') }}</span>
+      <span class="tile-desc">{{ t('settings.index.github_watch.desc') }}</span>
+    </a>
+  </div>
+</div>
 
-  <a class="tile" href="/settings/system-report">
-    <span class="tile-icon">🖥️</span>
-    <span class="tile-name">{{ t('settings.index.system_report.name') }}</span>
-    <span class="tile-desc">{{ t('settings.index.system_report.desc') }}</span>
-  </a>
-
-  <a class="tile" href="/settings/github-watch">
-    <span class="tile-icon">⭐</span>
-    <span class="tile-name">{{ t('settings.index.github_watch.name') }}</span>
-    <span class="tile-desc">{{ t('settings.index.github_watch.desc') }}</span>
-  </a>
-
-  <a class="tile" href="/settings/logos">
-    <span class="tile-icon">🏷️</span>
-    <span class="tile-name">{{ t('settings.index.logos.name') }}</span>
-    <span class="tile-desc">{{ t('settings.index.logos.desc') }}</span>
-  </a>
-
-  <a class="tile" href="/settings/design">
-    <span class="tile-icon">🎨</span>
-    <span class="tile-name">{{ t('settings.index.design.name') }}</span>
-    <span class="tile-desc">{{ t('settings.index.design.desc') }}</span>
-  </a>
+<div class="settings-group">
+  <div class="settings-group-title">{{ t('settings.group.system') }}</div>
+  <div class="tile-grid">
+    <a class="tile" href="/settings/system-report">
+      <span class="tile-icon-badge"><span class="icon icon-server" aria-hidden="true"></span></span>
+      <span class="tile-name">{{ t('settings.index.system_report.name') }}</span>
+      <span class="tile-desc">{{ t('settings.index.system_report.desc') }}</span>
+    </a>
+  </div>
 </div>
 {% endblock %}

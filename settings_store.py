@@ -81,6 +81,19 @@ DEFAULT_SETTINGS = {
     },
     "language": "de",
     "theme": "forrest",
+    # Which home-page/tile modules are switched on - see module_catalog.py
+    # for the full key list and app.py's before_request hook for how a
+    # disabled module's routes (UI + /print/*) get blocked with a 404,
+    # not just hidden from the tile grid.
+    "enabled_modules": {
+        "shopping": True,
+        "message": True,
+        "weather": True,
+        "images": True,
+        "wifi": True,
+        "system": True,
+        "games": True,
+    },
     "system_report": {
         # Three FIXED roles (not a generic host list) - each backed by
         # different SSH commands in modules/system/routes.py (Proxmox:

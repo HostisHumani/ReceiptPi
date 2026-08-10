@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block header %}{{ t('settings.index.language.name') }}{% endblock %}
+{% block header %}<span class="icon icon-globe" aria-hidden="true"></span> {{ t('settings.index.language.name') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/settings">&larr; {{ t('back_link') }}</a>
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
 <form method="post" action="/ui/settings/language" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   {% for code, name in supported_languages.items() %}
-  <label style="display:flex; align-items:center; gap:8px; {% if loop.first %}margin-top:0;{% endif %}">
-    <input type="radio" name="language" value="{{ code }}" style="width:auto;"
+  <label class="checkbox-row">
+    <input type="radio" name="language" value="{{ code }}"
            {% if current_language == code %}checked{% endif %}>
     {{ name }}
   </label>
