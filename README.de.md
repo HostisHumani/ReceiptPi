@@ -23,12 +23,13 @@
 
 Flask-Server für einen ESC/POS-Thermodrucker (getestet mit Epson TM-T88V) an
 einem Raspberry Pi Zero (2) W. Mobile Web-UI (Deutsch/Englisch) zum Drucken
-von Einkaufszetteln, Statusmeldungen, Wetterberichten, Bildern,
-Systemberichten sowie Offline-Spielen zum Ausdrucken (Sudoku, Würfelblock,
-Tic-Tac-Toe) – die meisten Druckarten optional mit vorangestelltem kleinen
-Logo – plus einem generischen Automation-Webhook (kompatibel mit Home
-Assistant, Node-RED, n8n oder jedem Tool, das einen HTTP-POST absetzen
-kann) und weiteren Automations-Triggern (GitHub-Stars, Fritz!Box-Gästenetz,
+von Listen (Einkauf, To-Do, Task-/Kanban-Karten), Statusmeldungen,
+Wetterberichten, Bildern, Systemberichten sowie Offline-Spielen zum
+Ausdrucken (Sudoku, Würfelblock, Tic-Tac-Toe) – die meisten Druckarten
+optional mit vorangestelltem kleinen Logo – plus einem generischen
+Automation-Webhook (kompatibel mit Home Assistant, Node-RED, n8n oder
+jedem Tool, das einen HTTP-POST absetzen kann) und weiteren
+Automations-Triggern (GitHub-Stars, Fritz!Box-Gästenetz,
 Zabbix-Webhooks für PBS-Fehler).
 
 <p align="center">
@@ -80,7 +81,7 @@ receiptpi/
 ├── themes.py                Registry der wählbaren Web-UI-Farbschemata
 ├── config.example.py       Vorlage für config.py (lokal ausfüllen)
 ├── modules/
-│   ├── shopping/            Einkaufszettel
+│   ├── lists/                 Einkaufslisten, To-Do-Listen, Task-/Kanban-Karten
 │   ├── message/               Statusmeldungen (freier Titel + Text)
 │   ├── images/                Bilder drucken
 │   ├── wifi/                  Gäste-WLAN-Zettel (Text + QR-Code)
@@ -102,6 +103,7 @@ receiptpi/
     ├── base.html
     ├── home.html
     ├── shopping.html
+    ├── lists_*.html            Listen-Übersicht, To-Do-Seite, Task-/Kanban-Karten-Seite
     ├── message.html
     ├── images.html
     ├── wifi.html
@@ -167,7 +169,9 @@ Ein blockierter Auftrag antwortet mit `429`.
 
 **Drucken**
 - `POST /print/message` – `{ "title": "...", "text": "..." }`
-- `POST /print/list` – `{ "title": "...", "items": ["..."] }`
+- `POST /print/list` – `{ "title": "...", "items": ["..."] }` – Einkaufsliste, unverändert seit vor dem Lists-Modul, weiterhin voll abwärtskompatibel
+- `POST /print/todo` – `{ "title": "...", "items": ["..."] }` – To-Do-Liste, gleiche Form wie `/print/list`
+- `POST /print/task` – `{ "title": "...", "description": "optional", "items": ["optionale Checkliste"], "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD" }` – druckbare Task-/Kanban-Karte; nur `title` ist Pflicht
 - `POST /print/image` – Multipart-Upload (max. 6000px pro Seite, 12MB)
 - `POST /print/wifi` – `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort
@@ -197,7 +201,7 @@ etwas kaputt macht.
 
 ## Features
 
-- Einkaufslisten
+- Listen: Einkaufslisten, To-Do-Listen und druckbare Task-/Kanban-Karten, siehe [Listen](#listen) unten
 - Freie Textmeldungen
 - Bild-Upload und Bilddruck per API
 - Gäste-WLAN-Zugangsdaten und QR-Codes
@@ -212,6 +216,31 @@ etwas kaputt macht.
 - Easy-Read: ein Schalter für größere Schrift auf Bon und Web-UI zugleich, siehe [Easy-Read](#easy-read-große-schrift) unten
 - Deutsch/Englisch-UI, inklusive des eigentlichen Bon-Inhalts (nicht nur der UI drumherum)
 - USB-angeschlossener ESC/POS-Drucker (python-escpos + pyusb, Epson-TM-T88V-Profil)
+
+### Listen
+
+Aus dem ursprünglichen Einkaufslisten-Modul hervorgegangen; alle drei
+Listentypen teilen sich dieselbe Druck-Queue, Historie, Rate-Limit und
+Ruhezeiten wie jedes andere Modul.
+
+- **Einkaufsliste** (`/shopping`, auch erreichbar unter `/lists/shopping`)
+  – eine einfache Checkliste. Der API-Endpunkt `/print/list` ist
+  unverändert seit vor dem Lists-Modul, weiterhin voll abwärtskompatibel
+  für bestehende Integrationen. Einziger Listentyp mit Logo-Slot (nutzt
+  den bestehenden Einkaufs-Logo-Slot) – To-Do-Listen und Task-Karten
+  zeigen nie ein Logo.
+- **To-Do-Liste** (`/lists/todo`) – derselbe Checklisten-Mechanismus wie
+  die Einkaufsliste, separat gedruckt und beschriftet. JSON-API
+  `POST /print/todo`.
+- **Task-/Kanban-Karte** (`/lists/task`) – ein Titel plus optionaler
+  Beschreibung, optionaler Checkliste, optionaler Priorität
+  (niedrig/mittel/hoch) und optionalem Fälligkeitsdatum; es werden nur
+  tatsächlich gesetzte Felder gedruckt, keine leeren Platzhalter auf dem
+  Bon. JSON-API `POST /print/task` – geeignet für einen einfachen
+  `curl`-Aufruf, einen Home-Assistant-`rest_command`, oder jede andere
+  Automation, die HTTP-POST beherrscht, mit derselben `X-Api-Token`-Auth,
+  Druck-Queue, Ruhezeiten, Rate-Limit und Historie wie jeder andere
+  `/print/*`-Endpunkt.
 
 ### Spiele
 
@@ -253,7 +282,7 @@ Screen-Reader-Markup oder einen eigenen Kontrastmodus dazu.
 ### Modul-Schalter
 
 Unter `/settings/modules` lässt sich jedes der 7 Katalog-Module
-(Einkauf, Nachricht, Wetter, Bild, Gäste-WLAN, System, Spiele) einzeln
+(Listen, Nachricht, Wetter, Bild, Gäste-WLAN, System, Spiele) einzeln
 ein- oder ausschalten:
 
 - Ein deaktiviertes Modul verschwindet nicht nur von der Startseite,

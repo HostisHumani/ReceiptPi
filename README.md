@@ -23,13 +23,13 @@
 
 Flask server for an ESC/POS thermal receipt printer (tested with an Epson
 TM-T88V) on a Raspberry Pi Zero (2) W. Mobile web UI (German/English) for
-printing shopping lists, status messages, weather reports, images, system
-reports, and offline pen-and-paper games (Sudoku, a dice score sheet,
-Tic-Tac-Toe boards) - most print types optionally prefixed with a small
-logo - plus a generic automation webhook (compatible with Home Assistant,
-Node-RED, n8n, or any tool that can do an HTTP POST) and other automation
-triggers (GitHub stars, Fritz!Box guest network, Zabbix webhooks for
-backup failures).
+printing lists (shopping, to-do, task/kanban cards), status messages,
+weather reports, images, system reports, and offline pen-and-paper games
+(Sudoku, a dice score sheet, Tic-Tac-Toe boards) - most print types
+optionally prefixed with a small logo - plus a generic automation webhook
+(compatible with Home Assistant, Node-RED, n8n, or any tool that can do
+an HTTP POST) and other automation triggers (GitHub stars, Fritz!Box
+guest network, Zabbix webhooks for backup failures).
 
 <p align="center">
   <a href="assets/home.png">
@@ -80,7 +80,7 @@ receiptpi/
 ├── themes.py                registry of the selectable web UI color themes
 ├── config.example.py       template for config.py (fill in locally)
 ├── modules/
-│   ├── shopping/            shopping list
+│   ├── lists/                 shopping lists, to-do lists, task/kanban cards
 │   ├── message/               status messages (free title + text)
 │   ├── images/                print images
 │   ├── wifi/                  guest wifi slip (text + QR code)
@@ -102,6 +102,7 @@ receiptpi/
     ├── base.html
     ├── home.html
     ├── shopping.html
+    ├── lists_*.html            lists overview, to-do page, task/kanban card page
     ├── message.html
     ├── images.html
     ├── wifi.html
@@ -164,7 +165,9 @@ A blocked job responds with `429`.
 
 **Printing**
 - `POST /print/message` - `{ "title": "...", "text": "..." }`
-- `POST /print/list` - `{ "title": "...", "items": ["..."] }`
+- `POST /print/list` - `{ "title": "...", "items": ["..."] }` - shopping list, unchanged since before the lists module existed, kept fully backward compatible
+- `POST /print/todo` - `{ "title": "...", "items": ["..."] }` - to-do list, same shape as `/print/list`
+- `POST /print/task` - `{ "title": "...", "description": "optional", "items": ["optional checklist"], "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD" }` - printable task/kanban card; only `title` is required
 - `POST /print/image` - multipart upload (max. 6000px per side, 12MB)
 - `POST /print/wifi` - `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` - optional `{ "location": "Berlin" }`, otherwise the default location
@@ -193,7 +196,7 @@ is only a reference in case an update ever breaks something.
 
 ## Features
 
-- Shopping lists
+- Lists: shopping lists, to-do lists, and printable task/kanban cards, see [Lists](#lists) below
 - Free-form messages
 - Image uploads and API image printing
 - Guest Wi-Fi credentials and QR codes
@@ -208,6 +211,30 @@ is only a reference in case an update ever breaks something.
 - Easy-Read: one switch for larger text on both the receipt and the web UI, see [Easy-Read](#easy-read-large-text) below
 - German/English UI, including receipt content itself (not just the UI chrome)
 - USB-connected ESC/POS printer (python-escpos + pyusb, Epson TM-T88V profile)
+
+### Lists
+
+Grew out of the original shopping-list module; all three list types share
+the same print queue, history logging, rate limiting and quiet hours as
+every other module.
+
+- **Shopping list** (`/shopping`, also reachable at `/lists/shopping`) -
+  a plain checklist. The `/print/list` API endpoint is unchanged since
+  before the lists module existed, kept fully backward compatible for
+  existing integrations. This is the only list type with a logo slot
+  (reuses the existing shopping logo slot) - to-do lists and task cards
+  never show a logo.
+- **To-Do list** (`/lists/todo`) - the same checklist mechanism as the
+  shopping list, printed and labelled separately. `POST /print/todo`
+  JSON API.
+- **Task/kanban card** (`/lists/task`) - a title plus optional
+  description, optional checklist, optional priority (low/medium/high)
+  and optional due date; only fields actually set are printed, no empty
+  placeholders on the receipt. `POST /print/task` JSON API - suitable
+  for a plain `curl` call, a Home Assistant `rest_command`, or any other
+  automation that can do an HTTP POST, with the same `X-Api-Token` auth,
+  print queue, quiet hours, rate limit and history logging as every
+  other `/print/*` endpoint.
 
 ### Games
 
@@ -246,7 +273,7 @@ is no separate screen-reader markup or contrast mode tied to it.
 
 ### Module toggles
 
-`/settings/modules` lets each of the 7 catalog modules (shopping,
+`/settings/modules` lets each of the 7 catalog modules (lists,
 message, weather, images, wifi, system, games) be switched on or off
 individually:
 
