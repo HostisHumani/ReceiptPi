@@ -1,5 +1,6 @@
 {
   "back_link": "Back",
+  "footer.update_available": "Update available:",
   "images.button": "Print",
   "images.file_label": "Image file (PNG/JPG, max. 12MB)",
   "images.hint": "Automatically scaled to 512px width and converted to black and white.",

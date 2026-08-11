@@ -1,0 +1,26 @@
+# ReceiptPi watchers - crontab template.
+#
+# There is currently no automated installer for this - install by
+# adjusting PYTHON/PROJECT_DIR below to your actual setup, then either
+# `crontab watchers/crontab.example` (replaces your whole crontab - only
+# safe if ReceiptPi's watchers are the only cron entries you have) or
+# copy the lines you need into your existing crontab (`crontab -e`).
+#
+# Each watcher's own docstring states its recommended polling interval
+# (see the top of each .py file) - the schedules below match those
+# exactly, nothing here is a new/different recommendation.
+
+PYTHON=/path/to/your/receiptpi-env/bin/python3
+PROJECT_DIR=/path/to/your/receiptpi
+
+# github_star_watch.py - "every few minutes" (own docstring)
+*/5 * * * * $PYTHON $PROJECT_DIR/watchers/github_star_watch.py >> /var/log/receiptpi-github-star.log 2>&1
+
+# fritzbox_wifi_watch.py - "every 1-2 minutes" (own docstring)
+* * * * * $PYTHON $PROJECT_DIR/watchers/fritzbox_wifi_watch.py >> /var/log/receiptpi-wifi-watch.log 2>&1
+
+# storm_warning_watch.py - "every 15 minutes" (own docstring)
+*/15 * * * * $PYTHON $PROJECT_DIR/watchers/storm_warning_watch.py >> /var/log/receiptpi-storm-warning.log 2>&1
+
+# update_check_watch.py - every 12 hours (own docstring)
+0 */12 * * * $PYTHON $PROJECT_DIR/watchers/update_check_watch.py >> /var/log/receiptpi-update-check.log 2>&1

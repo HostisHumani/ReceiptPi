@@ -79,6 +79,8 @@ receiptpi/
 ├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL)
 ├── text_style.py           Easy-Read-Textgrößen-Skalierung, gemeinsam für Druck und Web-UI
 ├── themes.py                Registry der wählbaren Web-UI-Farbschemata
+├── version.py               liest VERSION, minimaler Vergleich für ReceiptPis eigenes Versionsschema
+├── VERSION                  einzige Versionsquelle (z.B. "0.1.9alpha")
 ├── config.example.py       Vorlage für config.py (lokal ausfüllen)
 ├── modules/
 │   ├── lists/                 Einkaufslisten, To-Do-Listen, Task-/Kanban-Karten
@@ -94,7 +96,9 @@ receiptpi/
 ├── watchers/
 │   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
 │   ├── fritzbox_wifi_watch.py    Cron: druckt WLAN-Zettel bei aktiviertem Gästenetz
-│   └── storm_warning_watch.py    Cron: druckt bei neuer aktiver Unwetterwarnung
+│   ├── storm_warning_watch.py    Cron: druckt bei neuer aktiver Unwetterwarnung
+│   ├── update_check_watch.py     Cron (alle 12h): cached, ob ein neueres GitHub-Release existiert (für den Footer)
+│   └── crontab.example           fertige Cron-Vorlage für alle vier Watcher oben
 ├── assets/example-logos/    mitgelieferter Logo-Startsatz (Strichzeichnungen)
 ├── static/
 │   ├── style.css             Design-System (Spacing/Farben/Themes, Card-/Tile-/Icon-Stile)
@@ -140,6 +144,10 @@ Formulare umgesetzt:
   Siehe [Third-Party Licenses](#third-party-licenses).
 - **Easy-Read** – ein Textgrößen-Schalter skaliert sowohl Web-UI als auch
   Bon-Ausdruck, siehe [Easy-Read](#easy-read-große-schrift) unten.
+- **Footer** – zeigt auf jeder Seite die laufende Version und einen
+  Link zum GitHub-Repo; findet `watchers/update_check_watch.py` (Cron,
+  alle 12h) ein neueres GitHub-Release (auch Alpha-/Prereleases),
+  verlinkt der Footer direkt dorthin. Reine Information, kein Auto-Update.
 
 Ein eigenes App-Logo oder Favicon gibt es aktuell nicht – nur das
 Topbar-Wordmark (ein Drucker-Icon) und das Banner-Bild oben in dieser
@@ -199,6 +207,17 @@ selbst enthält bewusst keine Versionsnummern (kein `==x.y.z`),
 `requirements.lock.txt` dient nur als Referenz, falls ein Update mal
 etwas kaputt macht.
 
+### Watcher aktivieren (Cron)
+
+Die vier Scripts unter `watchers/` (GitHub-Star-Benachrichtigung,
+Gäste-WLAN-Zettel, Unwetterwarnung, Update-Check) laufen nur, wenn sie
+irgendwo eingeplant sind – `app.py`/Gunicorn startet sie nie selbst.
+`watchers/crontab.example` enthält eine fertige Vorlage für alle vier,
+mit dem jeweils im Docstring des Scripts empfohlenen Intervall;
+installieren mit `crontab watchers/crontab.example` (nach Anpassen der
+Platzhalter `PYTHON`/`PROJECT_DIR`), oder einzelne Zeilen in eine
+bestehende Crontab übernehmen (`crontab -e`).
+
 ## Features
 
 - Listen: Einkaufslisten, To-Do-Listen und druckbare Task-/Kanban-Karten, siehe [Listen](#listen) unten
@@ -216,6 +235,7 @@ etwas kaputt macht.
 - Easy-Read: ein Schalter für größere Schrift auf Bon und Web-UI zugleich, siehe [Easy-Read](#easy-read-große-schrift) unten
 - Deutsch/Englisch-UI, inklusive des eigentlichen Bon-Inhalts (nicht nur der UI drumherum)
 - USB-angeschlossener ESC/POS-Drucker (python-escpos + pyusb, Epson-TM-T88V-Profil)
+- Versions-Footer mit GitHub-Release-Update-Hinweis (alle 12h geprüft, kein Auto-Update)
 
 ### Listen
 

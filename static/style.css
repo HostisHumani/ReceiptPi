@@ -553,6 +553,34 @@ button:active, .btn:active { background: var(--color-accent-hover); transform: s
 }
 
 /* ---------------------------------------------------------------------
+   App footer: version + optional update hint + GitHub link, injected
+   once in base.html so it shows on every page. Deliberately dezent -
+   reuses the same muted color/size as .hint rather than introducing a
+   new visual weight, and stays a single wrapped line via flex-wrap so
+   it degrades cleanly on narrow screens instead of needing its own
+   media query (see .page's mobile-first max-width).
+   --------------------------------------------------------------------- */
+.app-footer {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.78em;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+.app-footer a {
+  color: var(--color-text-muted);
+  text-decoration: underline;
+}
+.app-footer a:hover {
+  color: var(--color-text);
+}
+
+/* ---------------------------------------------------------------------
    Burger menu: native <details>/<summary>, no JS needed.
    --------------------------------------------------------------------- */
 .burger-menu {

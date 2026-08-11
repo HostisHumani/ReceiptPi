@@ -26,6 +26,9 @@ once in the master process, regardless of worker count. For a direct
 `python3 app.py` run (dev mode) the __main__ block below handles it,
 since that's a single, non-forking process anyway.
 """
+import json
+import os
+
 import config
 from flask import Flask, abort, render_template, request
 
@@ -34,6 +37,7 @@ import i18n
 import module_catalog
 import settings_store
 import themes
+import version
 from logos import ensure_default_logo_seeded
 from modules.automation.routes import automation_bp
 from modules.games.routes import games_bp
@@ -50,6 +54,23 @@ from printer import _raw_health_check
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB - headroom over MAX_IMAGE_BYTES (12MB, see modules/images/routes.py) for multipart overhead
+
+# Written by watchers/update_check_watch.py (cron, every 12h) - read here
+# as a plain local file, NEVER fetched from GitHub inside a request. See
+# that script for why: a page render must never wait on or be able to
+# fail because of GitHub being unreachable.
+UPDATE_CACHE_FILE = os.path.join(settings_store.STATE_DIR, "update_check.json")
+
+
+def _read_update_cache():
+    """Missing/corrupt cache (e.g. before the watcher's first run) is
+    just \"no update known\" - never an error, never something that
+    should block rendering a page."""
+    try:
+        with open(UPDATE_CACHE_FILE) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 INVALID_SECRET_KEYS = {
     "",
@@ -102,6 +123,8 @@ def inject_i18n():
     # jobs (settings.print_rules.text_size) - one switch for both,
     # rather than a separate UI-only preference.
     text_scale = settings.get("print_rules", {}).get("text_size", "normal")
+    update_cache = _read_update_cache()
+    latest_version = update_cache.get("latest_version")
     return {
         "t": lambda key, **kw: i18n.t(key, lang, **kw),
         "current_language": lang,
@@ -111,6 +134,11 @@ def inject_i18n():
         "current_text_scale": text_scale,
         "all_modules": module_catalog.MODULES,
         "enabled_modules": settings.get("enabled_modules", {}),
+        "current_version": version.format_display(version.CURRENT_VERSION),
+        "update_available": bool(update_cache.get("update_available")) and bool(latest_version),
+        "latest_version": version.format_display(latest_version) if latest_version else None,
+        "latest_release_url": update_cache.get("latest_url"),
+        "github_repo_url": "https://github.com/HostisHumani/ReceiptPi",
     }
 
 

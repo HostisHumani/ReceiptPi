@@ -78,6 +78,8 @@ receiptpi/
 ├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL)
 ├── text_style.py           Easy-Read text-size scaling, shared by print jobs and the web UI
 ├── themes.py                registry of the selectable web UI color themes
+├── version.py               reads VERSION, minimal comparison for ReceiptPi's own version scheme
+├── VERSION                  single source of truth for the running version (e.g. "0.1.9alpha")
 ├── config.example.py       template for config.py (fill in locally)
 ├── modules/
 │   ├── lists/                 shopping lists, to-do lists, task/kanban cards
@@ -93,7 +95,9 @@ receiptpi/
 ├── watchers/
 │   ├── github_star_watch.py     cron: prints on a new GitHub star
 │   ├── fritzbox_wifi_watch.py    cron: prints a wifi slip once the guest network is enabled
-│   └── storm_warning_watch.py    cron: prints on a new active storm warning
+│   ├── storm_warning_watch.py    cron: prints on a new active storm warning
+│   ├── update_check_watch.py     cron (every 12h): caches whether a newer GitHub release exists, for the footer
+│   └── crontab.example           ready-to-adjust cron template for all four watchers above
 ├── assets/example-logos/    bundled starter logo set (outline icons)
 ├── static/
 │   ├── style.css             design system (spacing/colors/themes, card/tile/icon styles)
@@ -136,6 +140,10 @@ plain forms:
   hardcoded to one color. See [Third-Party Licenses](#third-party-licenses).
 - **Easy-Read** - one text-size switch scales both the web UI and the
   receipt output, see [Easy-Read](#easy-read-large-text) below.
+- **Footer** - shows the running version and a link to the GitHub repo on
+  every page; if `watchers/update_check_watch.py` (cron, every 12h) has
+  found a newer GitHub release (including alpha/prereleases), the footer
+  links directly to it. Information only, no auto-update.
 
 There is currently no dedicated app logo or favicon - only the topbar
 wordmark (a printer icon) and the documentation banner image at the top
@@ -194,6 +202,17 @@ Freezes the actually installed versions - `requirements.txt` itself
 deliberately has no version pins (no `==x.y.z`), `requirements.lock.txt`
 is only a reference in case an update ever breaks something.
 
+### Enabling the watchers (cron)
+
+The four scripts under `watchers/` (GitHub star notifications, guest
+Wi-Fi slip, storm warnings, update check) only run when something
+schedules them - they are never started by `app.py`/Gunicorn itself.
+See `watchers/crontab.example` for a ready-to-adjust template covering
+all four with the interval each script's own docstring recommends;
+install it with `crontab watchers/crontab.example` after editing the
+`PYTHON`/`PROJECT_DIR` placeholders, or copy individual lines into an
+existing crontab (`crontab -e`).
+
 ## Features
 
 - Lists: shopping lists, to-do lists, and printable task/kanban cards, see [Lists](#lists) below
@@ -211,6 +230,7 @@ is only a reference in case an update ever breaks something.
 - Easy-Read: one switch for larger text on both the receipt and the web UI, see [Easy-Read](#easy-read-large-text) below
 - German/English UI, including receipt content itself (not just the UI chrome)
 - USB-connected ESC/POS printer (python-escpos + pyusb, Epson TM-T88V profile)
+- Version footer with GitHub release update notice (checked every 12h, no auto-update)
 
 ### Lists
 

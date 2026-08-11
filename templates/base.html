@@ -32,6 +32,14 @@
     {% endif %}
 
     {% block content %}{% endblock %}
+
+    <footer class="app-footer">
+      <span>ReceiptPi {{ current_version }}</span>
+      {% if update_available and latest_version %}
+        <span>· {{ t('footer.update_available') }} <a href="{{ latest_release_url }}" target="_blank" rel="noopener">{{ latest_version }}</a></span>
+      {% endif %}
+      <span>· <a href="{{ github_repo_url }}" target="_blank" rel="noopener">GitHub</a></span>
+    </footer>
   </div>
 
   <script>
