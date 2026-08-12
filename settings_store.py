@@ -39,6 +39,11 @@ DEFAULT_SETTINGS = {
         "quiet_hours_rules": [],
         "max_jobs_per_hour": 20,
         "duplicate_window_seconds": 60,
+        # 0 = never auto-delete (default) - entries in pending_store.py
+        # only get removed when the user explicitly prints/discards
+        # them, or after this many days if set. See
+        # pending_store._retention_cutoff().
+        "pending_retention_days": 0,
         # "normal" or "large" - see text_style.py. Affects heading/body
         # size on the receipt, not the print rules above.
         "text_size": "normal",

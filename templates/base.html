@@ -18,6 +18,7 @@
           <summary aria-label="Menu"><span class="icon icon-menu" aria-hidden="true"></span></summary>
           <div class="burger-dropdown">
             <a href="/history"><span class="icon icon-history" aria-hidden="true"></span> {{ t('menu.history') }}</a>
+            <a href="/pending"><span class="icon icon-clipboard-list" aria-hidden="true"></span> {{ t('menu.pending') }}{% if pending_count %} ({{ pending_count }}){% endif %}</a>
             <a href="/settings"><span class="icon icon-settings" aria-hidden="true"></span> {{ t('menu.settings') }}</a>
           </div>
         </details>

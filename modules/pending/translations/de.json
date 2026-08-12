@@ -1,0 +1,14 @@
+{
+  "menu.pending": "Ausstehende Aufträge",
+  "pending.header": "Ausstehende Aufträge",
+  "pending.empty": "Keine ausstehenden Aufträge.",
+  "pending.print_selected": "Ausgewählte drucken",
+  "pending.discard_selected": "Ausgewählte verwerfen",
+  "pending.print_all": "Alle drucken",
+  "pending.discard_all": "Alle verwerfen",
+  "pending.selection_hint": "Häkchen setzen, dann oben \"Ausgewählte drucken\" oder \"Ausgewählte verwerfen\" wählen.",
+  "pending.print.none_selected": "Keine Einträge ausgewählt.",
+  "pending.print.partial": "{printed} von {total} Einträgen gedruckt, der Rest bleibt bestehen.",
+  "pending.print.all_ok": "{count} Einträge gedruckt.",
+  "pending.discard.ok": "{count} Einträge verworfen."
+}

@@ -71,7 +71,10 @@ def do_print_message(title, text, source="ui"):
     for the history dashboard: the title if there is one, otherwise the
     start of the text itself."""
     summary = title or (text[:60] + ("…" if len(text) > 60 else ""))
-    return enqueue_print(_raw_print_message, title, text, job_type="message", summary=summary, source=source)
+    return enqueue_print(
+        _raw_print_message, title, text, job_type="message", summary=summary, source=source,
+        retry_payload={"title": title, "text": text, "module": "message"},
+    )
 
 
 @message_bp.route("/message", methods=["GET"])

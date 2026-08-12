@@ -57,6 +57,7 @@ def print_automation():
     ok, detail, status_code = enqueue_print(
         _raw_print_message, title, text, "automation",
         job_type="automation", summary=summary, source="webhook",
+        retry_payload={"title": title, "text": text, "module": "automation"},
     )
     if ok:
         return jsonify({"status": "printed"}), 200

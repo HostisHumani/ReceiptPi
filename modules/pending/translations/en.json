@@ -1,0 +1,14 @@
+{
+  "menu.pending": "Pending Jobs",
+  "pending.header": "Pending Jobs",
+  "pending.empty": "No pending jobs.",
+  "pending.print_selected": "Print selected",
+  "pending.discard_selected": "Discard selected",
+  "pending.print_all": "Print all",
+  "pending.discard_all": "Discard all",
+  "pending.selection_hint": "Check the entries you want, then choose \"Print selected\" or \"Discard selected\" above.",
+  "pending.print.none_selected": "No entries selected.",
+  "pending.print.partial": "{printed} of {total} entries printed, the rest are still pending.",
+  "pending.print.all_ok": "{count} entries printed.",
+  "pending.discard.ok": "{count} entries discarded."
+}

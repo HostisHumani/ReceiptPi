@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block header %}<span class="icon icon-clipboard-list" aria-hidden="true"></span> {{ t('pending.header') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+{% if entries %}
+<form method="post" id="pending-form" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% for entry in entries %}
+    <div class="list-row list-row-top">
+      <input type="checkbox" name="ids" value="{{ entry.id }}" aria-label="{{ entry.type_label }}">
+      <div class="list-row-main">
+        <div class="list-row-title">{{ entry.type_label }}</div>
+        {% if entry.summary %}
+          <div class="list-row-subtitle">{{ entry.summary }}</div>
+        {% endif %}
+        <div class="list-row-meta">
+          <span class="badge {{ 'badge-danger' if entry.status == 'error' else 'badge-muted' }}">
+            {{ t('history.status.' + entry.status) }}
+          </span>
+          {% if entry.reason %}<span>&middot; {{ entry.reason }}</span>{% endif %}
+          <span>&middot; {{ t('history.source.' + entry.source) }}</span>
+        </div>
+      </div>
+      <span class="mono list-row-meta list-row-timestamp">{{ entry.created_at_display }}</span>
+    </div>
+  {% endfor %}
+
+  <div class="form-actions">
+    <button type="submit" formaction="/pending/print">{{ t('pending.print_selected') }}</button>
+    <button type="submit" formaction="/pending/discard" class="btn btn-secondary">{{ t('pending.discard_selected') }}</button>
+  </div>
+  <div class="hint">{{ t('pending.selection_hint') }}</div>
+</form>
+
+<div class="form-actions">
+  <form method="post" action="/pending/print" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="scope" value="all">
+    <button type="submit" class="btn btn-secondary">{{ t('pending.print_all') }}</button>
+  </form>
+  <form method="post" action="/pending/discard" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="scope" value="all">
+    <button type="submit" class="btn btn-danger">{{ t('pending.discard_all') }}</button>
+  </form>
+</div>
+
+{% else %}
+<div class="card hint hint-standalone">{{ t('pending.empty') }}</div>
+{% endif %}
+{% endblock %}

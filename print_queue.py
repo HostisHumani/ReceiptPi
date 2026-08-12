@@ -23,6 +23,7 @@ from datetime import time as dtime
 
 import history_store
 import i18n
+import pending_store
 import settings_store
 
 PRINT_QUEUE = queue.Queue(maxsize=100)
@@ -98,21 +99,25 @@ def _active_quiet_hours_rule(rules):
     return None
 
 
-def check_print_rules(func, args, dedupe_key=None, bypass_quiet_hours=False):
+def check_print_rules(func, args, dedupe_key=None, bypass_quiet_hours=False, bypass_duplicate=False):
     """Checks quiet hours, rate limit and duplicates. Returns
-    (allowed: bool, reason: str or None). Runs entirely under
-    _rules_lock, see the comment there. dedupe_key, see
-    _job_fingerprint(). bypass_quiet_hours skips ONLY the quiet-hours
-    check - rate limit and duplicate suppression still apply. Not
-    exposed to any public API input; only set internally by callers
-    that read the corresponding opt-in from settings_store themselves
-    (currently just the storm-warning watcher, see
-    modules/weather/routes.py print_storm_warning())."""
+    (allowed: bool, reason: str or None, block_kind: str or None) -
+    block_kind is one of "quiet_hours"/"rate_limit"/"duplicate" when
+    blocked, else None. Runs entirely under _rules_lock, see the
+    comment there. dedupe_key, see _job_fingerprint(). bypass_quiet_hours
+    skips ONLY the quiet-hours check - rate limit and duplicate
+    suppression still apply. bypass_duplicate skips ONLY duplicate
+    suppression. Neither is exposed to any public API input; only set
+    internally by callers that read the corresponding opt-in from
+    settings_store themselves (bypass_quiet_hours: the storm-warning
+    watcher, see modules/weather/routes.py print_storm_warning()) or
+    that are replaying an already-reviewed pending job (bypass_duplicate,
+    see modules/pending/routes.py)."""
     with _rules_lock:
-        return _check_print_rules_locked(func, args, dedupe_key, bypass_quiet_hours)
+        return _check_print_rules_locked(func, args, dedupe_key, bypass_quiet_hours, bypass_duplicate)
 
 
-def _check_print_rules_locked(func, args, dedupe_key=None, bypass_quiet_hours=False):
+def _check_print_rules_locked(func, args, dedupe_key=None, bypass_quiet_hours=False, bypass_duplicate=False):
     rules = settings_store.get_settings()["print_rules"]
     now = time.time()
 
@@ -121,26 +126,29 @@ def _check_print_rules_locked(func, args, dedupe_key=None, bypass_quiet_hours=Fa
         if active_rule:
             label = active_rule.get("label")
             if label:
-                return False, i18n.tr(
+                reason = i18n.tr(
                     "print_queue.quiet_hours_active_labeled",
                     label=label, start=active_rule["start"], end=active_rule["end"],
                 )
-            return False, i18n.tr(
-                "print_queue.quiet_hours_active",
-                start=active_rule["start"], end=active_rule["end"],
-            )
+            else:
+                reason = i18n.tr(
+                    "print_queue.quiet_hours_active",
+                    start=active_rule["start"], end=active_rule["end"],
+                )
+            return False, reason, "quiet_hours"
 
     global _recent_job_times
     _recent_job_times = [t for t in _recent_job_times if now - t < 3600]
     max_per_hour = rules.get("max_jobs_per_hour", 20)
     if len(_recent_job_times) >= max_per_hour:
-        return False, i18n.tr("print_queue.rate_limit", max=max_per_hour)
+        return False, i18n.tr("print_queue.rate_limit", max=max_per_hour), "rate_limit"
 
     fingerprint = _job_fingerprint(func, args, dedupe_key)
     window = rules.get("duplicate_window_seconds", 60)
-    last_seen = _recent_job_hashes.get(fingerprint)
-    if last_seen and now - last_seen < window:
-        return False, i18n.tr("print_queue.duplicate", window=window)
+    if not bypass_duplicate:
+        last_seen = _recent_job_hashes.get(fingerprint)
+        if last_seen and now - last_seen < window:
+            return False, i18n.tr("print_queue.duplicate", window=window), "duplicate"
 
     # Clean out old hash entries, otherwise the dict grows unbounded over
     # months (unlike _recent_job_times above, which already gets cleaned
@@ -153,7 +161,7 @@ def _check_print_rules_locked(func, args, dedupe_key=None, bypass_quiet_hours=Fa
 
     _recent_job_times.append(now)
     _recent_job_hashes[fingerprint] = now
-    return True, None
+    return True, None, None
 
 
 def _print_worker():
@@ -171,6 +179,18 @@ def _print_worker():
                 meta.get("job_type", "other"), meta.get("summary", ""), meta.get("source", "system"),
                 "ok" if result["ok"] else "error", result.get("detail", ""),
             )
+        # A real print failure (printer unreachable, USB error, ...) -
+        # as opposed to a rules block, which is handled in
+        # enqueue_print() before the job ever reaches this worker.
+        # retry_payload is None for jobs that opted out (see
+        # enqueue_print's docstring) AND for every replay attempt from
+        # modules/pending/routes.py itself, so a job that keeps failing
+        # on retry never creates a second/duplicate pending entry.
+        if not result["ok"] and meta.get("retry_payload") is not None:
+            pending_store.add(
+                meta.get("job_type", "other"), meta.get("summary", ""), meta.get("source", "system"),
+                "error", result.get("detail", ""), meta["retry_payload"],
+            )
         event.set()
         PRINT_QUEUE.task_done()
 
@@ -186,7 +206,8 @@ def start_worker():
 
 
 def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hours=False,
-                   dedupe_key=None, job_type="other", summary="", source="ui", log_history=True):
+                   bypass_duplicate=False, dedupe_key=None, job_type="other", summary="", source="ui",
+                   log_history=True, retry_payload=None):
     """Enqueues a print job and waits for it to finish. Returns
     (ok: bool, detail: str, http_status: int).
 
@@ -202,6 +223,14 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     body/query param; only ever set by a caller that has already read
     the corresponding toggle from settings_store itself.
 
+    bypass_duplicate=True skips ONLY duplicate suppression (quiet
+    hours/rate limit still apply unless separately bypassed) - used
+    when replaying a job from the pending list (see
+    modules/pending/routes.py): the user has already reviewed and
+    explicitly chosen to reprint this exact content, so treating it as
+    an unwanted duplicate of itself would be wrong. Same
+    not-from-request-input rule as bypass_quiet_hours.
+
     dedupe_key: optional explicit key for duplicate suppression instead
     of relying on str(args) - important e.g. for image printing, where
     args contains a Pillow object (see _job_fingerprint()).
@@ -215,6 +244,22 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     facing jobs that shouldn't clutter the dashboard (e.g. the /health
     check, which runs every 60s from every open browser tab).
 
+    retry_payload: optional JSON-serializable dict (or, for job_type
+    "images" specifically, {"image": <PIL Image>} - see
+    pending_store.add()) capturing enough of this job's own arguments
+    to reconstruct and reprint it later. Only pass this for job types
+    where that's genuinely sensible (see each caller for the reasoning
+    - e.g. wifi/shopping/message are fine, a raw image upload isn't
+    JSON-safe on its own so goes through pending_store's special
+    handling instead). If given, and the job is blocked by quiet hours
+    or rate limit (NOT duplicate suppression - see check_print_rules's
+    block_kind), or fails with a real print error, it is saved to the
+    pending list (modules/pending/routes.py) for later manual review.
+    NEVER pass this when replaying an already-pending job - a failed
+    retry attempt must not create ANOTHER pending entry for the same
+    content, or a persistently-failing job would pile up duplicates
+    indefinitely.
+
     Status codes: 429 quiet hours/rate limit/duplicate, 503 queue full,
     504 timeout, 500 print error, 200 success.
 
@@ -223,15 +268,24 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     on the HTTP side, not the job itself. Clients shouldn't automatically
     retry on a 504, or the same receipt could end up printed twice."""
     if not bypass_rules:
-        allowed, reason = check_print_rules(func, args, dedupe_key, bypass_quiet_hours)
+        allowed, reason, block_kind = check_print_rules(func, args, dedupe_key, bypass_quiet_hours, bypass_duplicate)
         if not allowed:
             if log_history:
                 history_store.log_job(job_type, summary, source, "blocked", reason)
+            # Only quiet-hours/rate-limit blocks are genuinely deferred
+            # content - a duplicate block means this exact content was
+            # already accepted moments ago under the original
+            # submission, so there's nothing here worth recovering.
+            if retry_payload is not None and block_kind in ("quiet_hours", "rate_limit"):
+                pending_store.add(job_type, summary, source, "blocked", reason, retry_payload)
             return False, reason, 429
 
     result = {}
     event = threading.Event()
-    meta = {"job_type": job_type, "summary": summary, "source": source, "log_history": log_history}
+    meta = {
+        "job_type": job_type, "summary": summary, "source": source, "log_history": log_history,
+        "retry_payload": retry_payload,
+    }
     try:
         PRINT_QUEUE.put((func, args, result, event, meta), timeout=5)
     except queue.Full:

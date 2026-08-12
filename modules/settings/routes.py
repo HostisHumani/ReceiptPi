@@ -57,6 +57,11 @@ def validate_print_rules_updates(updates):
         if type(value) is not int or value < 0:
             return "settings.validation.duplicate_window", {}
 
+    if "pending_retention_days" in updates:
+        value = updates["pending_retention_days"]
+        if type(value) is not int or value < 0:
+            return "settings.validation.pending_retention", {}
+
     if "text_size" in updates and updates["text_size"] not in ("normal", "large"):
         return "settings.validation.text_size", {}
 
@@ -303,6 +308,7 @@ def ui_update_print_rules():
         updates = {
             "max_jobs_per_hour": int(request.form.get("max_jobs_per_hour", 20)),
             "duplicate_window_seconds": int(request.form.get("duplicate_window_seconds", 60)),
+            "pending_retention_days": int(request.form.get("pending_retention_days", 0)),
             "text_size": request.form.get("text_size", "normal"),
         }
     except ValueError:
@@ -678,7 +684,7 @@ def get_all_settings():
 def update_print_rules():
     """
     Expects JSON with one or more of the following fields:
-    { "max_jobs_per_hour": int, "duplicate_window_seconds": int }
+    { "max_jobs_per_hour": int, "duplicate_window_seconds": int, "pending_retention_days": int }
     Only the fields provided are changed, the rest stay as they were.
     Quiet-hour rules are managed separately, see
     /settings/quiet_hours/rules below - a single window doesn't fit this
@@ -689,7 +695,7 @@ def update_print_rules():
     if err:
         return err
 
-    allowed_fields = {"max_jobs_per_hour", "duplicate_window_seconds"}
+    allowed_fields = {"max_jobs_per_hour", "duplicate_window_seconds", "pending_retention_days"}
     updates = {k: v for k, v in data.items() if k in allowed_fields}
     if not updates:
         return jsonify({"status": "error", "detail": "no valid fields provided"}), 400

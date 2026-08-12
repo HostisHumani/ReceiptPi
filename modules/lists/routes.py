@@ -135,6 +135,7 @@ def do_print_list(title, items, job_type="shopping", source="ui"):
     ok, detail, status_code = enqueue_print(
         _raw_print_list, title, items, job_type == "shopping",
         job_type=job_type, summary=summary, source=source,
+        retry_payload={"title": title, "items": items},
     )
     if ok:
         detail = f"{len(items)} items printed"
@@ -247,6 +248,7 @@ def do_print_task(fields, source="ui"):
     """Returns (ok, detail, http_status), see enqueue_print()."""
     ok, detail, status_code = enqueue_print(
         _raw_print_task, fields, job_type="task", summary=fields["title"], source=source,
+        retry_payload=dict(fields),
     )
     if ok:
         detail = "task card printed"

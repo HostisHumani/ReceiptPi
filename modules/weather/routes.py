@@ -223,6 +223,7 @@ def print_weather():
     resolved_name, _lat, _lon = resolve_location(location_name)
     ok, detail, status_code = enqueue_print(
         _raw_print_weather, location_name, job_type="weather", summary=resolved_name or "", source="api",
+        retry_payload={"location_name": location_name},
     )
     if ok:
         return jsonify({"status": "printed"}), 200
@@ -236,6 +237,7 @@ def ui_print_weather():
     resolved_name, _lat, _lon = resolve_location(location_name)
     ok, detail, _status_code = enqueue_print(
         _raw_print_weather, location_name, job_type="weather", summary=resolved_name or "", source="ui",
+        retry_payload={"location_name": location_name},
     )
     message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
     weather_settings = settings_store.get_settings()["weather"]
@@ -278,6 +280,7 @@ def print_weather_alert():
         _raw_print_message, i18n.tr("receipt.weather.alert_title"), text, "weather",
         job_type="weather_alert", summary=headline[:60], source="system",
         bypass_quiet_hours=ignore_quiet_hours,
+        retry_payload={"title": i18n.tr("receipt.weather.alert_title"), "text": text, "module": "weather"},
     )
     if ok:
         return jsonify({"status": "printed"}), 200

@@ -95,6 +95,7 @@ def process_and_enqueue_image(img_bytes, source="ui"):
     return enqueue_print(
         _raw_print_image, img, dedupe_key=dedupe_key,
         job_type="images", summary=f"{img.width}x{img.height}px", source=source,
+        retry_payload={"image": img},
     )
 
 

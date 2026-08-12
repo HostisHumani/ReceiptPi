@@ -75,6 +75,7 @@ receiptpi/
 ├── settings_store.py      zentrale Settings (JSON in STATE_DIR, nicht im Projektordner)
 ├── history_store.py       SQLite-Druckhistorie (STATE_DIR), Auto-Pruning nach 180 Tagen
 ├── lists_store.py          angefangene Listen-/Task-Karten-Entwürfe (STATE_DIR), gelöscht nach Druck
+├── pending_store.py        blockierte/fehlgeschlagene Druckaufträge (STATE_DIR, 0600), siehe "Ausstehende Aufträge" unten
 ├── logos.py                Logo-Auflösung je Druckart, Upload-Validierung, Seeding
 ├── i18n.py                 minimales Übersetzungs-Lookup (JSON-Dateien, kein Flask-Babel)
 ├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL)
@@ -93,6 +94,7 @@ receiptpi/
 │   ├── games/                  Offline-Spiele (Sudoku, Würfelblock, Tic-Tac-Toe)
 │   ├── automation/            generischer Automation-Webhook
 │   ├── history/                Druckhistorie-Dashboard
+│   ├── pending/                 Ausstehende Druckaufträge ansehen/nachdrucken/verwerfen
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── watchers/
 │   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
@@ -230,6 +232,7 @@ bestehende Crontab übernehmen (`crontab -e`).
 - Systemberichte (Proxmox/piNAS/PBS via SSH)
 - Offline-Spiele (Sudoku, Würfelblock, Tic-Tac-Toe), siehe [Spiele](#spiele) unten
 - Druckhistorie-Dashboard (Statistik + paginierte Liste, SQLite-basiert)
+- Ausstehende Aufträge: durch Ruhezeiten/Rate-Limit blockierte oder durch echten Druckerfehler fehlgeschlagene Aufträge ansehen, nachdrucken oder verwerfen, siehe "Ausstehende Aufträge" unten
 - Optionale Logos je Druckart mit globalem Standard-Fallback
 - Einzeln ein-/ausschaltbare Home-Module, siehe [Modul-Schalter](#modul-schalter) unten
 - Webbasierte Einstellungen, aufgeteilt in Unterseiten je Bereich und nach Thema gruppiert
@@ -305,6 +308,34 @@ derselben Einstellung heraus:
 Es handelt sich um einen reinen Textgrößen-Schalter, keine vollständige
 Accessibility-Überarbeitung – es gibt kein separates
 Screen-Reader-Markup oder einen eigenen Kontrastmodus dazu.
+
+### Ausstehende Aufträge
+
+Ein durch Ruhezeiten/Rate-Limit blockierter Druckauftrag – oder einer,
+der an einem echten Druckerfehler (Gerät nicht erreichbar, USB-Fehler,
+…) scheitert – verschwindet nicht einfach: der Inhalt wird gespeichert,
+damit er später überprüft und manuell nachgedruckt oder verworfen
+werden kann, erreichbar über das Burger-Menü. Gilt gleichermaßen für
+jede Quelle (Web-UI, JSON-API, Automation-Webhook, Watcher), da zentral
+an `enqueue_print()` angeknüpft wird statt einzeln pro Modul.
+Duplikat-Sperren-Blockaden sind bewusst ausgeschlossen – die spiegeln
+eine bereits akzeptierte frühere Einreichung desselben Inhalts wider,
+keinen verlorenen Inhalt.
+
+Häkchen bei den gewünschten Einträgen setzen, dann "Ausgewählte
+drucken" oder "Ausgewählte verwerfen" wählen; "Alle drucken"/"Alle
+verwerfen" überspringen die Auswahl komplett. Ein Nachdruck umgeht
+Ruhezeiten (bewusste, geprüfte Handlung) und Duplikat-Sperre, das
+Rate-Limit gilt aber weiterhin. Ein Eintrag wird erst entfernt, wenn
+der Nachdruck BESTÄTIGT erfolgreich war – ein fehlgeschlagener Versuch
+lässt ihn stehen und erzeugt nie einen zweiten Pending-Eintrag für
+denselben Inhalt. `/settings/print-rules` hat eine optionale
+Auto-Aufräum-Einstellung (0 = nie, sonst Anzahl Tage).
+
+Nicht jede Druckart ist dabei: Wetter/Systembericht holen beim
+Nachdruck ohnehin live neue Daten (kein Veraltet-Risiko), ein
+Bild-Upload wird dagegen als bereits verkleinerte/gedithert
+druckfertige Version gespeichert (wenige KB, nicht das Original-Foto).
 
 ### Modul-Schalter
 

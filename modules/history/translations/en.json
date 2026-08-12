@@ -12,6 +12,7 @@
   "history.source.api": "API",
   "history.source.system": "System",
   "history.source.webhook": "Webhook",
+  "history.source.pending": "Reprint",
   "history.job_type.boot": "Boot greeting",
   "history.job_type.weather_alert": "Storm warning",
   "history.job_type.other": "Other",

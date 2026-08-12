@@ -74,6 +74,7 @@ receiptpi/
 ├── settings_store.py      central settings (JSON in STATE_DIR, not in the project folder)
 ├── history_store.py       SQLite print history (STATE_DIR), auto-pruned after 180 days
 ├── lists_store.py          in-progress list/task-card drafts (STATE_DIR), cleared once printed
+├── pending_store.py        blocked/failed print jobs (STATE_DIR, 0600), see "Pending jobs" below
 ├── logos.py                per-print-type logo resolution, upload validation, seeding
 ├── i18n.py                 minimal translation lookup (JSON files, no Flask-Babel)
 ├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL)
@@ -92,6 +93,7 @@ receiptpi/
 │   ├── games/                  offline games (Sudoku, dice score sheet, Tic-Tac-Toe)
 │   ├── automation/            generic automation webhook
 │   ├── history/                print history dashboard
+│   ├── pending/                 review/reprint/discard blocked or failed print jobs
 │   └── settings/                settings pages (web UI) + settings API
 ├── watchers/
 │   ├── github_star_watch.py     cron: prints on a new GitHub star
@@ -225,6 +227,7 @@ existing crontab (`crontab -e`).
 - System reports (Proxmox/piNAS/PBS via SSH)
 - Offline games (Sudoku, a dice score sheet, Tic-Tac-Toe), see [Games](#games) below
 - Print history dashboard (stats + paginated log, SQLite-backed)
+- Pending jobs: review/reprint/discard print jobs blocked by quiet hours/rate limit or failed with a real printer error, see "Pending jobs" below
 - Optional per-print-type logos with a global default fallback
 - Individually toggleable home-page modules, see [Module toggles](#module-toggles) below
 - Web-based settings, split into per-area sub-pages and grouped by topic
@@ -296,6 +299,33 @@ setting:
 
 It is a plain text-size switch, not a full accessibility overhaul - there
 is no separate screen-reader markup or contrast mode tied to it.
+
+### Pending jobs
+
+A print job blocked by quiet hours/rate limit, or one that fails with a
+real printer error (device unreachable, USB error, ...), doesn't just
+vanish - its content is saved so it can be reviewed and manually
+reprinted or discarded later, reachable via the burger menu. Applies
+across every source (web UI, JSON API, automation webhook, watchers)
+equally, since it hooks into `enqueue_print()` centrally rather than
+each module individually. Duplicate-suppression blocks are deliberately
+excluded - that reflects an already-accepted earlier submission of the
+same content, not lost content.
+
+Check the box next to the entries you want, then choose "Print
+selected" or "Discard selected"; "Print all"/"Discard all" skip the
+selection entirely. A reprint bypasses quiet hours (an explicit,
+reviewed action) and duplicate suppression, but the rate limit still
+applies. An entry is only removed once its reprint is CONFIRMED
+successful - a failed retry leaves it in place, and never creates a
+second pending entry for the same content. `/settings/print-rules` has
+an optional auto-cleanup setting (0 = never, otherwise a number of
+days).
+
+Not every job type is included - weather/system reports re-fetch live
+data on reprint anyway (no staleness concern), but a raw image upload
+is stored as its already-downscaled/dithered print-ready version (a
+few KB, not the original photo) rather than the full upload.
 
 ### Module toggles
 

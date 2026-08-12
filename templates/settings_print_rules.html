@@ -80,6 +80,11 @@
     <label for="duplicate_window_seconds">{{ t('settings.print_rules.duplicate_window') }}</label>
     <input type="number" id="duplicate_window_seconds" name="duplicate_window_seconds" min="0"
            value="{{ settings.print_rules.duplicate_window_seconds }}">
+
+    <label for="pending_retention_days">{{ t('settings.print_rules.pending_retention') }}</label>
+    <input type="number" id="pending_retention_days" name="pending_retention_days" min="0"
+           value="{{ settings.print_rules.pending_retention_days }}">
+    <div class="hint">{{ t('settings.print_rules.pending_retention_hint') }}</div>
   </div>
 
   <h2 class="section-title">{{ t('settings.print_rules.text_size_heading') }}</h2>

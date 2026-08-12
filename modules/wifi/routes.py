@@ -121,6 +121,7 @@ def print_wifi():
         return jsonify({"status": "error", "detail": "ssid must be at most 32 bytes"}), 400
     ok, detail, status_code = enqueue_print(
         _raw_print_wifi, ssid, password, auth_type, job_type="wifi", summary=ssid, source="api",
+        retry_payload={"ssid": ssid, "password": password, "auth_type": auth_type},
     )
     if ok:
         return jsonify({"status": "printed"}), 200
@@ -149,6 +150,7 @@ def ui_print_wifi():
         ok, detail, _status_code = enqueue_print(
             _raw_print_wifi, status["ssid"], status["password"], auth_type,
             job_type="wifi", summary=status["ssid"], source="ui",
+            retry_payload={"ssid": status["ssid"], "password": status["password"], "auth_type": auth_type},
         )
         message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
         success = ok
