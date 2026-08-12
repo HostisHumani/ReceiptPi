@@ -16,6 +16,7 @@ from datetime import date, datetime
 from flask import Blueprint, jsonify, render_template, request
 
 import i18n
+import lists_store
 from logos import print_logo
 from print_queue import enqueue_print
 from printer import get_printer
@@ -105,12 +106,31 @@ def _raw_print_list(title, items, with_logo):
         p.close()
 
 
+def _parse_draft_loaded_at():
+    """Parses the hidden draft_loaded_at field a draft-save request
+    carries (see templates/{shopping,lists_todo,lists_task}.html and
+    lists_store.save_draft()'s `loaded_at` docstring) - a missing or
+    malformed value is treated as "no token" (save proceeds without
+    the staleness check) rather than rejected outright, since this is
+    only a best-effort race guard, not a security boundary."""
+    raw = request.form.get("draft_loaded_at")
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def do_print_list(title, items, job_type="shopping", source="ui"):
     """Returns (ok, detail, http_status), see enqueue_print(). job_type
     distinguishes shopping ("shopping", unchanged from before this
     module existed) from to-do ("todo") prints in the history log -
     the print routine itself is otherwise identical for both, except
-    that only shopping shows a logo (see _raw_print_list)."""
+    that only shopping shows a logo (see _raw_print_list). job_type
+    doubles as the lists_store draft "kind" (the two happen to use the
+    exact same strings) - a successful print clears the matching
+    draft, whether it came from the UI form or a direct /print/list
+    /print/todo API call, so a list that just got printed some other
+    way doesn't linger pre-filled in the browser."""
     summary = f"{title} ({len(items)})"
     ok, detail, status_code = enqueue_print(
         _raw_print_list, title, items, job_type == "shopping",
@@ -118,6 +138,7 @@ def do_print_list(title, items, job_type="shopping", source="ui"):
     )
     if ok:
         detail = f"{len(items)} items printed"
+        lists_store.clear_draft(job_type)
     return ok, detail, status_code
 
 
@@ -229,6 +250,7 @@ def do_print_task(fields, source="ui"):
     )
     if ok:
         detail = "task card printed"
+        lists_store.clear_draft("task")
     return ok, detail, status_code
 
 
@@ -245,9 +267,14 @@ def lists_index():
 @lists_bp.route("/shopping", methods=["GET"])
 @lists_bp.route("/lists/shopping", methods=["GET"])
 def shopping_page():
+    default_title = i18n.tr("shopping.title_default")
+    draft = lists_store.get_draft("shopping")
     return render_template(
         "shopping.html", message=None, success=None, csrf_token=get_csrf_token(),
-        default_title=i18n.tr("shopping.title_default"),
+        default_title=default_title,
+        draft_title=draft.get("title", default_title),
+        draft_items=draft.get("items", ""),
+        draft_loaded_at=lists_store.now(),
     )
 
 
@@ -283,14 +310,43 @@ def ui_print_list():
     return render_template(
         "shopping.html", message=message, success=ok, csrf_token=get_csrf_token(),
         default_title=default_title,
+        # On success the draft was just cleared - show a blank form for
+        # the next list. On failure (rate limit, quiet hours, ...) echo
+        # back exactly what was submitted, matching the untouched draft
+        # still on disk, instead of silently losing it like before.
+        draft_title=default_title if ok else title,
+        draft_items="" if ok else raw_items,
+        # Fresh token either way - on success this must be newer than
+        # the clear_draft() that just ran (do_print_list stores its
+        # own now() *inside* clear_draft, strictly before this line
+        # executes), so typing again on this same re-rendered page
+        # autosaves normally instead of being rejected as stale.
+        draft_loaded_at=lists_store.now(),
     )
+
+
+@lists_bp.route("/ui/list/draft", methods=["POST"])
+@csrf_protect
+def save_list_draft():
+    """Called by static/draft-autosave.js a short while after typing
+    stops - saves only, never prints. No response body needed."""
+    lists_store.save_draft("shopping", {
+        "title": request.form.get("title", ""),
+        "items": request.form.get("items", ""),
+    }, loaded_at=_parse_draft_loaded_at())
+    return ("", 204)
 
 
 @lists_bp.route("/lists/todo", methods=["GET"])
 def todo_page():
+    default_title = i18n.tr("lists.todo.title_default")
+    draft = lists_store.get_draft("todo")
     return render_template(
         "lists_todo.html", message=None, success=None, csrf_token=get_csrf_token(),
-        default_title=i18n.tr("lists.todo.title_default"),
+        default_title=default_title,
+        draft_title=draft.get("title", default_title),
+        draft_items=draft.get("items", ""),
+        draft_loaded_at=lists_store.now(),
     )
 
 
@@ -324,12 +380,34 @@ def ui_print_todo():
     return render_template(
         "lists_todo.html", message=message, success=ok, csrf_token=get_csrf_token(),
         default_title=default_title,
+        draft_title=default_title if ok else title,
+        draft_items="" if ok else raw_items,
+        draft_loaded_at=lists_store.now(),
     )
+
+
+@lists_bp.route("/ui/todo/draft", methods=["POST"])
+@csrf_protect
+def save_todo_draft():
+    lists_store.save_draft("todo", {
+        "title": request.form.get("title", ""),
+        "items": request.form.get("items", ""),
+    }, loaded_at=_parse_draft_loaded_at())
+    return ("", 204)
 
 
 @lists_bp.route("/lists/task", methods=["GET"])
 def task_page():
-    return render_template("lists_task.html", message=None, success=None, csrf_token=get_csrf_token())
+    draft = lists_store.get_draft("task")
+    return render_template(
+        "lists_task.html", message=None, success=None, csrf_token=get_csrf_token(),
+        draft_title=draft.get("title", ""),
+        draft_description=draft.get("description", ""),
+        draft_items=draft.get("items", ""),
+        draft_priority=draft.get("priority", ""),
+        draft_due_date=draft.get("due_date", ""),
+        draft_loaded_at=lists_store.now(),
+    )
 
 
 @lists_bp.route("/print/task", methods=["POST"])
@@ -369,7 +447,41 @@ def ui_print_task():
     if error:
         detail, _status = error
         message = i18n.tr("print.error_prefix") + detail
-        return render_template("lists_task.html", message=message, success=False, csrf_token=get_csrf_token())
+        # Validation error - draft on disk is untouched, echo back
+        # exactly what was submitted rather than losing it.
+        return render_template(
+            "lists_task.html", message=message, success=False, csrf_token=get_csrf_token(),
+            draft_title=request.form.get("title", ""),
+            draft_description=request.form.get("description", ""),
+            draft_items=request.form.get("items", ""),
+            draft_priority=request.form.get("priority", ""),
+            draft_due_date=request.form.get("due_date", ""),
+            draft_loaded_at=lists_store.now(),
+        )
     ok, detail, _status_code = do_print_task(fields, source="ui")
     message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
-    return render_template("lists_task.html", message=message, success=ok, csrf_token=get_csrf_token())
+    return render_template(
+        "lists_task.html", message=message, success=ok, csrf_token=get_csrf_token(),
+        # On success the draft was just cleared - blank form for the
+        # next card. On failure (rate limit/quiet hours) echo back what
+        # was submitted, matching the untouched draft still on disk.
+        draft_title="" if ok else request.form.get("title", ""),
+        draft_description="" if ok else request.form.get("description", ""),
+        draft_items="" if ok else request.form.get("items", ""),
+        draft_priority="" if ok else request.form.get("priority", ""),
+        draft_due_date="" if ok else request.form.get("due_date", ""),
+        draft_loaded_at=lists_store.now(),
+    )
+
+
+@lists_bp.route("/ui/task/draft", methods=["POST"])
+@csrf_protect
+def save_task_draft():
+    lists_store.save_draft("task", {
+        "title": request.form.get("title", ""),
+        "description": request.form.get("description", ""),
+        "items": request.form.get("items", ""),
+        "priority": request.form.get("priority", ""),
+        "due_date": request.form.get("due_date", ""),
+    }, loaded_at=_parse_draft_loaded_at())
+    return ("", 204)

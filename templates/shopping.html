@@ -3,15 +3,25 @@
 {% block content %}
 <a class="back-link" href="/lists"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
-<form method="post" action="/ui/list" class="card">
+<form method="post" action="/ui/list" class="card"
+      data-draft-url="/ui/list/draft"
+      data-draft-defaults='{"title": {{ default_title | tojson }}, "items": ""}'
+      data-draft-saved-text="{{ t('lists.draft.saved') }}"
+      data-draft-discarded-text="{{ t('lists.draft.discarded') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="draft_loaded_at" value="{{ draft_loaded_at }}">
 
   <label for="title">{{ t('shopping.title_label') }}</label>
-  <input type="text" id="title" name="title" value="{{ default_title }}">
+  <input type="text" id="title" name="title" value="{{ draft_title }}">
 
   <label for="items">{{ t('shopping.items_label') }}</label>
-  <textarea id="items" name="items" placeholder="{{ t('shopping.items_placeholder') }}"></textarea>
+  <textarea id="items" name="items" placeholder="{{ t('shopping.items_placeholder') }}">{{ draft_items }}</textarea>
 
-  <button type="submit">{{ t('shopping.button') }}</button>
+  <div class="form-actions">
+    <button type="submit">{{ t('shopping.button') }}</button>
+    <button type="button" class="btn btn-secondary btn-discard-draft" data-confirm-text="{{ t('lists.draft.discard_confirm') }}">{{ t('lists.draft.discard') }}</button>
+  </div>
+  <span class="hint draft-status" aria-live="polite"></span>
 </form>
 {% endblock %}
+{% block extra_scripts %}<script src="{{ url_for('static', filename='draft-autosave.js') }}" defer></script>{% endblock %}

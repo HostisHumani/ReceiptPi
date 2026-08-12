@@ -253,5 +253,9 @@
   "wifi.button": "Gäste-WLAN jetzt drucken",
   "wifi.disabled": "Gästenetz ist aktuell deaktiviert - nichts zu drucken",
   "wifi.hint": "Fragt den aktuellen Gästenetz-Status live bei der Fritz!Box ab und druckt SSID/Passwort + QR-Code, falls das Gästenetz gerade aktiviert ist. Läuft normalerweise automatisch per Cronjob - dieser Button ist für den Fall, dass du den Zettel sofort/erneut brauchst.",
-  "wifi.unreachable_prefix": "Fritz!Box nicht erreichbar: "
+  "wifi.unreachable_prefix": "Fritz!Box nicht erreichbar: ",
+  "lists.draft.discard": "Verwerfen",
+  "lists.draft.discard_confirm": "Entwurf wirklich verwerfen?",
+  "lists.draft.saved": "Entwurf gespeichert",
+  "lists.draft.discarded": "Entwurf verworfen"
 }

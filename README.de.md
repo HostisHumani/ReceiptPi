@@ -74,6 +74,7 @@ receiptpi/
 ├── security.py            CSRF-Schutz, API-Token-Schutz, JSON-Parsing
 ├── settings_store.py      zentrale Settings (JSON in STATE_DIR, nicht im Projektordner)
 ├── history_store.py       SQLite-Druckhistorie (STATE_DIR), Auto-Pruning nach 180 Tagen
+├── lists_store.py          angefangene Listen-/Task-Karten-Entwürfe (STATE_DIR), gelöscht nach Druck
 ├── logos.py                Logo-Auflösung je Druckart, Upload-Validierung, Seeding
 ├── i18n.py                 minimales Übersetzungs-Lookup (JSON-Dateien, kein Flask-Babel)
 ├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL)
@@ -102,6 +103,7 @@ receiptpi/
 ├── assets/example-logos/    mitgelieferter Logo-Startsatz (Strichzeichnungen)
 ├── static/
 │   ├── style.css             Design-System (Spacing/Farben/Themes, Card-/Tile-/Icon-Stile)
+│   ├── draft-autosave.js      generisches Auto-Save für die Listen-/Task-Karten-Formulare
 │   └── icons/                 lokaler Lucide-SVG-Iconsatz (siehe LICENSE in diesem Ordner)
 └── templates/                gemeinsames Layout und Modul-Seiten
     ├── base.html
@@ -261,6 +263,11 @@ Ruhezeiten wie jedes andere Modul.
   Automation, die HTTP-POST beherrscht, mit derselben `X-Api-Token`-Auth,
   Druck-Queue, Ruhezeiten, Rate-Limit und Historie wie jeder andere
   `/print/*`-Endpunkt.
+- **Entwürfe** – alle drei Formulare speichern automatisch zum Server
+  (`lists_store.py`, ~1s nach Tipp-Ende), damit eine angefangene Liste
+  auch beim Wegnavigieren oder Tab-Schließen erhalten bleibt; gelöscht
+  wird der Entwurf erst nach tatsächlichem Druck. Ein "Verwerfen"-Button
+  setzt das Formular auf leer zurück.
 
 ### Spiele
 

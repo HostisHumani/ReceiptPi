@@ -526,6 +526,31 @@ button:active, .btn:active { background: var(--color-accent-hover); transform: s
    submit action rather than an inline row action. */
 .btn-block { width: 100%; padding: 14px; font-size: 1.02em; font-weight: 600; margin-top: var(--space-5); }
 
+/* ---------------------------------------------------------------------
+   Form action row: primary submit + a secondary button (e.g. discard
+   draft) side by side, instead of each on its own full-width line.
+   Only the submit button is stretched via flex - the secondary button
+   keeps its natural (auto) width from .btn-secondary.
+   --------------------------------------------------------------------- */
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.form-actions button[type="submit"] {
+  flex: 1;
+  margin-top: 0;
+}
+.form-actions .btn-secondary {
+  margin-top: 0;
+}
+
+.draft-status {
+  display: block;
+  min-height: 1.2em;
+}
+
 .msg {
   padding: 12px 14px;
   border-radius: 10px;

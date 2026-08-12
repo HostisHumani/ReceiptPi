@@ -253,5 +253,9 @@
   "wifi.button": "Print guest wifi now",
   "wifi.disabled": "Guest network is currently disabled - nothing to print",
   "wifi.hint": "Fetches the current guest network status live from the Fritz!Box and prints SSID/password + QR code if the guest network is currently enabled. Normally runs automatically via cron - this button is for when you need the slip immediately or again.",
-  "wifi.unreachable_prefix": "Fritz!Box unreachable: "
+  "wifi.unreachable_prefix": "Fritz!Box unreachable: ",
+  "lists.draft.discard": "Discard",
+  "lists.draft.discard_confirm": "Discard this draft?",
+  "lists.draft.saved": "Draft saved",
+  "lists.draft.discarded": "Draft discarded"
 }

@@ -73,6 +73,7 @@ receiptpi/
 ├── security.py            CSRF protection, API token protection, JSON parsing
 ├── settings_store.py      central settings (JSON in STATE_DIR, not in the project folder)
 ├── history_store.py       SQLite print history (STATE_DIR), auto-pruned after 180 days
+├── lists_store.py          in-progress list/task-card drafts (STATE_DIR), cleared once printed
 ├── logos.py                per-print-type logo resolution, upload validation, seeding
 ├── i18n.py                 minimal translation lookup (JSON files, no Flask-Babel)
 ├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL)
@@ -101,6 +102,7 @@ receiptpi/
 ├── assets/example-logos/    bundled starter logo set (outline icons)
 ├── static/
 │   ├── style.css             design system (spacing/colors/themes, card/tile/icon styles)
+│   ├── draft-autosave.js      generic auto-save for the lists/task-card forms
 │   └── icons/                 local Lucide SVG icon set (see LICENSE in that folder)
 └── templates/                shared layout and module pages
     ├── base.html
@@ -255,6 +257,10 @@ every other module.
   automation that can do an HTTP POST, with the same `X-Api-Token` auth,
   print queue, quiet hours, rate limit and history logging as every
   other `/print/*` endpoint.
+- **Drafts** - all three forms auto-save to the server (`lists_store.py`,
+  `~1s` after typing stops) so an in-progress list survives navigating
+  away or closing the tab; a draft is only cleared once actually
+  printed. A "Discard" button clears it back to a blank form.
 
 ### Games
 
