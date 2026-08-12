@@ -1,0 +1,79 @@
+name: Sync VERSION from release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-version
+  cancel-in-progress: false
+
+jobs:
+  sync-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate and normalize release tag
+        id: version
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-alpha1$ ]]; then
+            VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}alpha"
+          elif [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-beta1$ ]]; then
+            VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}beta"
+          elif [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+          else
+            echo "Unsupported release tag: $TAG"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release $TAG -> VERSION $VERSION"
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update VERSION
+        id: update
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          CURRENT="$(tr -d '\r\n' < VERSION 2>/dev/null || true)"
+
+          if [[ "$CURRENT" == "$VERSION" ]]; then
+            echo "VERSION already set to $VERSION"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          printf '%s\n' "$VERSION" > VERSION
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit VERSION
+        if: steps.update.outputs.changed == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add VERSION
+          git commit -m "chore: set version to ${VERSION}"
+          git push origin main
