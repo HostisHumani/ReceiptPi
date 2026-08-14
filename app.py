@@ -56,6 +56,20 @@ from printer import _raw_health_check
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB - headroom over MAX_IMAGE_BYTES (12MB, see modules/images/routes.py) for multipart overhead
+# Flask 3's own default is None (no Cache-Control max-age at all, only
+# ETag/Last-Modified) - every page load re-requests style.css, every
+# icon's individual SVG (see the CSS mask-image icon system in
+# style.css), and the per-page JS files, each a conditional GET
+# round-trip to the Pi even when nothing changed. No cache-busting
+# exists anywhere in this codebase (url_for('static', ...) and every
+# hardcoded icon URL in style.css are plain, unversioned paths -
+# verified, not assumed), so a UI deploy is only picked up once the
+# max-age window has actually elapsed, not immediately. 1 hour keeps
+# that window short enough that a deploy is visible within the same
+# session for anyone actively testing it, while still skipping the
+# round-trip entirely for the (far more common) case of just
+# navigating between pages within that hour.
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 3600
 
 # Written by watchers/update_check_watch.py (cron, every 12h) - read here
 # as a plain local file, NEVER fetched from GitHub inside a request. See

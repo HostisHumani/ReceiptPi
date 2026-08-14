@@ -43,14 +43,42 @@ IMAGES_DIR = os.path.join(STATE_DIR, "pending_images")
 
 _lock = threading.Lock()
 
+# mtime-based cache, same pattern as settings_store.py - get_all() is
+# called on EVERY page load (burger-menu badge count via app.py's
+# context processor), so avoiding a disk read+JSON parse when nothing
+# has changed matters here far more than it would for a page-specific
+# store like lists_store.py.
+_cache_mtime = None
+_cache_data = None
+
 
 def _read():
+    """Returns the entry list, using the mtime cache when the file
+    hasn't changed since it was last read/written - see _cache_mtime
+    above. Every caller here (get_draft/save_draft/etc, all of which
+    already hold _lock) goes through this, so the cache is always
+    read/written under the same lock, no separate locking needed for
+    it specifically."""
+    global _cache_mtime, _cache_data
+    try:
+        current_mtime = os.path.getmtime(PENDING_FILE)
+    except OSError:
+        current_mtime = None
+
+    if current_mtime is not None and current_mtime == _cache_mtime and _cache_data is not None:
+        return json.loads(json.dumps(_cache_data))  # defensive copy - never hand out the cached object itself
+
     try:
         with open(PENDING_FILE) as f:
             data = json.load(f)
-        return data if isinstance(data, list) else []
+        if not isinstance(data, list):
+            data = []
     except (OSError, json.JSONDecodeError):
-        return []
+        data = []
+
+    _cache_mtime = current_mtime
+    _cache_data = json.loads(json.dumps(data))  # defensive copy
+    return data
 
 
 def _write(entries):
@@ -59,6 +87,7 @@ def _write(entries):
     not be group/world-readable. chmod happens on the temp file BEFORE
     the rename, since os.replace() keeps whatever permissions the
     source file already had rather than the destination's."""
+    global _cache_mtime, _cache_data
     os.makedirs(STATE_DIR, exist_ok=True)
     tmp_path = PENDING_FILE + ".tmp"
     with open(tmp_path, "w") as f:
@@ -67,6 +96,12 @@ def _write(entries):
         os.fsync(f.fileno())
     os.chmod(tmp_path, 0o600)
     os.replace(tmp_path, PENDING_FILE)
+    # Refresh the cache immediately with what was just written, rather
+    # than just invalidating it - the very next get_all() call (often
+    # in the same request) would otherwise pay for a redundant disk
+    # read of the file we just wrote ourselves.
+    _cache_mtime = os.path.getmtime(PENDING_FILE)
+    _cache_data = json.loads(json.dumps(entries))  # defensive copy
 
 
 def _image_path(entry_id):

@@ -108,7 +108,14 @@ def main():
         print_wifi(status["ssid"], status["password"])
         print("Guest network enabled -> wifi slip printed")
 
-    save_last_state(status["enabled"])
+    if status["enabled"] != last_enabled:
+        save_last_state(status["enabled"])
+    # else: nothing changed since last run - skip the write entirely.
+    # This runs every 1-2 minutes around the clock (see this file's
+    # docstring), so writing unconditionally here would mean an SD
+    # card write every single cycle forever, even while the guest
+    # network sits unchanged for days - a real, avoidable contributor
+    # to SD card wear on a Pi.
 
 
 if __name__ == "__main__":

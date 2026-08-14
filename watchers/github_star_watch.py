@@ -87,6 +87,10 @@ def print_notification(owner, repo, new_total, gained):
 
 
 def check_repo(owner, repo, state):
+    """Returns True if `state` was modified for this repo (new
+    baseline set, or a new star), False otherwise - see main(), which
+    only calls save_state() when at least one repo actually changed
+    this run."""
     key = f"{owner}/{repo}"
     current = get_star_count(owner, repo)
     last = state.get(key)
@@ -96,30 +100,43 @@ def check_repo(owner, repo, state):
         # only save the baseline, don't print.
         state[key] = current
         print(f"{key}: baseline set at {current} stars")
-        return
+        return True
 
     if current > last:
         gained = current - last
         print_notification(owner, repo, current, gained)
         state[key] = current
         print(f"{key}: new star! {last} -> {current}")
+        return True
     elif current > 0 and current < last:
         # Stars got removed - do NOT lower the saved high-water mark,
         # otherwise later re-reaching the old count would be reported as
         # a "new" star again (e.g. 100 -> 99 -> 100).
         print(f"{key}: stars dropped ({last} -> {current}), baseline stays {last}")
+        return False
     # current == last: nothing to do, no write needed for this repo
+    return False
 
 
 def main():
     state = load_state()
+    changed = False
     for entry in REPOS:
         owner, repo = entry["owner"], entry["repo"]
         try:
-            check_repo(owner, repo, state)
+            if check_repo(owner, repo, state):
+                changed = True
         except Exception as e:
             print(f"{owner}/{repo}: error - {e}")
-    save_state(state)
+    if changed:
+        save_state(state)
+    else:
+        # Nothing changed across any repo this run - skip the write.
+        # Runs every few minutes (see this file's docstring), so an
+        # unconditional write here would mean an SD card write every
+        # single cycle forever, even while star counts sit unchanged
+        # for weeks - avoidable SD card wear on a Pi.
+        print("no changes, state left untouched")
 
 
 if __name__ == "__main__":

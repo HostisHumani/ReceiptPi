@@ -10,7 +10,11 @@ malformed response, a release tag that doesn't match ReceiptPi's
 version scheme) this script logs and exits WITHOUT touching the cache
 file - a GitHub outage must never take down or mislead the footer, it
 just keeps showing the last known-good state until the next run
-succeeds.
+succeeds. Same for the common case where the check succeeds but the
+result is identical to what's already cached (most runs, since a new
+release is rare) - the write is skipped there too, since 2 runs/day
+would otherwise mean ~730 SD card writes a year for a footer value
+that almost never actually changes.
 
 Deliberately uses GET /repos/{owner}/{repo}/releases (the list), NOT
 /releases/latest - GitHub's own docs confirm /releases/latest returns
@@ -81,6 +85,18 @@ def save_cache(data):
     os.replace(tmp_path, CACHE_FILE)
 
 
+def load_cache():
+    """Returns the currently cached dict, or {} if there isn't one yet
+    or it's unreadable - used only to check whether a fresh result
+    actually differs before writing, see main()."""
+    try:
+        with open(CACHE_FILE) as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
 def main():
     try:
         release = fetch_latest_release()
@@ -110,11 +126,21 @@ def main():
         print(f"release html_url '{html_url}' doesn't look like a HostisHumani/ReceiptPi release, cache left untouched")
         return
 
-    save_cache({
+    new_cache = {
         "latest_version": tag,
         "latest_url": html_url,
         "update_available": comparison < 0,
-    })
+    }
+    if new_cache == load_cache():
+        # Identical to what's already cached (the common case - most
+        # 12h checks find no new release) - skip the write entirely.
+        # Runs every 12h forever, so writing unconditionally would mean
+        # an SD card write every cycle even across months where nothing
+        # ever changes - avoidable SD card wear on a Pi.
+        print(f"update check ok, unchanged: current={version.CURRENT_VERSION} latest={tag}, cache left untouched")
+        return
+
+    save_cache(new_cache)
     print(f"update check ok: current={version.CURRENT_VERSION} latest={tag} update_available={comparison < 0}")
 
 
