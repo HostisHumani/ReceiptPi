@@ -407,6 +407,11 @@ The web UI's icons are from [Lucide](https://lucide.dev) (`static/icons/`),
 used under the ISC License - see [static/icons/LICENSE](static/icons/LICENSE)
 for the full text.
 
+The web UI's typefaces are [IBM Plex Sans and IBM Plex Mono](https://github.com/IBM/plex)
+(`static/fonts/`), self-hosted rather than loaded from Google Fonts, used
+under the SIL Open Font License 1.1 - see
+[static/fonts/LICENSE.txt](static/fonts/LICENSE.txt) for the full text.
+
 ## License
 
 MIT - see [LICENSE](LICENSE).

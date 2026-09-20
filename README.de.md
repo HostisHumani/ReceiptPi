@@ -420,6 +420,12 @@ Die Icons der Web-UI stammen von [Lucide](https://lucide.dev)
 vollständige Lizenztext steht in
 [static/icons/LICENSE](static/icons/LICENSE).
 
+Die Schriftarten der Web-UI sind [IBM Plex Sans und IBM Plex Mono](https://github.com/IBM/plex)
+(`static/fonts/`), selbst gehostet statt über Google Fonts geladen,
+verwendet unter der SIL Open Font License 1.1 – der vollständige
+Lizenztext steht in
+[static/fonts/LICENSE.txt](static/fonts/LICENSE.txt).
+
 ## Lizenz
 
 MIT – siehe [LICENSE](LICENSE).
