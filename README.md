@@ -29,7 +29,7 @@ weather reports, images, system reports, and offline pen-and-paper games
 optionally prefixed with a small logo - plus a generic automation webhook
 (compatible with Home Assistant, Node-RED, n8n, or any tool that can do
 an HTTP POST) and other automation triggers (GitHub stars, Fritz!Box
-guest network, Zabbix webhooks for backup failures).
+guest network, storm warnings).
 
 <p align="center">
   <a href="assets/home.png">
@@ -71,6 +71,7 @@ receiptpi/
 ├── print_queue.py         central print queue + print-rule checks
 ├── printer.py             printer hardware access (USB)
 ├── security.py            CSRF protection, API token protection, JSON parsing
+├── secrets_crypto.py      Fernet encryption for system-report SSH passwords (key in STATE_DIR, not in git)
 ├── settings_store.py      central settings (JSON in STATE_DIR, not in the project folder)
 ├── history_store.py       SQLite print history (STATE_DIR), auto-pruned after 180 days
 ├── lists_store.py          in-progress list/task-card drafts (STATE_DIR), cleared once printed
@@ -89,7 +90,7 @@ receiptpi/
 │   ├── images/                print images
 │   ├── wifi/                  guest wifi slip (text + QR code)
 │   ├── weather/                weather report (DWD + Netatmo)
-│   ├── system/                 system report (Proxmox/PBS/piNAS via SSH)
+│   ├── system/                 system report (Proxmox/PBS via SSH, plus custom SSH commands for other hosts)
 │   ├── games/                  offline games (Sudoku, dice score sheet, Tic-Tac-Toe)
 │   ├── automation/            generic automation webhook
 │   ├── history/                print history dashboard
@@ -135,9 +136,11 @@ plain forms:
   followed by a tile grid linking to every currently enabled module.
 - **Navigation** - a topbar wordmark, a small printer-status dot, and a
   hamburger menu (History, Settings).
-- **Themes** - 5 selectable color themes (Forrest [default], Dark Lime,
-  Frost, Butter Bean, White Purple), picked under `/settings/design` and
-  applied via a `data-theme` attribute plus CSS custom properties.
+- **Themes** - 6 selectable color themes (Warm [default], Forrest, Dark
+  Lime, Frost, Butter Bean, White Purple), picked under `/settings/design`
+  and applied via a `data-theme` attribute plus CSS custom properties.
+  Warm is the only theme that also follows the system/browser light-dark
+  preference automatically.
 - **Icons** - a local set of Lucide SVG icons under `static/icons/` (no
   external icon font or CDN), rendered via CSS `mask-image` so every icon
   automatically follows the active theme's accent color instead of being
@@ -149,9 +152,10 @@ plain forms:
   found a newer GitHub release (including alpha/prereleases), the footer
   links directly to it. Information only, no auto-update.
 
-There is currently no dedicated app logo or favicon - only the topbar
-wordmark (a printer icon) and the documentation banner image at the top
-of this file.
+There is currently no dedicated app logo or favicon - each page shows a
+small icon matching its content in the topbar instead (a printer icon
+on the home page, a message icon on the message page, and so on),
+plus the documentation banner image at the top of this file.
 
 ## Settings pages
 
@@ -166,7 +170,7 @@ area, instead of one long form:
 - `/settings/logos` - global logo toggle, default logo, and a per-print-type toggle/upload/preview (falls back to the default logo if no custom one is set)
 - `/settings/weather` - weather report provider (DWD or Open-Meteo), weather locations, and an independent storm-warning provider (DWD, MeteoAlarm, or NWS) with its own enable toggle and an optional "ignore quiet hours" override
 - `/settings/github-watch` - watched GitHub repositories
-- `/settings/system-report` - SSH targets for the system report (Proxmox/piNAS/PBS)
+- `/settings/system-report` - a free-form list of SSH targets for the system report, see [System report](#system-report) below
 
 ## Endpoints
 
@@ -192,7 +196,9 @@ A blocked job responds with `429`.
 - `POST /settings/print_rules` - change rate limit/duplicate window
 - `GET|POST /settings/quiet_hours/rules`, `POST /settings/quiet_hours/rules/<id>/toggle`, `DELETE /settings/quiet_hours/rules/<id>`
 - `GET|POST /settings/weather/locations`, `DELETE /settings/weather/locations/<name>`
-- `GET|POST /settings/system_report` - SSH targets for the system report
+- `GET /settings/system_report` - current list of system-report hosts (JSON, passwords redacted to a `has_password` flag)
+- `POST /settings/system_report` - `{ "name": "...", "role": "proxmox"|"pbs"|"custom", "host": "...", "user": "...", "command": "required for role=custom", "password": "optional" }` - adds one host
+- `DELETE /settings/system_report/<id>` - removes one host
 - `GET|POST /settings/github_watch/repos`, `DELETE /settings/github_watch/repos/<owner>/<repo>`
 - `GET|POST /settings/logos/config` - global/per-module logo toggles
 - `POST /settings/logos/upload/<slot>`, `DELETE /settings/logos/upload/<slot>` - logo image upload/removal (base64), `slot` is `default` or a module key
@@ -224,14 +230,14 @@ existing crontab (`crontab -e`).
 - Image uploads and API image printing
 - Guest Wi-Fi credentials and QR codes
 - Weather reports (DWD or Open-Meteo, selectable, + optional Netatmo), with an optional storm-warning watcher (DWD, MeteoAlarm, or NWS, prints only when a warning is actually active)
-- System reports (Proxmox/piNAS/PBS via SSH)
+- System reports: Proxmox/PBS via SSH, plus a custom-command role for any other host (e.g. a NAS), with optional encrypted password auth, see [System report](#system-report) below
 - Offline games (Sudoku, a dice score sheet, Tic-Tac-Toe), see [Games](#games) below
 - Print history dashboard (stats + paginated log, SQLite-backed)
 - Pending jobs: review/reprint/discard print jobs blocked by quiet hours/rate limit or failed with a real printer error, see "Pending jobs" below
 - Optional per-print-type logos with a global default fallback
 - Individually toggleable home-page modules, see [Module toggles](#module-toggles) below
 - Web-based settings, split into per-area sub-pages and grouped by topic
-- 5 selectable web UI color themes
+- 6 selectable web UI color themes
 - Easy-Read: one switch for larger text on both the receipt and the web UI, see [Easy-Read](#easy-read-large-text) below
 - German/English UI, including receipt content itself (not just the UI chrome)
 - USB-connected ESC/POS printer (python-escpos + pyusb, Epson TM-T88V profile)
@@ -264,6 +270,32 @@ every other module.
   `~1s` after typing stops) so an in-progress list survives navigating
   away or closing the tab; a draft is only cleared once actually
   printed. A "Discard" button clears it back to a blank form.
+
+### System report
+
+`/settings/system-report` manages a free-form list of SSH targets
+instead of a fixed set - each entry has a name, a role, a host and a
+user, and connects either via SSH key (default) or an optional
+password.
+
+- **Proxmox** and **PBS** are structured roles with their own fixed
+  set of SSH commands (CPU/RAM/LXC/VM list for Proxmox, recent backup
+  tasks for PBS).
+- **Custom command** runs an arbitrary user-supplied SSH command
+  verbatim on the target host - the general-purpose role for anything
+  that isn't Proxmox/PBS, e.g. a NAS of any kind. No NAS-specific
+  software is assumed anywhere in the codebase.
+- An update check (`apt list --upgradable`) runs across every
+  configured host regardless of role.
+- **Password auth**: an optional password field is the alternative to
+  SSH-key auth, for a host with its own restricted, password-based
+  user. Connects via `paramiko` instead of the system `ssh` CLI (avoids
+  passing the password through a process argument, unlike `sshpass`).
+  The password is encrypted at rest with Fernet (`cryptography`
+  package) before being written to `settings.json`; the encryption key
+  lives in its own file under `STATE_DIR` (`secret.key`, mode 0600),
+  generated on first use, never in git and never in `settings.json`
+  itself.
 
 ### Games
 

@@ -30,7 +30,7 @@ optional mit vorangestelltem kleinen Logo – plus einem generischen
 Automation-Webhook (kompatibel mit Home Assistant, Node-RED, n8n oder
 jedem Tool, das einen HTTP-POST absetzen kann) und weiteren
 Automations-Triggern (GitHub-Stars, Fritz!Box-Gästenetz,
-Zabbix-Webhooks für PBS-Fehler).
+Unwetterwarnungen).
 
 <p align="center">
   <a href="assets/home.png">
@@ -72,6 +72,7 @@ receiptpi/
 ├── print_queue.py         zentrale Druck-Queue + Druckregeln-Prüfung
 ├── printer.py             Drucker-Hardware-Zugriff (USB)
 ├── security.py            CSRF-Schutz, API-Token-Schutz, JSON-Parsing
+├── secrets_crypto.py      Fernet-Verschlüsselung für System-Report-SSH-Passwörter (Schlüssel in STATE_DIR, nicht im Git)
 ├── settings_store.py      zentrale Settings (JSON in STATE_DIR, nicht im Projektordner)
 ├── history_store.py       SQLite-Druckhistorie (STATE_DIR), Auto-Pruning nach 180 Tagen
 ├── lists_store.py          angefangene Listen-/Task-Karten-Entwürfe (STATE_DIR), gelöscht nach Druck
@@ -90,7 +91,7 @@ receiptpi/
 │   ├── images/                Bilder drucken
 │   ├── wifi/                  Gäste-WLAN-Zettel (Text + QR-Code)
 │   ├── weather/                Wetterbericht (DWD + Netatmo)
-│   ├── system/                 Systembericht (Proxmox/PBS/piNAS via SSH)
+│   ├── system/                 Systembericht (Proxmox/PBS via SSH, plus eigene SSH-Befehle für andere Hosts)
 │   ├── games/                  Offline-Spiele (Sudoku, Würfelblock, Tic-Tac-Toe)
 │   ├── automation/            generischer Automation-Webhook
 │   ├── history/                Druckhistorie-Dashboard
@@ -137,10 +138,11 @@ Formulare umgesetzt:
   aktuell aktivierten Modul.
 - **Navigation** – ein Topbar-Wordmark, ein kleiner Drucker-Status-Punkt
   und ein Burger-Menü (Verlauf, Einstellungen).
-- **Themes** – 5 wählbare Farbschemata (Forrest [Standard], Dark Lime,
-  Frost, Butter Bean, White Purple), einstellbar unter
+- **Themes** – 6 wählbare Farbschemata (Warm [Standard], Forrest, Dark
+  Lime, Frost, Butter Bean, White Purple), einstellbar unter
   `/settings/design`, angewendet über ein `data-theme`-Attribut plus
-  CSS Custom Properties.
+  CSS Custom Properties. Warm ist das einzige Theme, das zusätzlich
+  automatisch der Hell-/Dunkel-Einstellung von System/Browser folgt.
 - **Icons** – ein lokaler Satz von Lucide-SVG-Icons unter `static/icons/`
   (keine externe Icon-Schriftart oder CDN), gerendert per CSS
   `mask-image`, sodass jedes Icon automatisch die Akzentfarbe des
@@ -153,9 +155,11 @@ Formulare umgesetzt:
   alle 12h) ein neueres GitHub-Release (auch Alpha-/Prereleases),
   verlinkt der Footer direkt dorthin. Reine Information, kein Auto-Update.
 
-Ein eigenes App-Logo oder Favicon gibt es aktuell nicht – nur das
-Topbar-Wordmark (ein Drucker-Icon) und das Banner-Bild oben in dieser
-Datei.
+Ein eigenes App-Logo oder Favicon gibt es aktuell nicht – stattdessen
+zeigt jede Seite in der Topbar ein zu ihrem Inhalt passendes kleines
+Icon (auf der Startseite ein Drucker-Icon, auf der Nachrichten-Seite
+ein Nachrichten-Icon, und so weiter), plus das Banner-Bild oben in
+dieser Datei.
 
 ## Settings-Seiten
 
@@ -170,7 +174,7 @@ Unterseite pro Bereich verlinkt – statt eines langen Formulars:
 - `/settings/logos` – globaler Logo-Schalter, Standard-Logo, sowie je Druckart eigener Schalter/Upload/Vorschau (fällt auf das Standard-Logo zurück, wenn kein eigenes gesetzt ist)
 - `/settings/weather` – Wetterbericht-Anbieter (DWD oder Open-Meteo), Wetter-Standorte, sowie ein unabhängiger Unwetterwarnungs-Anbieter (DWD, MeteoAlarm oder NWS) mit eigenem Aktiv-Schalter und optionalem "Ruhezeiten ignorieren"
 - `/settings/github-watch` – beobachtete GitHub-Repos
-- `/settings/system-report` – SSH-Ziele für den Systembericht (Proxmox/piNAS/PBS)
+- `/settings/system-report` – eine frei erweiterbare Liste von SSH-Zielen für den Systembericht, siehe [Systembericht](#systembericht) unten
 
 ## Endpunkte
 
@@ -196,7 +200,9 @@ Ein blockierter Auftrag antwortet mit `429`.
 - `POST /settings/print_rules` – Rate-Limit/Duplikat-Fenster ändern
 - `GET|POST /settings/quiet_hours/rules`, `POST /settings/quiet_hours/rules/<id>/toggle`, `DELETE /settings/quiet_hours/rules/<id>`
 - `GET|POST /settings/weather/locations`, `DELETE /settings/weather/locations/<name>`
-- `GET|POST /settings/system_report` – SSH-Ziele für den Systembericht
+- `GET /settings/system_report` – aktuelle Liste der System-Report-Hosts (JSON, Passwörter als `has_password`-Flag redigiert)
+- `POST /settings/system_report` – `{ "name": "...", "role": "proxmox"|"pbs"|"custom", "host": "...", "user": "...", "command": "nur bei role=custom Pflicht", "password": "optional" }` – fügt einen Host hinzu
+- `DELETE /settings/system_report/<id>` – entfernt einen Host
 - `GET|POST /settings/github_watch/repos`, `DELETE /settings/github_watch/repos/<owner>/<repo>`
 - `GET|POST /settings/logos/config` – globale/pro Modul Logo-Schalter
 - `POST /settings/logos/upload/<slot>`, `DELETE /settings/logos/upload/<slot>` – Logo-Bild hochladen/löschen (base64), `slot` ist `default` oder ein Modul-Key
@@ -229,14 +235,14 @@ bestehende Crontab übernehmen (`crontab -e`).
 - Bild-Upload und Bilddruck per API
 - Gäste-WLAN-Zugangsdaten und QR-Codes
 - Wetterberichte (DWD oder Open-Meteo wählbar, + optional Netatmo), mit optionalem Unwetterwarnungs-Watcher (DWD, MeteoAlarm oder NWS, druckt nur bei tatsächlich aktiver Warnung)
-- Systemberichte (Proxmox/piNAS/PBS via SSH)
+- Systemberichte: Proxmox/PBS via SSH, plus eine Eigener-Befehl-Rolle für jeden anderen Host (z. B. ein NAS), mit optionalem verschlüsseltem Passwort-Login, siehe [Systembericht](#systembericht) unten
 - Offline-Spiele (Sudoku, Würfelblock, Tic-Tac-Toe), siehe [Spiele](#spiele) unten
 - Druckhistorie-Dashboard (Statistik + paginierte Liste, SQLite-basiert)
 - Ausstehende Aufträge: durch Ruhezeiten/Rate-Limit blockierte oder durch echten Druckerfehler fehlgeschlagene Aufträge ansehen, nachdrucken oder verwerfen, siehe "Ausstehende Aufträge" unten
 - Optionale Logos je Druckart mit globalem Standard-Fallback
 - Einzeln ein-/ausschaltbare Home-Module, siehe [Modul-Schalter](#modul-schalter) unten
 - Webbasierte Einstellungen, aufgeteilt in Unterseiten je Bereich und nach Thema gruppiert
-- 5 wählbare Farbschemata für die Web-UI
+- 6 wählbare Farbschemata für die Web-UI
 - Easy-Read: ein Schalter für größere Schrift auf Bon und Web-UI zugleich, siehe [Easy-Read](#easy-read-große-schrift) unten
 - Deutsch/Englisch-UI, inklusive des eigentlichen Bon-Inhalts (nicht nur der UI drumherum)
 - USB-angeschlossener ESC/POS-Drucker (python-escpos + pyusb, Epson-TM-T88V-Profil)
@@ -271,6 +277,32 @@ Ruhezeiten wie jedes andere Modul.
   auch beim Wegnavigieren oder Tab-Schließen erhalten bleibt; gelöscht
   wird der Entwurf erst nach tatsächlichem Druck. Ein "Verwerfen"-Button
   setzt das Formular auf leer zurück.
+
+### Systembericht
+
+`/settings/system-report` verwaltet eine frei erweiterbare Liste von
+SSH-Zielen statt einer festen Anzahl – jeder Eintrag hat einen Namen,
+eine Rolle, einen Host und einen Nutzer, und verbindet sich entweder
+per SSH-Key (Standard) oder optional per Passwort.
+
+- **Proxmox** und **PBS** sind strukturierte Rollen mit eigenem, festem
+  Satz an SSH-Befehlen (CPU/RAM/LXC-/VM-Liste bei Proxmox, letzte
+  Backup-Tasks bei PBS).
+- **Eigener Befehl** führt einen frei vom Nutzer eingegebenen
+  SSH-Befehl 1:1 auf dem Zielhost aus – die generische Rolle für alles,
+  was nicht Proxmox/PBS ist, z. B. ein NAS beliebiger Art. Es wird an
+  keiner Stelle im Code eine bestimmte NAS-Software vorausgesetzt.
+- Ein Update-Check (`apt list --upgradable`) läuft unabhängig von der
+  Rolle über jeden konfigurierten Host.
+- **Passwort-Login**: ein optionales Passwort-Feld ist die Alternative
+  zu SSH-Key-Auth, für Hosts mit eigenem, eingeschränktem
+  Passwort-Nutzer. Verbindet über `paramiko` statt das System-`ssh`-CLI
+  (vermeidet die Passwortübergabe als Prozessargument, anders als
+  `sshpass`). Das Passwort wird vor dem Schreiben nach
+  `settings.json` mit Fernet (Paket `cryptography`) verschlüsselt; der
+  Schlüssel dafür liegt in einer eigenen Datei unter `STATE_DIR`
+  (`secret.key`, Modus 0600), beim ersten Gebrauch erzeugt, weder im
+  Git noch in `settings.json` selbst.
 
 ### Spiele
 
