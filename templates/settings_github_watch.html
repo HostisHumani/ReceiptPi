@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block header %}<span class="icon icon-star" aria-hidden="true"></span> {{ t('settings.index.github_watch.name') }}{% endblock %}
+{% block header_icon %}<span class="mark"><span class="icon icon-star" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.index.github_watch.name') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
@@ -12,7 +13,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="owner" value="{{ r.owner }}">
           <input type="hidden" name="repo" value="{{ r.repo }}">
-          <button type="submit" class="btn btn-danger" aria-label="{{ t('settings.github_watch.delete') }}"><span class="icon icon-trash-2" aria-hidden="true"></span></button>
+          <button type="submit" class="btn btn-danger btn-icon" aria-label="{{ t('settings.github_watch.delete') }}"><span class="icon icon-trash-2" aria-hidden="true"></span></button>
         </form>
       </div>
     {% endfor %}

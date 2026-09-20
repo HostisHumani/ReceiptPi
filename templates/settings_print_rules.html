@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block header %}<span class="icon icon-sliders-horizontal" aria-hidden="true"></span> {{ t('settings.index.print_rules.name') }}{% endblock %}
+{% block header_icon %}<span class="mark"><span class="icon icon-sliders-horizontal" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.index.print_rules.name') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
@@ -27,7 +28,7 @@
           <form method="post" action="/ui/settings/quiet_hours/delete" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="id" value="{{ rule.id }}">
-            <button type="submit" class="btn btn-danger" aria-label="{{ t('settings.quiet_hours.delete') }}"><span class="icon icon-trash-2" aria-hidden="true"></span></button>
+            <button type="submit" class="btn btn-danger btn-icon" aria-label="{{ t('settings.quiet_hours.delete') }}"><span class="icon icon-trash-2" aria-hidden="true"></span></button>
           </form>
         </div>
       </div>
@@ -60,10 +61,15 @@
   <label for="end">{{ t('settings.quiet_hours.end') }}</label>
   <input type="time" id="end" name="end" value="07:00">
 
-  <label class="checkbox-row">
-    <input type="checkbox" name="enabled" checked>
-    {{ t('settings.quiet_hours.enabled') }}
-  </label>
+  <div class="list-row">
+    <div class="list-row-main">
+      <span class="list-row-title">{{ t('settings.quiet_hours.enabled') }}</span>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" name="enabled" checked>
+      <span class="track"><span class="thumb"></span></span>
+    </label>
+  </div>
 
   <button type="submit">{{ t('settings.quiet_hours.add') }}</button>
 </form>

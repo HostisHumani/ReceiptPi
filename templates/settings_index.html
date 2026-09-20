@@ -1,68 +1,93 @@
 {% extends "base.html" %}
-{% block header %}<span class="icon icon-settings" aria-hidden="true"></span> {{ t('settings.header') }}{% endblock %}
+{% block header_icon %}<span class="mark"><span class="icon icon-settings" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.header') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
-<div class="settings-group">
-  <div class="settings-group-title">{{ t('settings.group.general') }}</div>
-  <div class="tile-grid">
-    <a class="tile" href="/settings/language">
-      <span class="tile-icon-badge"><span class="icon icon-globe" aria-hidden="true"></span></span>
-      <span class="tile-name">{{ t('settings.index.language.name') }}</span>
-      <span class="tile-desc">{{ t('settings.index.language.desc') }}</span>
+<div class="section">
+  <div class="heading">{{ t('settings.group.general') }}</div>
+  <div class="list">
+    <a class="row" href="/settings/language">
+      <div class="icon-chip neutral"><span class="icon icon-globe" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('settings.index.language.name') }}</div>
+        <div class="desc">{{ t('settings.index.language.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>
-    <a class="tile" href="/settings/design">
-      <span class="tile-icon-badge"><span class="icon icon-palette" aria-hidden="true"></span></span>
-      <span class="tile-name">{{ t('settings.index.design.name') }}</span>
-      <span class="tile-desc">{{ t('settings.index.design.desc') }}</span>
+    <a class="row" href="/settings/design">
+      <div class="icon-chip neutral"><span class="icon icon-palette" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('settings.index.design.name') }}</div>
+        <div class="desc">{{ t('settings.index.design.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>
-    <a class="tile" href="/settings/modules">
-      <span class="tile-icon-badge"><span class="icon icon-puzzle" aria-hidden="true"></span></span>
-      <span class="tile-name">{{ t('settings.index.modules.name') }}</span>
-      <span class="tile-desc">{{ t('settings.index.modules.desc') }}</span>
-    </a>
-  </div>
-</div>
-
-<div class="settings-group">
-  <div class="settings-group-title">{{ t('settings.group.printing') }}</div>
-  <div class="tile-grid">
-    <a class="tile" href="/settings/print-rules">
-      <span class="tile-icon-badge"><span class="icon icon-sliders-horizontal" aria-hidden="true"></span></span>
-      <span class="tile-name">{{ t('settings.index.print_rules.name') }}</span>
-      <span class="tile-desc">{{ t('settings.index.print_rules.desc') }}</span>
-    </a>
-    <a class="tile" href="/settings/logos">
-      <span class="tile-icon-badge"><span class="icon icon-tag" aria-hidden="true"></span></span>
-      <span class="tile-name">{{ t('settings.index.logos.name') }}</span>
-      <span class="tile-desc">{{ t('settings.index.logos.desc') }}</span>
+    <a class="row" href="/settings/modules">
+      <div class="icon-chip neutral"><span class="icon icon-puzzle" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('settings.index.modules.name') }}</div>
+        <div class="desc">{{ t('settings.index.modules.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>
   </div>
 </div>
 
-<div class="settings-group">
-  <div class="settings-group-title">{{ t('settings.group.integrations') }}</div>
-  <div class="tile-grid">
-    <a class="tile" href="/settings/weather">
-      <span class="tile-icon-badge"><span class="icon icon-cloud-sun" aria-hidden="true"></span></span>
-      <span class="tile-name">{{ t('settings.index.weather.name') }}</span>
-      <span class="tile-desc">{{ t('settings.index.weather.desc') }}</span>
+<div class="section">
+  <div class="heading">{{ t('settings.group.printing') }}</div>
+  <div class="list">
+    <a class="row" href="/settings/print-rules">
+      <div class="icon-chip amber"><span class="icon icon-sliders-horizontal" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('settings.index.print_rules.name') }}</div>
+        <div class="desc">{{ t('settings.index.print_rules.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>
-    <a class="tile" href="/settings/github-watch">
-      <span class="tile-icon-badge"><span class="icon icon-star" aria-hidden="true"></span></span>
-      <span class="tile-name">{{ t('settings.index.github_watch.name') }}</span>
-      <span class="tile-desc">{{ t('settings.index.github_watch.desc') }}</span>
+    <a class="row" href="/settings/logos">
+      <div class="icon-chip amber"><span class="icon icon-tag" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('settings.index.logos.name') }}</div>
+        <div class="desc">{{ t('settings.index.logos.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>
   </div>
 </div>
 
-<div class="settings-group">
-  <div class="settings-group-title">{{ t('settings.group.system') }}</div>
-  <div class="tile-grid">
-    <a class="tile" href="/settings/system-report">
-      <span class="tile-icon-badge"><span class="icon icon-server" aria-hidden="true"></span></span>
-      <span class="tile-name">{{ t('settings.index.system_report.name') }}</span>
-      <span class="tile-desc">{{ t('settings.index.system_report.desc') }}</span>
+<div class="section">
+  <div class="heading">{{ t('settings.group.integrations') }}</div>
+  <div class="list">
+    <a class="row" href="/settings/weather">
+      <div class="icon-chip teal"><span class="icon icon-cloud-sun" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('settings.index.weather.name') }}</div>
+        <div class="desc">{{ t('settings.index.weather.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
+    </a>
+    <a class="row" href="/settings/github-watch">
+      <div class="icon-chip teal"><span class="icon icon-star" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('settings.index.github_watch.name') }}</div>
+        <div class="desc">{{ t('settings.index.github_watch.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
+    </a>
+  </div>
+</div>
+
+<div class="section">
+  <div class="heading">{{ t('settings.group.system') }}</div>
+  <div class="list">
+    <a class="row" href="/settings/system-report">
+      <div class="icon-chip violet"><span class="icon icon-server" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('settings.index.system_report.name') }}</div>
+        <div class="desc">{{ t('settings.index.system_report.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>
   </div>
 </div>

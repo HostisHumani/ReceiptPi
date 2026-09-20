@@ -53,6 +53,7 @@ from modules.weather.routes import weather_bp
 from modules.wifi.routes import wifi_bp
 from print_queue import enqueue_print, start_worker
 from printer import _raw_health_check
+from static_versioning import static_url, versioned_style_css
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB - headroom over MAX_IMAGE_BYTES (12MB, see modules/images/routes.py) for multipart overhead
@@ -160,7 +161,28 @@ def inject_i18n():
         # the burger-menu badge is not a concern the way the settings
         # read above already isn't.
         "pending_count": len(pending_store.get_all()),
+        # Cache-busting query param for /static/* URLs this app owns
+        # and edits - see static_versioning.py for why.
+        "static_url": static_url,
     }
+
+
+@app.route("/static/style.css")
+def style_css():
+    """Serves static/style.css with its internal /static/icons/*.svg
+    and /static/fonts/*.woff2 references rewritten to versioned URLs
+    (see static_versioning.py) - takes over the exact /static/style.css
+    path from Flask's default static-file route (Werkzeug always
+    prefers a fixed-path rule like this one over the catch-all
+    /static/<path:filename> route, regardless of registration order).
+    Icon/font files themselves are still served unchanged by that
+    default handler, just requested under a versioned URL now. Same
+    Cache-Control policy as every other /static/* file
+    (SEND_FILE_MAX_AGE_DEFAULT) - cache duration isn't the problem
+    being solved here, a changing URL on every edit is."""
+    resp = app.response_class(versioned_style_css(), mimetype="text/css")
+    resp.headers["Cache-Control"] = f"public, max-age={app.config['SEND_FILE_MAX_AGE_DEFAULT']}"
+    return resp
 
 
 @app.route("/health", methods=["GET"])

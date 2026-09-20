@@ -15,9 +15,16 @@ thermo-env/
 settings.json
 settings.json.tmp
 
+# Fernet key for encrypted system-report SSH passwords (secrets_crypto.py) -
+# same "shouldn't happen outside STATE_DIR" reasoning as settings.json above
+secret.key
+
 # Claude Code
 .claude/
 
 # Local development
 .venv-lint/
 .ruff_cache/
+
+# Claude Code local instructions
+CLAUDE.md

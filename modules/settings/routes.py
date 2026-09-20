@@ -23,9 +23,18 @@ from flask import Blueprint, jsonify, render_template, request, send_file
 import i18n
 import logos
 import module_catalog
+import secrets_crypto
 import settings_store
 import themes
-from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
+from security import (
+    MAX_ITEM_LEN,
+    MAX_TEXT_LEN,
+    MAX_TITLE_LEN,
+    csrf_protect,
+    get_csrf_token,
+    get_json_body,
+    require_api_token,
+)
 
 settings_bp = Blueprint("settings", __name__)
 
@@ -145,6 +154,62 @@ def validate_ssh_host_entry(host_raw, user_raw):
     if host and not user:
         return None, None, "settings.validation.ssh_user_missing", {}
     return host, user, None, {}
+
+
+SYSTEM_REPORT_ROLES = ("proxmox", "pbs", "custom")
+# Fallback display-name key per role, used when an entry's "name" is
+# blank - mirrors modules.system.routes.ROLE_NAME_KEYS, kept as its own
+# copy here rather than imported to avoid a cross-module dependency
+# between modules/settings and modules/system for one small dict.
+SYSTEM_REPORT_ROLE_NAME_KEYS = {
+    "proxmox": "settings.system_report.proxmox",
+    "pbs": "settings.system_report.pbs",
+    "custom": "settings.system_report.custom",
+}
+
+
+def validate_system_report_host_entry(name_raw, role_raw, host_raw, user_raw, command_raw, password_raw=""):
+    """Returns (entry_dict, error_key, error_kwargs) - error_key is None
+    on success. Unlike validate_ssh_host_entry() above (used for the old
+    3 pre-seeded fixed fields, where "not configured yet" was a valid
+    state), a NEW entry being added here has no reason to exist without
+    a host+user - so both are required. "command" is only kept for
+    role="custom" (see modules/system/routes.py._report_sections_for_entry) -
+    stripped for the 3 structured roles so a leftover value can't linger
+    unused if the user switches an entry's role after typing one in.
+    "password_raw" is optional (empty = key-auth host, unchanged
+    behavior) - when given, it's encrypted here via secrets_crypto.py
+    before ever being assembled into the entry dict, so the plaintext
+    never gets anywhere near what update_settings_transaction() writes
+    to settings.json."""
+    role = str(role_raw or "").strip()
+    if role not in SYSTEM_REPORT_ROLES:
+        return None, "settings.validation.system_report_role_invalid", {}
+
+    host, user, error_key, error_kwargs = validate_ssh_host_entry(host_raw, user_raw)
+    if error_key:
+        return None, error_key, error_kwargs
+    if not host or not user:
+        return None, "settings.validation.system_report_host_missing", {}
+
+    command = str(command_raw or "").strip()[:MAX_TEXT_LEN]
+    if role == "custom" and not command:
+        return None, "settings.validation.system_report_command_missing", {}
+    if role != "custom":
+        command = ""
+
+    password = str(password_raw or "").strip()[:MAX_ITEM_LEN]
+
+    entry = {
+        "id": uuid.uuid4().hex[:12],
+        "name": str(name_raw or "").strip()[:MAX_TITLE_LEN],
+        "role": role,
+        "host": host,
+        "user": user,
+        "command": command,
+        "password_encrypted": secrets_crypto.encrypt_password(password),
+    }
+    return entry, None, {}
 
 
 def validate_github_repo(owner_raw, repo_raw):
@@ -549,23 +614,52 @@ def ui_set_modules():
     return _render_modules(message, success)
 
 
-@settings_bp.route("/ui/settings/system_report", methods=["POST"])
+@settings_bp.route("/ui/settings/system_report/add", methods=["POST"])
 @csrf_protect
-def ui_update_system_report():
-    updates = {}
-    for role in ("proxmox", "pinas", "pbs"):
-        host, user, error_key, error_kwargs = validate_ssh_host_entry(
-            request.form.get(f"{role}_host"), request.form.get(f"{role}_user")
-        )
-        if error_key:
-            return _render_system_report(i18n.tr(error_key, role=role, **error_kwargs), False)
-        updates[role] = {"host": host, "user": user}
+def ui_add_system_report_host():
+    entry, error_key, error_kwargs = validate_system_report_host_entry(
+        request.form.get("name"),
+        request.form.get("role"),
+        request.form.get("host"),
+        request.form.get("user"),
+        request.form.get("command"),
+        request.form.get("password"),
+    )
+    if error_key:
+        role = request.form.get("role", "")
+        return _render_system_report(i18n.tr(error_key, role=role, **error_kwargs), False)
 
     def _mutate(settings):
-        settings["system_report"]["ssh_hosts"] = updates
+        settings["system_report"].setdefault("hosts", [])
+        settings["system_report"]["hosts"].append(entry)
 
     settings_store.update_settings_transaction(_mutate)
     return _render_system_report(i18n.tr("settings.system_report.saved"), True)
+
+
+@settings_bp.route("/ui/settings/system_report/delete", methods=["POST"])
+@csrf_protect
+def ui_delete_system_report_host():
+    host_id = request.form.get("id", "")
+    removed = {"entry": None}
+
+    def _mutate(settings):
+        hosts = settings["system_report"].get("hosts", [])
+        for h in hosts:
+            if h.get("id") == host_id:
+                removed["entry"] = h
+                break
+        settings["system_report"]["hosts"] = [h for h in hosts if h.get("id") != host_id]
+
+    settings_store.update_settings_transaction(_mutate)
+    if removed["entry"]:
+        display_name = removed["entry"].get("name") or i18n.tr(
+            SYSTEM_REPORT_ROLE_NAME_KEYS.get(removed["entry"].get("role"), "settings.system_report.proxmox")
+        )
+        message, success = i18n.tr("settings.system_report.deleted", name=display_name), True
+    else:
+        message, success = i18n.tr("settings.system_report.not_found"), False
+    return _render_system_report(message, success)
 
 
 @settings_bp.route("/ui/settings/github_watch/add", methods=["POST"])
@@ -828,39 +922,78 @@ def delete_weather_location(name):
     return jsonify({"status": "deleted", "weather": result["weather"]}), 200
 
 
+def _redact_system_report(system_report):
+    """Returns a copy of the system_report dict safe to hand back over
+    the JSON API: drops the Fernet-encrypted "password_encrypted" blob
+    (see secrets_crypto.py) in favor of a plain "has_password" flag, so
+    an X-Api-Token holder never receives the ciphertext at all - only
+    whether a password is set. The ciphertext is useless without the
+    Pi's own secret.key anyway, but there's no reason to hand it out
+    over the network at all when a boolean says everything a caller
+    needs to know."""
+    redacted = dict(system_report)
+    redacted["hosts"] = [
+        {**{k: v for k, v in h.items() if k != "password_encrypted"},
+         "has_password": bool(h.get("password_encrypted"))}
+        for h in system_report.get("hosts", [])
+    ]
+    return redacted
+
+
 @settings_bp.route("/settings/system_report", methods=["GET"])
 @require_api_token
 def get_system_report_settings():
-    return jsonify(settings_store.get_settings()["system_report"]), 200
+    return jsonify(_redact_system_report(settings_store.get_settings()["system_report"])), 200
 
 
 @settings_bp.route("/settings/system_report", methods=["POST"])
 @require_api_token
-def update_system_report_settings():
+def add_system_report_host():
     """
-    Expects JSON with one or more roles:
-    { "proxmox": {"host": "...", "user": "..."}, "pinas": {...}, "pbs": {...} }
-    Only the roles provided are changed, the rest keep their current value.
+    Expects JSON: { "name": "...", "role": "proxmox"|"pbs"|"custom",
+                     "host": "...", "user": "...", "command": "..." (only
+                     used/required for role="custom"), "password": "..."
+                     (optional - omit/empty for key-auth, see
+                     secrets_crypto.py for how it's stored) }
+    Adds one new host to the list - same shape/semantics as the web UI's
+    "Server hinzufügen" form (see ui_add_system_report_host above). This
+    used to PATCH one of 3 fixed role keys instead; now that hosts are a
+    free-form list, "add one entry" is the operation that maps onto a
+    single JSON object the same way add_weather_location() does.
     """
     data, err = get_json_body()
     if err:
         return err
 
-    current = settings_store.get_settings()["system_report"]["ssh_hosts"]
-    updates = dict(current)
-    for role in ("proxmox", "pinas", "pbs"):
-        if role in data:
-            entry = data[role] if isinstance(data[role], dict) else {}
-            host, user, error_key, error_kwargs = validate_ssh_host_entry(entry.get("host"), entry.get("user"))
-            if error_key:
-                return jsonify({"status": "error", "detail": i18n.t(error_key, "en", role=role, **error_kwargs)}), 400
-            updates[role] = {"host": host, "user": user}
+    entry, error_key, error_kwargs = validate_system_report_host_entry(
+        data.get("name"), data.get("role"), data.get("host"), data.get("user"), data.get("command"),
+        data.get("password"),
+    )
+    if error_key:
+        return jsonify({"status": "error", "detail": i18n.t(error_key, "en", role=data.get("role", ""), **error_kwargs)}), 400
 
     def _mutate(settings):
-        settings["system_report"]["ssh_hosts"] = updates
+        settings["system_report"].setdefault("hosts", [])
+        settings["system_report"]["hosts"].append(entry)
 
     result = settings_store.update_settings_transaction(_mutate)
-    return jsonify({"status": "saved", "system_report": result["system_report"]}), 200
+    return jsonify({"status": "saved", "system_report": _redact_system_report(result["system_report"])}), 200
+
+
+@settings_bp.route("/settings/system_report/<host_id>", methods=["DELETE"])
+@require_api_token
+def delete_system_report_host(host_id):
+    current = settings_store.get_settings()["system_report"]["hosts"]
+    if not any(h.get("id") == host_id for h in current):
+        return jsonify({"status": "error", "detail": "host not found"}), 404
+
+    def _mutate(settings):
+        settings["system_report"]["hosts"] = [
+            h for h in settings["system_report"]["hosts"] if h.get("id") != host_id
+        ]
+
+    result = settings_store.update_settings_transaction(_mutate)
+    return jsonify({"status": "deleted", "system_report": _redact_system_report(result["system_report"])}), 200
 
 
 @settings_bp.route("/settings/github_watch/repos", methods=["GET"])

@@ -85,7 +85,7 @@ DEFAULT_SETTINGS = {
         },
     },
     "language": "de",
-    "theme": "forrest",
+    "theme": "warm",
     # Which home-page/tile modules are switched on - see module_catalog.py
     # for the full key list and app.py's before_request hook for how a
     # disabled module's routes (UI + /print/*) get blocked with a 404,
@@ -100,14 +100,28 @@ DEFAULT_SETTINGS = {
         "games": True,
     },
     "system_report": {
-        # Three FIXED roles (not a generic host list) - each backed by
-        # different SSH commands in modules/system/routes.py (Proxmox:
-        # pct/qm list, piNAS: docker ps, PBS: proxmox-backup-manager).
-        "ssh_hosts": {
-            "proxmox": {"host": "", "user": "root"},
-            "pinas": {"host": "", "user": "root"},
-            "pbs": {"host": "", "user": "root"},
-        },
+        # Free-form list of SSH targets instead of 3 fixed named roles -
+        # each entry still carries a "role" (proxmox/pbs) since the
+        # actual report content (which SSH commands get run) is genuinely
+        # role-specific, see modules/system/routes.py. "name" is a
+        # user-chosen label (UI placeholder "Server N") kept separate
+        # from "role" so the public repo's own source/translations never
+        # have to name what's actually running on a given host - only
+        # this deployment's settings.json (outside the repo) does.
+        # Entry shape: {"id", "name", "role", "host", "user", "command",
+        # "password_encrypted"}. "role" is one of "proxmox"/"pbs"
+        # (structured reports, see modules/system/routes.py) or "custom"
+        # (arbitrary SSH command - the general case for anything that
+        # isn't Proxmox/PBS, e.g. a NAS of any kind, a QNAP, ... no NAS-
+        # specific role/software assumption exists in this codebase, see
+        # _migrate_system_report_omv_role_removed below) - "command" is
+        # only used/persisted for role="custom". "password_encrypted" is
+        # "" for a key-auth host (the default/recommended case) or a
+        # Fernet token when the host uses password auth instead - see
+        # secrets_crypto.py for how it's encrypted/decrypted and where
+        # the key lives; the plaintext password itself is never stored
+        # anywhere.
+        "hosts": [],
         "migrated_from_config": False,
     },
     "github_watch": {
@@ -274,6 +288,99 @@ def _migrate_shopping_module_key(data):
     return True
 
 
+def _migrate_system_report_host_list(data):
+    """One-time migration: system_report used to store SSH targets under
+    three fixed keys (ssh_hosts.proxmox/pinas/pbs) instead of a free-form
+    "hosts" list. Converts an already-configured legacy dict into the new
+    list, carrying over host/user for every role that had a host set and
+    defaulting "name" to the old hardcoded label (so an existing report
+    looks the same until the user renames it) - nothing configured is
+    lost. The legacy dict key is "pinas" (from config.py's old
+    SSH_PINAS_HOST/SSH_PINAS_USER, see _migrate_legacy_config_values),
+    but that was always just a private nickname, not a generic
+    identifier - the new role slug is "omv" instead (see
+    _migrate_system_report_pinas_role_rename below for entries that were
+    already migrated while the old slug was still in use). Runs once: on
+    every later call "ssh_hosts" is already gone, so this is a no-op.
+    Mutates data in place, returns True if anything changed."""
+    sr = data.get("system_report")
+    if not isinstance(sr, dict):
+        return False
+    legacy_hosts = sr.get("ssh_hosts")
+    if not isinstance(legacy_hosts, dict):
+        return False
+
+    # (legacy dict key, new role slug, default display name)
+    role_mapping = [
+        ("proxmox", "proxmox", "Proxmox"),
+        ("pinas", "omv", "OMV"),
+        ("pbs", "pbs", "PBS"),
+    ]
+    new_list = sr.setdefault("hosts", [])
+    for legacy_key, new_role, default_name in role_mapping:
+        entry = legacy_hosts.get(legacy_key)
+        if isinstance(entry, dict) and entry.get("host"):
+            new_list.append({
+                "id": uuid.uuid4().hex[:12],
+                "name": default_name,
+                "role": new_role,
+                "host": entry.get("host", ""),
+                "user": entry.get("user") or "root",
+                "command": "",
+                "password_encrypted": "",
+            })
+    del sr["ssh_hosts"]
+    return True
+
+
+def _migrate_system_report_pinas_role_rename(data):
+    """One-time migration: renames role="pinas" to role="omv" on any
+    "hosts" entries that were already migrated by
+    _migrate_system_report_host_list above BEFORE the role slug was
+    renamed from the private nickname "pinas" to the generic "omv" -
+    without this, those entries would silently stop matching any
+    _report_sections_for_entry() branch (see modules/system/routes.py)
+    and drop out of the printed report entirely. Mutates data in place,
+    returns True if anything changed."""
+    sr = data.get("system_report")
+    if not isinstance(sr, dict):
+        return False
+    hosts = sr.get("hosts")
+    if not isinstance(hosts, list):
+        return False
+    changed = False
+    for h in hosts:
+        if isinstance(h, dict) and h.get("role") == "pinas":
+            h["role"] = "omv"
+            changed = True
+    return changed
+
+
+def _migrate_system_report_omv_role_removed(data):
+    """One-time migration: the structured "omv" role (OMV/NAS-specific
+    fetch_omv_status/fetch_docker_status, see modules/system/routes.py)
+    was removed entirely - the codebase no longer assumes any particular
+    NAS software. Existing role="omv" entries (including ones that just
+    arrived at "omv" via _migrate_system_report_pinas_role_rename above,
+    since both migrations run in the same pass) are converted to
+    role="custom" with an empty "command" - host/user/name are kept, the
+    user fills in what to run themselves. Mutates data in place, returns
+    True if anything changed."""
+    sr = data.get("system_report")
+    if not isinstance(sr, dict):
+        return False
+    hosts = sr.get("hosts")
+    if not isinstance(hosts, list):
+        return False
+    changed = False
+    for h in hosts:
+        if isinstance(h, dict) and h.get("role") == "omv":
+            h["role"] = "custom"
+            h["command"] = ""
+            changed = True
+    return changed
+
+
 def _ensure_file():
     os.makedirs(STATE_DIR, exist_ok=True)
     if not os.path.exists(SETTINGS_FILE):
@@ -321,7 +428,14 @@ def get_settings():
     migrated_quiet_hours = _migrate_legacy_quiet_hours(data)
     migrated_config_values = _migrate_legacy_config_values(data)
     migrated_module_key = _migrate_shopping_module_key(data)
-    migrated = migrated_quiet_hours or migrated_config_values or migrated_module_key
+    migrated_system_report_hosts = _migrate_system_report_host_list(data)
+    migrated_system_report_role_rename = _migrate_system_report_pinas_role_rename(data)
+    migrated_system_report_omv_removed = _migrate_system_report_omv_role_removed(data)
+    migrated = (
+        migrated_quiet_hours or migrated_config_values or migrated_module_key
+        or migrated_system_report_hosts or migrated_system_report_role_rename
+        or migrated_system_report_omv_removed
+    )
     data = _deep_merge_defaults(data, DEFAULT_SETTINGS)
     if migrated:
         _write(data)  # persist once (also refreshes the cache), so the next read doesn't re-migrate

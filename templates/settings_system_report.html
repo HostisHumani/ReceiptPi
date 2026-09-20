@@ -1,33 +1,95 @@
 {% extends "base.html" %}
-{% block header %}<span class="icon icon-server" aria-hidden="true"></span> {{ t('settings.index.system_report.name') }}{% endblock %}
+{% block header_icon %}<span class="mark"><span class="icon icon-server" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.index.system_report.name') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
 <div class="hint">{{ t('settings.system_report.hint') }}</div>
 
-<form method="post" action="/ui/settings/system_report" class="card">
+<div class="card">
+  {% if settings.system_report.hosts %}
+    {% for entry in settings.system_report.hosts %}
+      <div class="list-row">
+        <div class="list-row-main">
+          <span class="list-row-title">{{ entry.name if entry.name else t('settings.system_report.name_placeholder', n=loop.index) }}</span>
+          <span class="badge badge-muted">{{ t('settings.system_report.' + entry.role) }}</span>
+          {% if entry.password_encrypted %}<span class="badge badge-muted">{{ t('settings.system_report.password_auth_badge') }}</span>{% endif %}
+          <div class="list-row-meta mono">{{ entry.user }}@{{ entry.host }}</div>
+          {% if entry.role == "custom" and entry.command %}
+          <div class="list-row-meta mono">{{ entry.command }}</div>
+          {% endif %}
+        </div>
+        <div class="list-row-actions">
+          <form method="post" action="/ui/settings/system_report/delete" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="id" value="{{ entry.id }}">
+            <button type="submit" class="btn btn-danger btn-icon" aria-label="{{ t('settings.system_report.delete') }}"><span class="icon icon-trash-2" aria-hidden="true"></span></button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="hint hint-standalone">{{ t('settings.system_report.empty') }}</div>
+  {% endif %}
+</div>
+
+<h3 class="section-subtitle">{{ t('settings.system_report.add_heading') }}</h3>
+<form method="post" action="/ui/settings/system_report/add" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <label for="proxmox_host">{{ t('settings.system_report.proxmox') }}</label>
-  <input type="text" id="proxmox_host" name="proxmox_host" placeholder="{{ t('settings.system_report.host_placeholder') }}"
-         value="{{ settings.system_report.ssh_hosts.proxmox.host }}">
-  <input type="text" id="proxmox_user" name="proxmox_user" placeholder="{{ t('settings.system_report.user_placeholder') }}"
-         value="{{ settings.system_report.ssh_hosts.proxmox.user }}" class="input-tight">
+  <label for="sr_name">{{ t('settings.system_report.name_label') }}</label>
+  <input type="text" id="sr_name" name="name" placeholder="{{ t('settings.system_report.name_placeholder', n=(settings.system_report.hosts|length) + 1) }}" maxlength="100">
 
-  <label for="pinas_host">{{ t('settings.system_report.pinas') }}</label>
-  <input type="text" id="pinas_host" name="pinas_host" placeholder="{{ t('settings.system_report.host_placeholder') }}"
-         value="{{ settings.system_report.ssh_hosts.pinas.host }}">
-  <input type="text" id="pinas_user" name="pinas_user" placeholder="{{ t('settings.system_report.user_placeholder') }}"
-         value="{{ settings.system_report.ssh_hosts.pinas.user }}" class="input-tight">
+  <div class="field-label-row">
+    <label for="sr_role">{{ t('settings.system_report.role_label') }}</label>
+    <details class="info-disclosure">
+      <summary class="info-toggle" aria-label="{{ t('settings.system_report.info_toggle_label') }}"><span class="icon icon-info" aria-hidden="true"></span></summary>
+      <div class="info-disclosure-panel">{{ t('settings.system_report.role_info') }}</div>
+    </details>
+  </div>
+  <select id="sr_role" name="role">
+    <option value="proxmox">{{ t('settings.system_report.proxmox') }}</option>
+    <option value="pbs">{{ t('settings.system_report.pbs') }}</option>
+    <option value="custom">{{ t('settings.system_report.custom') }}</option>
+  </select>
 
-  <label for="pbs_host">{{ t('settings.system_report.pbs') }}</label>
-  <input type="text" id="pbs_host" name="pbs_host" placeholder="{{ t('settings.system_report.host_placeholder') }}"
-         value="{{ settings.system_report.ssh_hosts.pbs.host }}">
-  <input type="text" id="pbs_user" name="pbs_user" placeholder="{{ t('settings.system_report.user_placeholder') }}"
-         value="{{ settings.system_report.ssh_hosts.pbs.user }}" class="input-tight">
+  <label for="sr_host">{{ t('settings.system_report.host_label') }}</label>
+  <input type="text" id="sr_host" name="host" placeholder="{{ t('settings.system_report.host_placeholder') }}">
+
+  <label for="sr_user">{{ t('settings.system_report.user_label') }}</label>
+  <input type="text" id="sr_user" name="user" placeholder="{{ t('settings.system_report.user_placeholder') }}" value="root">
+
+  <div class="field-label-row">
+    <label for="sr_password">{{ t('settings.system_report.password_label') }}</label>
+    <details class="info-disclosure">
+      <summary class="info-toggle" aria-label="{{ t('settings.system_report.info_toggle_label') }}"><span class="icon icon-info" aria-hidden="true"></span></summary>
+      <div class="info-disclosure-panel">{{ t('settings.system_report.password_info') }}</div>
+    </details>
+  </div>
+  <input type="password" id="sr_password" name="password" placeholder="{{ t('settings.system_report.password_placeholder') }}" maxlength="200" autocomplete="new-password">
+  <div class="hint">{{ t('settings.system_report.password_hint') }}</div>
+
+  <div id="sr_command_row" hidden>
+    <label for="sr_command">{{ t('settings.system_report.command_label') }}</label>
+    <input type="text" id="sr_command" name="command" placeholder="{{ t('settings.system_report.command_placeholder') }}" maxlength="2000">
+    <div class="hint">{{ t('settings.system_report.command_hint') }}</div>
+  </div>
 
   <div class="hint">{{ t('settings.system_report.ssh_key_hint') }}</div>
 
-  <button type="submit">{{ t('settings.save') }}</button>
+  <button type="submit">{{ t('settings.system_report.add') }}</button>
 </form>
+
+<script>
+  (function () {
+    var roleSelect = document.getElementById('sr_role');
+    var commandRow = document.getElementById('sr_command_row');
+    if (!roleSelect || !commandRow) return;
+    function syncCommandRow() {
+      commandRow.hidden = roleSelect.value !== 'custom';
+    }
+    roleSelect.addEventListener('change', syncCommandRow);
+    syncCommandRow();
+  })();
+</script>
 {% endblock %}

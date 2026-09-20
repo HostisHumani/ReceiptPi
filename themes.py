@@ -15,6 +15,7 @@ the language setting.
 # theme later means one CSS block plus one entry here, no hardcoded
 # radio buttons to update in the template.
 SUPPORTED_THEMES = {
+    "warm": "Warm",
     "forrest": "Forrest",
     "dark-lime": "Dark Lime",
     "frost": "Frost",
@@ -22,4 +23,11 @@ SUPPORTED_THEMES = {
     "white-purple": "White Purple",
 }
 
-DEFAULT_THEME = "forrest"
+# "Warm" is the new default (2026 redesign) - the only theme that also
+# follows the system/browser light-dark preference automatically, see
+# its [data-theme="warm"] block in static/style.css. Existing
+# installations keep whatever theme they already have saved in
+# settings.json; this only affects brand-new installs (see
+# settings_store.DEFAULT_SETTINGS, which has its own literal copy of
+# this default for the same reason its other defaults are literals).
+DEFAULT_THEME = "warm"

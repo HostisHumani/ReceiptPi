@@ -1,27 +1,76 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="status-strip">
-  <div class="status-card">
-    <span class="status-icon-row"><span class="icon icon-printer" aria-hidden="true"></span> {{ t('home.status.printer') }}</span>
-    <span id="home-printer-status" class="status-value js-printer-status" data-online="{{ t('status.online') }}" data-offline="{{ t('status.offline') }}" data-checking="{{ t('status.checking') }}">{{ t('status.checking') }}</span>
+<div class="hero" data-status="offline" id="hero">
+  <div class="hero-top">
+    <div class="hero-glyph"><span class="icon icon-printer" aria-hidden="true"></span></div>
+    <div class="hero-status">
+      <div class="eyebrow">{{ request.host }}</div>
+      <div class="headline js-printer-status" id="hero-headline" data-online="{{ t('status.online') }}" data-offline="{{ t('status.offline') }}" data-checking="{{ t('status.checking') }}">{{ t('status.checking') }}</div>
+      <div class="sub js-printer-status" id="hero-sub" data-online="{{ t('home.hero.sub_online') }}" data-offline="{{ t('home.hero.sub_offline') }}" data-checking="{{ t('home.hero.sub_checking') }}">{{ t('home.hero.sub_checking') }}</div>
+    </div>
   </div>
-  <div class="status-card">
-    <span class="status-icon-row"><span class="icon icon-layout-grid" aria-hidden="true"></span> {{ t('home.status.modules') }}</span>
-    <span class="status-value mono">{{ active_module_count }}/{{ total_module_count }}</span>
-  </div>
-  <div class="status-card">
-    <span class="status-icon-row"><span class="icon icon-list" aria-hidden="true"></span> {{ t('home.status.prints') }}</span>
-    <span class="status-value mono">{{ total_prints }}</span>
+  <div class="hero-pills">
+    <div class="pill"><div class="label">{{ t('home.status.modules') }}</div><div class="value mono">{{ active_module_count }}/{{ total_module_count }}</div></div>
+    <div class="pill"><div class="label">{{ t('home.status.prints') }}</div><div class="value mono">{{ total_prints }}</div></div>
+    <div class="pill"><div class="label">{{ t('home.hero.version_label') }}</div><div class="value mono">{{ current_version }}</div></div>
   </div>
 </div>
 
-<div class="tile-grid">
-  {% for m in all_modules if enabled_modules.get(m.key, True) %}
-  <a class="tile" href="{{ m.url }}">
-    <span class="tile-icon-badge"><span class="icon icon-{{ m.icon }}" aria-hidden="true"></span></span>
-    <span class="tile-name">{{ t('tile.' ~ m.key ~ '.name') }}</span>
-    <span class="tile-desc">{{ t('tile.' ~ m.key ~ '.desc') }}</span>
-  </a>
-  {% endfor %}
+{% set printing_keys = ["lists", "message", "images", "weather"] %}
+{% set printing_modules = [] %}
+{% for m in all_modules if m.key in printing_keys and enabled_modules.get(m.key, True) %}
+  {% set _ = printing_modules.append(m) %}
+{% endfor %}
+{% if printing_modules %}
+<div class="section">
+  <div class="heading">{{ t('settings.group.printing') }}</div>
+  <div class="list">
+    {% for m in printing_modules %}
+    <a class="row" href="{{ m.url }}">
+      <div class="icon-chip amber"><span class="icon icon-{{ m.icon }}" aria-hidden="true"></span></div>
+      <div class="body"><div class="title">{{ t('tile.' ~ m.key ~ '.name') }}</div><div class="desc">{{ t('tile.' ~ m.key ~ '.desc') }}</div></div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
+    </a>
+    {% endfor %}
+  </div>
 </div>
+{% endif %}
+
+{% set extra_keys = ["wifi", "system"] %}
+{% set extra_modules = [] %}
+{% for m in all_modules if m.key in extra_keys and enabled_modules.get(m.key, True) %}
+  {% set _ = extra_modules.append(m) %}
+{% endfor %}
+{% if extra_modules %}
+<div class="section">
+  <div class="heading">{{ t('home.group.extras') }}</div>
+  <div class="list">
+    {% for m in extra_modules %}
+    <a class="row" href="{{ m.url }}">
+      <div class="icon-chip teal"><span class="icon icon-{{ m.icon }}" aria-hidden="true"></span></div>
+      <div class="body"><div class="title">{{ t('tile.' ~ m.key ~ '.name') }}</div><div class="desc">{{ t('tile.' ~ m.key ~ '.desc') }}</div></div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if enabled_modules.get("games", True) %}
+<div class="section">
+  <div class="heading">{{ t('tile.games.name') }}</div>
+  <a class="game-card" href="/games">
+    <div class="game-stack">
+      <div class="tile t1"><span class="icon icon-grid-3x3" aria-hidden="true"></span></div>
+      <div class="tile t2"><span class="icon icon-dice-5" aria-hidden="true"></span></div>
+      <div class="tile t3"><span class="icon icon-hash" aria-hidden="true"></span></div>
+    </div>
+    <div class="body">
+      <div class="title">{{ t('tile.games.name') }}</div>
+      <div class="desc">{{ t('games.index.sudoku.name') }}, {{ t('games.index.dice.name') }}, {{ t('games.index.tictactoe.name') }}</div>
+    </div>
+    <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
+  </a>
+</div>
+{% endif %}
 {% endblock %}

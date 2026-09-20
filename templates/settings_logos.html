@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block header %}<span class="icon icon-tag" aria-hidden="true"></span> {{ t('settings.index.logos.name') }}{% endblock %}
+{% block header_icon %}<span class="mark"><span class="icon icon-tag" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.index.logos.name') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 

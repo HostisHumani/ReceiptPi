@@ -4,18 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}ReceiptPi{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ static_url('style.css') }}">
 </head>
 <body>
   <div class="page">
-    <div class="topbar">
-      <h1 class="wordmark">{% block header %}<span class="icon icon-printer" aria-hidden="true"></span> ReceiptPi{% endblock %}</h1>
+    <nav>
+      {% block header_icon %}<span class="mark"><span class="icon icon-printer" aria-hidden="true"></span></span>{% endblock %}
+      <h1>{% block header_title %}ReceiptPi{% endblock %}</h1>
       <div class="topbar-right">
         <span id="printer-status" class="printer-status js-printer-status" title="{{ t('status.checking') }}"
               data-online="{{ t('status.online') }}" data-offline="{{ t('status.offline') }}"
               data-checking="{{ t('status.checking') }}"><span class="dot" aria-hidden="true"></span></span>
         <details class="burger-menu">
-          <summary aria-label="Menu"><span class="icon icon-menu" aria-hidden="true"></span></summary>
+          <summary class="icon-btn" aria-label="Menu"><span class="icon icon-menu" aria-hidden="true"></span></summary>
           <div class="burger-dropdown">
             <a href="/history"><span class="icon icon-history" aria-hidden="true"></span> {{ t('menu.history') }}</a>
             <a href="/pending"><span class="icon icon-clipboard-list" aria-hidden="true"></span> {{ t('menu.pending') }}{% if pending_count %} ({{ pending_count }}){% endif %}</a>
@@ -23,7 +24,7 @@
           </div>
         </details>
       </div>
-    </div>
+    </nav>
 
     {% if message %}
       <div class="msg {{ 'ok' if success else 'err' }}">
@@ -34,7 +35,7 @@
 
     {% block content %}{% endblock %}
 
-    <footer class="app-footer">
+    <footer>
       <span>ReceiptPi {{ current_version }}</span>
       {% if update_available and latest_version %}
         <span>· {{ t('footer.update_available') }} <a href="{{ latest_release_url }}" target="_blank" rel="noopener">{{ latest_version }}</a></span>
@@ -50,13 +51,15 @@
     // the rest of the project staying dependency-light.
     //
     // Updates every element with .js-printer-status (there can be more
-    // than one on a page since the redesign: the small topbar dot AND
-    // the home dashboard's status card both show it) - each element
-    // supplies its own online/offline/checking text via data-* attrs,
-    // set from the same i18n keys as before.
+    // than one on a page since the redesign: the small topbar dot, the
+    // home dashboard's hero headline/sub-line, and the hero card's own
+    // gradient all show it) - each element supplies its own
+    // online/offline/checking text via data-* attrs, set from the same
+    // i18n keys as before.
     (function () {
       var els = document.querySelectorAll('.js-printer-status');
       if (!els.length) return;
+      var hero = document.getElementById('hero');
 
       function setStatus(state) {
         els.forEach(function (el) {
@@ -72,6 +75,13 @@
             if (!el.querySelector('.dot')) el.textContent = text;
           }
         });
+        // The hero card's background gradient (see .hero[data-status]
+        // in style.css) only has an "online"/"offline" look, not a
+        // "checking" one - skip that state and keep whatever gradient
+        // was already showing until the check resolves.
+        if (hero && (state === 'online' || state === 'offline')) {
+          hero.setAttribute('data-status', state);
+        }
       }
 
       async function checkPrinterStatus() {
@@ -87,6 +97,33 @@
       checkPrinterStatus();
       setInterval(checkPrinterStatus, 60000);
     })();
+
+    // One-time defensive cleanup: this app has never registered a
+    // service worker (checked the full git history - it never has),
+    // but a service worker is scoped to the ORIGIN (bondrucker.local:
+    // 5000), not to any particular app version. If one was ever
+    // registered here by anything else - an earlier experiment that
+    // was never committed, a stray browser extension, a different
+    // prior use of this same hostname/port - it would keep
+    // intercepting every fetch from its own Cache Storage and serving
+    // old responses straight from the browser, invisibly bypassing
+    // ALL server-side fixes: HTTP Cache-Control, ETags, and even the
+    // ?v=<hash> cache-busting query params (see static_versioning.py) -
+    // none of those matter if a service worker answers the request
+    // before it ever reaches the network. Unregistering is safe and a
+    // true no-op when nothing is registered (the common case), so this
+    // can just stay in permanently rather than needing to be reverted
+    // later.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        regs.forEach(function (reg) { reg.unregister(); });
+      }).catch(function () {});
+    }
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (names) {
+        names.forEach(function (name) { caches.delete(name); });
+      }).catch(function () {});
+    }
   </script>
   {% block extra_scripts %}{% endblock %}
 </body>

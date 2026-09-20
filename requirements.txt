@@ -5,3 +5,5 @@ pyusb
 pillow
 qrcode
 fritzconnection
+paramiko
+cryptography

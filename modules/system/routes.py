@@ -1,20 +1,23 @@
 """
 Module: system report - largely uses the same SSH commands as the
 existing Termux Lab Commander (scripts/termux-lab-commander.sh in the
-HomeLab repo): CPU temp/load, RAM, NVMe disk space, LXC/VM list, PBS
-backups, and update check (the Commander's version doesn't cover PBS,
-this one does). The general OMV Docker status (fetch_docker_status) is NOT taken from the
-Commander - that only checks Frigate on a separate host - it's added
-here independently for all OMV containers. Deliberately no Zabbix, to
-avoid needing extra item/template configuration.
+HomeLab repo): CPU temp/load, RAM, LXC/VM list, PBS backups, and update
+check (the Commander's version doesn't cover PBS, this one does).
+Deliberately no Zabbix, to avoid needing extra item/template
+configuration. Only two structured roles exist (Proxmox, PBS) -
+anything else (a NAS of any kind, a QNAP, ...) goes through role=
+"custom" with a user-supplied command instead of a dedicated fetch_*
+function, since no particular NAS software can be assumed for everyone.
 """
 import json
 import subprocess
 from datetime import datetime
 
+import paramiko
 from flask import Blueprint, jsonify, render_template
 
 import i18n
+import secrets_crypto
 import settings_store
 from modules.message.routes import _raw_print_message
 from print_queue import enqueue_print
@@ -23,18 +26,11 @@ from security import csrf_protect, get_csrf_token, require_api_token
 system_bp = Blueprint("system", __name__)
 
 
-def _ssh_target(role):
-    """Returns (user, host) for one of the three fixed roles
-    ("proxmox", "pinas", "pbs"), read from settings.json (see
-    settings_store.py, migrated once from config.py on first run)."""
-    entry = settings_store.get_settings()["system_report"]["ssh_hosts"][role]
-    return entry["user"], entry["host"]
-
-
-def ssh_run(user, host, remote_command, timeout=10):
-    """Runs a command via SSH on another host. Requires the ReceiptPi
-    Pi to be able to log in there passwordlessly via key. Returns
-    stdout as a string, raises an exception on errors/timeout."""
+def _ssh_run_key(user, host, remote_command, timeout=10):
+    """Runs a command via the system `ssh` CLI, authenticating with the
+    ReceiptPi Pi's own SSH key (passwordless login must already be set
+    up on the target). Returns stdout as a string, raises on
+    errors/timeout."""
     result = subprocess.run(
         [
             "ssh",
@@ -54,34 +50,71 @@ def ssh_run(user, host, remote_command, timeout=10):
     return result.stdout.strip()
 
 
-def fetch_pve_status():
-    """CPU temp, CPU load, RAM on the Proxmox host - identical commands
-    to the Termux Commander (check_status())."""
-    user, host = _ssh_target("proxmox")
+def _ssh_run_password(user, host, password, remote_command, timeout=10):
+    """Runs a command via paramiko, authenticating with a password
+    instead of a key. Used instead of the `ssh` CLI + sshpass for
+    password hosts, since sshpass has to pass the password as a command-
+    line argument or env var that ends up visible to anyone who can read
+    /proc/<pid>/cmdline or /proc/<pid>/environ on the Pi - paramiko hands
+    the password directly to libssh's auth exchange, never through a
+    process argument. Mirrors _ssh_run_key()'s contract (stripped
+    stdout, raises on non-zero exit/timeout) so both are interchangeable
+    to callers via ssh_run() below."""
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(host, username=user, password=password, timeout=timeout)
+        _stdin, stdout, stderr = client.exec_command(remote_command, timeout=timeout)
+        exit_status = stdout.channel.recv_exit_status()
+        out = stdout.read().decode(errors="replace")
+        err = stderr.read().decode(errors="replace")
+    finally:
+        client.close()
+    if exit_status != 0:
+        raise RuntimeError(err.strip() or i18n.tr("receipt.system.ssh_command_failed", code=exit_status))
+    return out.strip()
+
+
+def ssh_run(user, host, remote_command, password=None, timeout=10):
+    """Single entry point every fetch_* function below calls - picks key
+    auth (existing behavior, unchanged for every already-configured
+    host) or password auth (paramiko) based on whether a password was
+    supplied. See _entry_password() for where a host entry's (decrypted)
+    password comes from."""
+    if password:
+        return _ssh_run_password(user, host, password, remote_command, timeout=timeout)
+    return _ssh_run_key(user, host, remote_command, timeout=timeout)
+
+
+def fetch_pve_status(user, host, password=None):
+    """CPU temp, CPU load, RAM on a Proxmox-like host - identical
+    commands to the Termux Commander (check_status())."""
     lines = []
     cpu_temp = ssh_run(user, host,
-                        "cat /sys/class/thermal/thermal_zone0/temp | awk '{printf \"%.0f\", $1/1000}'")
+                        "cat /sys/class/thermal/thermal_zone0/temp | awk '{printf \"%.0f\", $1/1000}'",
+                        password=password)
     cpu_load = ssh_run(user, host,
-                        "top -bn1 | grep 'Cpu' | awk '{printf \"%.0f\", 100-$8}'")
+                        "top -bn1 | grep 'Cpu' | awk '{printf \"%.0f\", 100-$8}'",
+                        password=password)
     ram = ssh_run(user, host,
-                  "free -h | awk '/^Mem:/{print $3\"/\"$2}'")
+                  "free -h | awk '/^Mem:/{print $3\"/\"$2}'",
+                  password=password)
     lines.append(i18n.tr("receipt.system.cpu_temp", value=cpu_temp))
     lines.append(i18n.tr("receipt.system.cpu_load", value=cpu_load))
     lines.append(i18n.tr("receipt.system.ram", value=ram))
     return lines
 
 
-def fetch_lxc_vm_status():
-    """LXC and VM list from the Proxmox host (pct list / qm list)."""
-    user, host = _ssh_target("proxmox")
+def fetch_lxc_vm_status(user, host, password=None):
+    """LXC and VM list from a Proxmox-like host (pct list / qm list)."""
     lines = []
-    lxc_output = ssh_run(user, host, "pct list")
+    lxc_output = ssh_run(user, host, "pct list", password=password)
     for line in lxc_output.splitlines()[1:]:
         parts = line.split()
         if len(parts) >= 3:
             lines.append(f"LXC {parts[0]} ({parts[2]}): {parts[1]}")
 
-    vm_output = ssh_run(user, host, "qm list")
+    vm_output = ssh_run(user, host, "qm list", password=password)
     for line in vm_output.splitlines()[1:]:
         parts = line.split()
         if len(parts) >= 3:
@@ -90,35 +123,14 @@ def fetch_lxc_vm_status():
     return lines or [i18n.tr("receipt.system.no_lxc_vms")]
 
 
-def fetch_omv_status():
-    """NVMe disk space on piNAS (OMV) - identical command to the Termux
-    Commander."""
-    user, host = _ssh_target("pinas")
-    disk = ssh_run(user, host,
-                    "df -h /dev/nvme0n1p2 | awk 'NR==2{print $3\"/\"$2\" (\"$5\")\"}'")
-    return [i18n.tr("receipt.system.nvme", value=disk)]
-
-
-def fetch_docker_status():
-    """Docker container status via SSH directly from piNAS/OMV (docker
-    ps). Unlike the other fetch_* functions, NOT taken 1:1 from the
-    Termux Commander - that only checks Frigate on a separate host, not
-    a general OMV Docker stack."""
-    user, host = _ssh_target("pinas")
-    output = ssh_run(
-        user, host,
-        "docker ps --format '{{.Names}}: {{.Status}}'",
-    )
-    return output.splitlines() if output else [i18n.tr("receipt.system.no_containers")]
-
-
-def fetch_pbs_recent_backups(limit=5):
-    """Most recent PBS backup tasks (Backup/Sync/Prune/Verify/GC),
-    analogous to the Python evaluation in the Termux Commander, parsed
-    here locally instead of remotely via an embedded Python call."""
-    user, host = _ssh_target("pbs")
+def fetch_pbs_recent_backups(user, host, password=None, limit=5):
+    """Most recent PBS backup tasks (Backup/Sync/Prune/Verify/GC) from a
+    PBS-like host, analogous to the Python evaluation in the Termux
+    Commander, parsed here locally instead of remotely via an embedded
+    Python call."""
     output = ssh_run(user, host,
-                      "proxmox-backup-manager task list --all --output-format json-pretty")
+                      "proxmox-backup-manager task list --all --output-format json-pretty",
+                      password=password)
     tasks = json.loads(output)
     relevant_types = {"backup", "syncjob", "prune", "verify", "garbage_collection"}
     relevant = [t for t in tasks if t.get("worker_type") in relevant_types]
@@ -133,7 +145,7 @@ def fetch_pbs_recent_backups(limit=5):
 UPDATE_LIST_THRESHOLD = 10  # print package names individually up to this count, otherwise just the number
 
 
-def fetch_updates_for_host(label, user, host):
+def fetch_updates_for_host(label, user, host, password=None):
     """Returns update lines for one host. With few open updates
     (<= UPDATE_LIST_THRESHOLD), the package names are listed
     individually; above that, just the count."""
@@ -142,7 +154,8 @@ def fetch_updates_for_host(label, user, host):
     # error. Without it, ssh_run() would treat that as a failed SSH
     # command (any non-zero exit code) and raise, even though nothing
     # went wrong.
-    output = ssh_run(user, host, "apt list --upgradable 2>/dev/null | grep -v '^Listing' || true")
+    output = ssh_run(user, host, "apt list --upgradable 2>/dev/null | grep -v '^Listing' || true",
+                      password=password)
     if not output:
         return [i18n.tr("receipt.system.host_current", label=label)]
 
@@ -155,38 +168,102 @@ def fetch_updates_for_host(label, user, host):
     return [i18n.tr("receipt.system.host_updates_available", label=label, count=count)]
 
 
-def fetch_update_counts():
-    """Update status for PVE, OMV and PBS, like the Termux Commander's
-    'u) Update-Check' - PBS wasn't covered there, added here."""
+def fetch_update_counts(hosts):
+    """Update status for every configured host, like the Termux
+    Commander's 'u) Update-Check' - PBS wasn't covered there, added
+    here. Runs across ALL configured hosts regardless of role (not just
+    a fixed PVE/OMV/PBS triple) since "apt list --upgradable" is the
+    same command on every Debian-based host (Proxmox, OMV, PBS). Each
+    host is wrapped in its own try/except (unlike the other fetch_*
+    functions, which rely on the caller's single try/except around the
+    whole section) - now that role="custom" allows genuinely arbitrary,
+    possibly non-Debian hosts (e.g. a QNAP with no apt), one such host
+    must not blank out the update counts for every other host too."""
     lines = []
-    pve_user, pve_host = _ssh_target("proxmox")
-    pinas_user, pinas_host = _ssh_target("pinas")
-    pbs_user, pbs_host = _ssh_target("pbs")
-    lines.extend(fetch_updates_for_host("PVE", pve_user, pve_host))
-    lines.extend(fetch_updates_for_host("OMV", pinas_user, pinas_host))
-    lines.extend(fetch_updates_for_host("PBS", pbs_user, pbs_host))
+    for entry in hosts:
+        label = entry.get("name") or entry.get("role", "")
+        try:
+            lines.extend(fetch_updates_for_host(label, entry["user"], entry["host"],
+                                                 password=_entry_password(entry)))
+        except Exception as e:
+            lines.append(i18n.tr("print.error_prefix") + f"{label}: {e}")
     return lines
+
+
+def fetch_custom_command(user, host, command, password=None):
+    """Runs a user-defined SSH command verbatim (role="custom") - for
+    hosts that aren't Proxmox/OMV/PBS (e.g. a QNAP) and therefore have
+    no structured fetch_* function of their own. Output is split into
+    lines as-is, no parsing/formatting."""
+    output = ssh_run(user, host, command, password=password)
+    return output.splitlines() if output else [i18n.tr("receipt.system.no_output")]
+
+
+def _entry_password(entry):
+    """Decrypts a host entry's stored password (see secrets_crypto.py),
+    or returns None for a key-auth host (empty/missing
+    "password_encrypted") - None is also what ssh_run()'s password=
+    parameter expects to mean "use key auth"."""
+    return secrets_crypto.decrypt_password(entry.get("password_encrypted"))
+
+
+# Maps a host entry's role to the i18n key used as its fallback display
+# name (when the user leaves "name" blank) - same strings that already
+# labelled the old fixed fields, now reused as the role dropdown's
+# option text (see settings_system_report.html).
+ROLE_NAME_KEYS = {
+    "proxmox": "settings.system_report.proxmox",
+    "pbs": "settings.system_report.pbs",
+    "custom": "settings.system_report.custom",
+}
+
+
+def _report_sections_for_entry(entry):
+    """Returns a list of (title, fetch_callable) pairs for one
+    configured host, based on its role. This is the one place that maps
+    role -> which sections get printed for that host - the underlying
+    fetch_* functions stay role-specific (see their own docstrings)
+    since e.g. "pct list"/"qm list" only make sense against a
+    Proxmox-like host. There is deliberately no NAS-specific structured
+    role (see settings_store.py's _migrate_system_report_omv_role_removed
+    for the removed "omv" role) - any non-Proxmox/PBS host, NAS or
+    otherwise, goes through role="custom" instead."""
+    role = entry.get("role")
+    name = entry.get("name") or i18n.tr(ROLE_NAME_KEYS.get(role, "settings.system_report.proxmox"))
+    user, host = entry["user"], entry["host"]
+    password = _entry_password(entry)
+
+    if role == "proxmox":
+        return [
+            (name, lambda: fetch_pve_status(user, host, password=password)),
+            (f"{name} – {i18n.tr('receipt.system.section.lxc_vms')}", lambda: fetch_lxc_vm_status(user, host, password=password)),
+        ]
+    if role == "pbs":
+        return [(name, lambda: fetch_pbs_recent_backups(user, host, password=password))]
+    if role == "custom":
+        command = entry.get("command", "")
+        return [(name, lambda: fetch_custom_command(user, host, command, password=password))]
+    return []
 
 
 def _raw_print_system_report():
     report_lines = []
+    hosts = settings_store.get_settings()["system_report"]["hosts"]
 
-    sections = [
-        (i18n.tr("receipt.system.section.proxmox"), fetch_pve_status),
-        (i18n.tr("receipt.system.section.lxc_vms"), fetch_lxc_vm_status),
-        (i18n.tr("receipt.system.section.pinas"), fetch_omv_status),
-        (i18n.tr("receipt.system.section.docker"), fetch_docker_status),
-        (i18n.tr("receipt.system.section.pbs_backups"), fetch_pbs_recent_backups),
-        (i18n.tr("receipt.system.section.updates"), fetch_update_counts),
-    ]
-
-    for title, fetch_func in sections:
+    def add_section(title, fetch_func):
         report_lines.append("-" * 32)
         report_lines.append(title)
         try:
             report_lines.extend(fetch_func())
         except Exception as e:
             report_lines.append(i18n.tr("print.error_prefix") + str(e))
+
+    for entry in hosts:
+        for title, fetch_func in _report_sections_for_entry(entry):
+            add_section(title, fetch_func)
+
+    if hosts:
+        add_section(i18n.tr("receipt.system.section.updates"), lambda: fetch_update_counts(hosts))
 
     text = "\n".join(report_lines)
     # Title goes through _raw_print_message's own title parameter now

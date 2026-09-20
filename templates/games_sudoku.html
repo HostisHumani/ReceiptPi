@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block header %}<span class="icon icon-grid-3x3" aria-hidden="true"></span> {{ t('games.index.sudoku.name') }}{% endblock %}
+{% block header_icon %}<span class="mark"><span class="icon icon-grid-3x3" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('games.index.sudoku.name') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/games"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
@@ -13,11 +14,16 @@
     <option value="hard">{{ t('games.sudoku.difficulty_hard') }}</option>
   </select>
 
-  <label class="checkbox-row">
-    <input type="checkbox" name="print_solution">
-    {{ t('games.sudoku.print_solution_label') }}
-  </label>
-  <div class="hint">{{ t('games.sudoku.print_solution_hint') }}</div>
+  <div class="list-row">
+    <div class="list-row-main">
+      <span class="list-row-title">{{ t('games.sudoku.print_solution_label') }}</span>
+      <div class="list-row-meta">{{ t('games.sudoku.print_solution_hint') }}</div>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" name="print_solution">
+      <span class="track"><span class="thumb"></span></span>
+    </label>
+  </div>
 
   <button type="submit">{{ t('games.sudoku.button') }}</button>
 </form>
