@@ -109,6 +109,8 @@ receiptpi/
 │   ├── style.css             Design-System (Spacing/Farben/Themes, Card-/Tile-/Icon-Stile)
 │   ├── draft-autosave.js      generisches Auto-Save für die Listen-/Task-Karten-Formulare
 │   ├── mealie-import.js       Import einer Mealie-Einkaufsliste auf der Einkaufszettel-Seite
+│   ├── manifest.json          Web-App-Manifest (Name/Icons/Farben für den Homescreen)
+│   ├── sw.js                  Service Worker (ausgeliefert unter /sw.js, nur über HTTPS)
 │   └── icons/                 lokaler Lucide-SVG-Iconsatz (siehe LICENSE in diesem Ordner)
 └── templates/                gemeinsames Layout und Modul-Seiten
     ├── base.html
@@ -158,11 +160,33 @@ Formulare umgesetzt:
   alle 12h) ein neueres GitHub-Release (auch Alpha-/Prereleases),
   verlinkt der Footer direkt dorthin. Reine Information, kein Auto-Update.
 
-Ein eigenes App-Logo oder Favicon gibt es aktuell nicht – stattdessen
-zeigt jede Seite in der Topbar ein zu ihrem Inhalt passendes kleines
+Jede Seite zeigt in der Topbar ein zu ihrem Inhalt passendes kleines
 Icon (auf der Startseite ein Drucker-Icon, auf der Nachrichten-Seite
-ein Nachrichten-Icon, und so weiter), plus das Banner-Bild oben in
-dieser Datei.
+ein Nachrichten-Icon, und so weiter). Ein Favicon für den Browser-Tab
+gibt es noch nicht.
+
+**Homescreen / installierbare Web-App** – `static/manifest.json` sowie
+`theme-color` und `apple-touch-icon` in `templates/base.html` erlauben
+es, die Web-UI mit eigenem Namen und Icon auf den Homescreen eines
+Handys zu legen (iOS: Safari-Teilen-Menü → „Zum Home-Bildschirm“;
+Android: Browser-Menü). Wird die UI über **HTTPS** ausgeliefert (z. B.
+hinter einem Reverse-Proxy), registriert sich zusätzlich ein Service
+Worker (`static/sw.js`, ausgeliefert unter `/sw.js`), sodass Chrome auf
+Android „App installieren“ anbietet. Über reines HTTP
+(`http://<pi>:5000`) wird kein Service Worker registriert – die
+Homescreen-Verknüpfung funktioniert trotzdem.
+
+Der Service Worker cached nur `/static/`-Dateien derselben Origin, die
+einen `?v=<Inhalts-Hash>` tragen (Stylesheet, Schriften, Icons,
+Manifest) – deren URL ändert sich mit jedem geänderten Inhalt, veraltete
+Antworten sind damit ausgeschlossen. Seiten, `/health`, `/print/*`,
+`/ui/*`, `/settings/*` und alle anderen Anfragen gehen immer ans Netz.
+Der Cache ist nach der `VERSION`-Datei benannt; ein neues Release ersetzt
+den Worker und löscht den alten Cache. Ein Offline-Modus ist das nicht –
+die UI braucht weiterhin den erreichbaren Pi. Die Icons unter
+`static/icons/` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
+`apple-touch-icon.png`) sind eine **Interimslösung** aus dem bestehenden
+Logo – ein echtes Icon-Set folgt.
 
 ## Settings-Seiten
 
@@ -452,9 +476,9 @@ einzeln ein- oder ausschalten:
 ## Roadmap
 
 Als Nächstes geplant: NFC-Tag-ausgelöster Druck (nur eine URL im Tag,
-keine App nötig), sowie ein Rezepte-Modul (Tandoor/Mealie) mit über die
-Web-UI konfigurierbaren Zugangsdaten. Die Roadmap kann sich mit
-weiteren Hardwaretests ändern.
+keine App nötig), Tandoor als zweiter Rezeptmanager neben Mealie, sowie
+ein echtes Icon-Set anstelle der Interims-Homescreen-Icons. Die Roadmap
+kann sich mit weiteren Hardwaretests ändern.
 
 ## Mitwirken
 

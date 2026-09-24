@@ -55,6 +55,11 @@ def static_url(relative_path):
     and edits (style.css, draft-autosave.js, ...) - not needed for
     third-party assets that never change post-install."""
     from flask import url_for
+    if relative_path == "style.css":
+        # style.css is served processed (see versioned_style_css()), so
+        # its hash must come from that processed body, not the raw
+        # file - make sure it's been computed before handing out a URL.
+        versioned_style_css()
     return f"{url_for('static', filename=relative_path)}?v={_file_hash(relative_path)}"
 
 
@@ -77,5 +82,12 @@ def versioned_style_css():
             return f"{path}?v={_file_hash(relative)}"
 
         _css_body_cache = _ASSET_URL_RE.sub(_versioned, raw)
-        _file_hash("style.css")  # also warm style.css's own hash for static_url()
+        # style.css's own ?v= hash is taken from the PROCESSED body, not
+        # the raw file: an icon/font change alters the served CSS (new
+        # ?v= on that asset's URL) without touching style.css on disk.
+        # Hashing the raw file would keep the same style.css URL for
+        # different content - which the service worker (static/sw.js)
+        # would then keep serving from its cache-first store, since it
+        # relies on "same ?v= means same content" for every /static/ URL.
+        _hash_cache["style.css"] = hashlib.md5(_css_body_cache.encode("utf-8")).hexdigest()[:10]
     return _css_body_cache

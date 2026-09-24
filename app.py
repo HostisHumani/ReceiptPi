@@ -195,6 +195,34 @@ def style_css():
     return resp
 
 
+_SW_SOURCE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "sw.js")
+_sw_body_cache = None
+
+
+@app.route("/sw.js", methods=["GET"])
+def service_worker():
+    """Serves static/sw.js at the site root: a service worker can only
+    control URLs at or below the path it's served from, so the copy
+    Flask's static handler would serve at /static/sw.js could never
+    control "/" itself. The version placeholder is filled in from the
+    VERSION file, which ties the worker's cache name to the release -
+    a version bump changes these bytes, the browser installs the new
+    worker, and its activate handler drops the old caches. Read once
+    per process (same as static_versioning.py); a deploy always
+    restarts the service.
+
+    no-cache: the browser must revalidate this script on every update
+    check - a worker stuck on an HTTP-cached old copy would keep an
+    old cache name alive."""
+    global _sw_body_cache
+    if _sw_body_cache is None:
+        with open(_SW_SOURCE_FILE, encoding="utf-8") as f:
+            _sw_body_cache = f.read().replace("__RECEIPTPI_VERSION__", version.CURRENT_VERSION)
+    resp = app.response_class(_sw_body_cache, mimetype="text/javascript")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app.route("/health", methods=["GET"])
 def health():
     ok, detail, status_code = enqueue_print(_raw_health_check, timeout=10, bypass_rules=True, log_history=False)

@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}ReceiptPi{% endblock %}</title>
   <link rel="stylesheet" href="{{ static_url('style.css') }}">
+  {# Web app manifest + home-screen icon metadata. The service worker
+     that makes this installable is registered at the end of <body>
+     (HTTPS only). theme-color is fixed black rather than following the
+     selected UI theme, and must stay identical to the manifest's
+     theme_color (static/manifest.json). #}
+  <link rel="manifest" href="{{ static_url('manifest.json') }}">
+  <meta name="theme-color" content="#000000">
+  <link rel="apple-touch-icon" href="{{ static_url('icons/apple-touch-icon.png') }}">
 </head>
 <body>
   <div class="page">
@@ -98,31 +106,44 @@
       setInterval(checkPrinterStatus, 60000);
     })();
 
-    // One-time defensive cleanup: this app has never registered a
-    // service worker (checked the full git history - it never has),
-    // but a service worker is scoped to the ORIGIN (bondrucker.local:
-    // 5000), not to any particular app version. If one was ever
-    // registered here by anything else - an earlier experiment that
-    // was never committed, a stray browser extension, a different
-    // prior use of this same hostname/port - it would keep
-    // intercepting every fetch from its own Cache Storage and serving
-    // old responses straight from the browser, invisibly bypassing
-    // ALL server-side fixes: HTTP Cache-Control, ETags, and even the
-    // ?v=<hash> cache-busting query params (see static_versioning.py) -
-    // none of those matter if a service worker answers the request
-    // before it ever reaches the network. Unregistering is safe and a
-    // true no-op when nothing is registered (the common case), so this
-    // can just stay in permanently rather than needing to be reverted
-    // later.
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function (regs) {
-        regs.forEach(function (reg) { reg.unregister(); });
-      }).catch(function () {});
-    }
-    if (window.caches && caches.keys) {
-      caches.keys().then(function (names) {
-        names.forEach(function (name) { caches.delete(name); });
-      }).catch(function () {});
+    // Service worker: registered over HTTPS only (browsers refuse it on
+    // plain http:// anyway, apart from localhost - no point trying on
+    // bondrucker.local:5000). The danger of any service worker is that
+    // it answers requests from its own Cache Storage before they reach
+    // the network, bypassing every server-side fix (Cache-Control,
+    // ETags, ?v= cache busting). That's contained in three ways:
+    //  - static/sw.js only ever caches /static/ URLs carrying a ?v=
+    //    content hash - immutable by construction, so never stale -
+    //    and leaves every other request to the network untouched;
+    //  - its cache is named after the VERSION file and every other
+    //    cache on the origin is deleted when a new worker activates;
+    //  - any registration that isn't our own /sw.js (a stray worker
+    //    from an old experiment, an extension, a previous use of the
+    //    same hostname) is still unregistered here, as before.
+    // Without HTTPS there's no worker of ours at all, so the original
+    // cleanup stays in full there: unregister everything, drop every
+    // cache (a true no-op in the common case where nothing exists).
+    if (location.protocol === 'https:') {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(function () {});
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (reg) {
+            var worker = reg.active || reg.waiting || reg.installing;
+            if (worker && new URL(worker.scriptURL).pathname !== '/sw.js') reg.unregister();
+          });
+        }).catch(function () {});
+      }
+    } else {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (reg) { reg.unregister(); });
+        }).catch(function () {});
+      }
+      if (window.caches && caches.keys) {
+        caches.keys().then(function (names) {
+          names.forEach(function (name) { caches.delete(name); });
+        }).catch(function () {});
+      }
     }
   </script>
   {% block extra_scripts %}{% endblock %}

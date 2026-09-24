@@ -108,6 +108,8 @@ receiptpi/
 │   ├── style.css             design system (spacing/colors/themes, card/tile/icon styles)
 │   ├── draft-autosave.js      generic auto-save for the lists/task-card forms
 │   ├── mealie-import.js       Mealie shopping list import on the shopping list page
+│   ├── manifest.json          web app manifest (home-screen name/icons/colors)
+│   ├── sw.js                  service worker (served at /sw.js, HTTPS only)
 │   └── icons/                 local Lucide SVG icon set (see LICENSE in that folder)
 └── templates/                shared layout and module pages
     ├── base.html
@@ -155,10 +157,30 @@ plain forms:
   found a newer GitHub release (including alpha/prereleases), the footer
   links directly to it. Information only, no auto-update.
 
-There is currently no dedicated app logo or favicon - each page shows a
-small icon matching its content in the topbar instead (a printer icon
-on the home page, a message icon on the message page, and so on),
-plus the documentation banner image at the top of this file.
+Each page shows a small icon matching its content in the topbar (a
+printer icon on the home page, a message icon on the message page, and
+so on). There is no browser-tab favicon yet.
+
+**Home screen / installable web app** - `static/manifest.json` plus a
+`theme-color` and an `apple-touch-icon` in `templates/base.html` let the
+web UI be added to a phone's home screen with its own name and icon
+(iOS: Safari share menu -> "Add to Home Screen"; Android: browser menu).
+When the UI is served over **HTTPS** (e.g. behind a reverse proxy), a
+service worker (`static/sw.js`, served at `/sw.js`) is registered as
+well, so Chrome on Android offers "Install app". Over plain HTTP
+(`http://<pi>:5000`) no service worker is registered - the home-screen
+shortcut still works.
+
+The service worker only caches same-origin `/static/` files that carry a
+`?v=<content hash>` (style sheet, fonts, icons, manifest) - these URLs
+change whenever their content does, so nothing stale can be served. Pages,
+`/health`, `/print/*`, `/ui/*`, `/settings/*` and every other request always
+go to the network. The cache is named after the `VERSION` file; a new
+release replaces the worker and deletes the old cache. It is not an
+offline mode - the UI still needs the Pi to be reachable. The icons under
+`static/icons/` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
+`apple-touch-icon.png`) are an **interim solution** derived from the
+existing logo - a proper icon set will follow.
 
 ## Settings pages
 
@@ -434,9 +456,9 @@ off individually:
 ## Roadmap
 
 Next up: NFC-tag-triggered printing (just a URL in the tag, no app
-needed), and a recipe module (Tandoor/Mealie) with credentials
-configurable via the web UI. The roadmap may change as ReceiptPi is
-tested on more hardware.
+needed), Tandoor as a second recipe manager next to Mealie, and a
+proper icon set replacing the interim home-screen icons. The roadmap may
+change as ReceiptPi is tested on more hardware.
 
 ## Contributing
 
