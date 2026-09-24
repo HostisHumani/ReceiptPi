@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block header_icon %}<span class="mark"><span class="icon icon-chef-hat" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('tile.recipes.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/recipes"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<div class="card">
+  <h2 class="section-title section-title-flush">{{ recipe.title }}</h2>
+  {% if recipe.total_time %}
+  <div class="list-row-meta">{{ t('recipes.total_time_label') }}: {{ recipe.total_time }}</div>
+  {% endif %}
+
+  {% if recipe.ingredients %}
+  <h3 class="section-subtitle">{{ t('recipes.ingredients_heading') }}</h3>
+  <ul class="recipe-ingredients">
+    {% for ingredient in recipe.ingredients %}<li>{{ ingredient }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if recipe.steps %}
+  <h3 class="section-subtitle">{{ t('recipes.steps_heading') }}</h3>
+  <ol class="recipe-steps">
+    {% for step in recipe.steps %}<li>{{ step }}</li>{% endfor %}
+  </ol>
+  {% endif %}
+
+  {% if not recipe.ingredients and not recipe.steps %}
+  <div class="hint hint-standalone">{{ t('recipes.detail.empty') }}</div>
+  {% endif %}
+</div>
+
+<form method="post" action="/ui/recipes/print" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="slug" value="{{ recipe.slug }}">
+  <div class="form-actions">
+    <button type="submit"><span class="icon icon-printer" aria-hidden="true"></span> {{ t('recipes.print_button') }}</button>
+    {% if random_query %}
+    <a class="btn btn-secondary" href="/recipes/random?{{ random_query | urlencode }}"><span class="icon icon-shuffle" aria-hidden="true"></span> {{ t('recipes.random.again') }}</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

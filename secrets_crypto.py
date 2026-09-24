@@ -1,7 +1,9 @@
 """
-Symmetric encryption for SSH passwords stored in settings.json (system
-report host entries that use password auth instead of an SSH key - see
-modules/system/routes.py). Uses Fernet (AES-128-CBC + HMAC-SHA256,
+Symmetric encryption for secrets stored in settings.json: SSH passwords
+(system report host entries that use password auth instead of an SSH
+key - see modules/system/routes.py) and the recipe manager API token
+(see modules/recipes/mealie.py). The *_password function names predate
+the second use - they encrypt any short secret string. Uses Fernet (AES-128-CBC + HMAC-SHA256,
 authenticated - a tampered/corrupted token fails to decrypt instead of
 silently returning garbage) from the `cryptography` package.
 

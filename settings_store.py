@@ -98,6 +98,25 @@ DEFAULT_SETTINGS = {
         "wifi": True,
         "system": True,
         "games": True,
+        "recipes": True,
+    },
+    # Recipe manager integration (modules/recipes/). "provider" is
+    # "off" or "mealie" - one sub-dict per provider (rather than one
+    # flat url/token pair) so any additional provider gets its own
+    # stored credentials instead of overwriting Mealie's when switching
+    # between them. No migration
+    # needed for existing installations: _deep_merge_defaults() adds
+    # this whole section (and enabled_modules.recipes above) on the
+    # next get_settings() call, with provider "off" - nothing changes
+    # until the user configures it.
+    "recipes": {
+        "provider": "off",
+        "mealie": {
+            "base_url": "",
+            # Fernet token (see secrets_crypto.py), "" = no token set.
+            # The plaintext API token is never written anywhere.
+            "token_encrypted": "",
+        },
     },
     "system_report": {
         # Free-form list of SSH targets instead of 3 fixed named roles -

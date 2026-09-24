@@ -24,5 +24,28 @@
   </div>
   <span class="hint draft-status" aria-live="polite"></span>
 </form>
+
+{% if mealie_import_available and active_modules.get('recipes', True) %}
+{# Deliberately outside the draft form above: these controls must not
+   be part of the autosaved draft fields. static/mealie-import.js only
+   appends to the #items textarea, it never replaces its content. #}
+<h2 class="section-title">{{ t('recipes.import.heading') }}</h2>
+<div class="card" id="mealie_import"
+     data-loading-text="{{ t('recipes.import.loading') }}"
+     data-empty-text="{{ t('recipes.import.no_lists') }}"
+     data-network-error-text="{{ t('recipes.error.unreachable') }}">
+  <div class="hint hint-standalone">{{ t('recipes.import.hint') }}</div>
+  <button type="button" class="btn btn-secondary btn-block" id="mealie_load_lists">{{ t('recipes.import.load_lists') }}</button>
+  <div id="mealie_list_picker" hidden>
+    <label for="mealie_list">{{ t('recipes.import.list_label') }}</label>
+    <select id="mealie_list"></select>
+    <button type="button" id="mealie_import_btn">{{ t('recipes.import.button') }}</button>
+  </div>
+  <div class="msg inline-result" id="mealie_import_result" role="status" hidden>
+    <span class="icon" aria-hidden="true"></span>
+    <span class="mealie-import-text"></span>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
-{% block extra_scripts %}<script src="{{ static_url('draft-autosave.js') }}" defer></script>{% endblock %}
+{% block extra_scripts %}<script src="{{ static_url('draft-autosave.js') }}" defer></script>{% if mealie_import_available and active_modules.get('recipes', True) %}<script src="{{ static_url('mealie-import.js') }}" defer></script>{% endif %}{% endblock %}

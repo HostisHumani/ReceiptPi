@@ -71,14 +71,14 @@ receiptpi/
 ├── print_queue.py         central print queue + print-rule checks
 ├── printer.py             printer hardware access (USB)
 ├── security.py            CSRF protection, API token protection, JSON parsing
-├── secrets_crypto.py      Fernet encryption for system-report SSH passwords (key in STATE_DIR, not in git)
+├── secrets_crypto.py      Fernet encryption for system-report SSH passwords and the recipe manager API token (key in STATE_DIR, not in git)
 ├── settings_store.py      central settings (JSON in STATE_DIR, not in the project folder)
 ├── history_store.py       SQLite print history (STATE_DIR), auto-pruned after 180 days
 ├── lists_store.py          in-progress list/task-card drafts (STATE_DIR), cleared once printed
 ├── pending_store.py        blocked/failed print jobs (STATE_DIR, 0600), see "Pending jobs" below
 ├── logos.py                per-print-type logo resolution, upload validation, seeding
 ├── i18n.py                 minimal translation lookup (JSON files, no Flask-Babel)
-├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL)
+├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL) + their effective on/off state
 ├── text_style.py           Easy-Read text-size scaling, shared by print jobs and the web UI
 ├── themes.py                registry of the selectable web UI color themes
 ├── version.py               reads VERSION, minimal comparison for ReceiptPi's own version scheme
@@ -92,6 +92,7 @@ receiptpi/
 │   ├── weather/                weather report (DWD + Netatmo)
 │   ├── system/                 system report (Proxmox/PBS via SSH, plus custom SSH commands for other hosts)
 │   ├── games/                  offline games (Sudoku, dice score sheet, Tic-Tac-Toe)
+│   ├── recipes/                recipe search/print + shopping list import (Mealie)
 │   ├── automation/            generic automation webhook
 │   ├── history/                print history dashboard
 │   ├── pending/                 review/reprint/discard blocked or failed print jobs
@@ -106,6 +107,7 @@ receiptpi/
 ├── static/
 │   ├── style.css             design system (spacing/colors/themes, card/tile/icon styles)
 │   ├── draft-autosave.js      generic auto-save for the lists/task-card forms
+│   ├── mealie-import.js       Mealie shopping list import on the shopping list page
 │   └── icons/                 local Lucide SVG icon set (see LICENSE in that folder)
 └── templates/                shared layout and module pages
     ├── base.html
@@ -119,6 +121,7 @@ receiptpi/
     ├── system.html
     ├── history.html
     ├── games_*.html            games overview + one page per game
+    ├── recipes*.html           recipe search/random picker + recipe preview
     └── settings_*.html        settings overview + one sub-page per area
 ```
 
@@ -171,6 +174,7 @@ area, instead of one long form:
 - `/settings/weather` - weather report provider (DWD or Open-Meteo), weather locations, and an independent storm-warning provider (DWD, MeteoAlarm, or NWS) with its own enable toggle and an optional "ignore quiet hours" override
 - `/settings/github-watch` - watched GitHub repositories
 - `/settings/system-report` - a free-form list of SSH targets for the system report, see [System report](#system-report) below
+- `/settings/recipes` - recipe manager (Off / Mealie), Mealie base URL, encrypted API token, connection test, see [Recipes](#recipes) below
 
 ## Endpoints
 
@@ -203,6 +207,18 @@ A blocked job responds with `429`.
 - `GET|POST /settings/logos/config` - global/per-module logo toggles
 - `POST /settings/logos/upload/<slot>`, `DELETE /settings/logos/upload/<slot>` - logo image upload/removal (base64), `slot` is `default` or a module key
 
+**Recipes (web UI routes)**
+
+The recipes module has no `/print/*` JSON API and no settings API - its
+routes serve the web UI and need no `X-Api-Token`. All of them answer
+`404` while the module is inactive (see [Module toggles](#module-toggles)).
+- `GET /recipes?q=<term>` - search page with results
+- `GET /recipes/view/<slug>` - recipe preview
+- `GET /recipes/random?ingredients=<a,b>&match=all` - random recipe; `ingredients` optional (max. 5), `match=all` requires all of them instead of any
+- `POST /ui/recipes/print` - form post (CSRF-protected), field `slug`
+- `GET /recipes/import/lists` - Mealie shopping lists as JSON (used by the import on `/shopping`)
+- `GET /recipes/import/lists/<id>` - unchecked items of one list as JSON, formatted as shopping list lines
+
 ## After installation
 
 ```bash
@@ -232,6 +248,7 @@ existing crontab (`crontab -e`).
 - Weather reports (DWD or Open-Meteo, selectable, + optional Netatmo), with an optional storm-warning watcher (DWD, MeteoAlarm, or NWS, prints only when a warning is actually active)
 - System reports: Proxmox/PBS via SSH, plus a custom-command role for any other host (e.g. a NAS), with optional encrypted password auth, see [System report](#system-report) below
 - Offline games (Sudoku, a dice score sheet, Tic-Tac-Toe), see [Games](#games) below
+- Recipes from [Mealie](https://mealie.io): search, preview and print recipes, random recipe by ingredient, and import a Mealie shopping list into the shopping list, see [Recipes](#recipes) below
 - Print history dashboard (stats + paginated log, SQLite-backed)
 - Pending jobs: review/reprint/discard print jobs blocked by quiet hours/rate limit or failed with a real printer error, see "Pending jobs" below
 - Optional per-print-type logos with a global default fallback
@@ -315,6 +332,38 @@ webhook - and they have no logo slot.
 - **Tic-Tac-Toe** (`/games/tictactoe`) - printable blank 3x3 boards to
   fill in by hand, 3/6/9 rounds per print.
 
+### Recipes
+
+Connects to a self-hosted [Mealie](https://mealie.io) instance (tested
+with v3.27.0). Set it up under `/settings/recipes`: base URL + an API
+token (created in Mealie under Profile -> API Tokens). The token is stored
+Fernet-encrypted (same mechanism as the system report SSH passwords) and
+never shown again; leaving the token field empty when saving keeps the
+stored one, and "Remove token" deletes it. "Test connection" checks both
+the URL and the token (via `/api/users/self` - Mealie's `/api/app/about`
+answers without authentication, so it alone can't validate a token)
+without saving anything.
+
+The module is only active when its toggle under `/settings/modules` is on
+**and** a recipe manager is selected - with the recipe manager set to
+"Off" it behaves like a disabled module (no tile, `404` on all its
+routes, no import on `/shopping`), see [Module toggles](#module-toggles).
+
+- **Search + print** (`/recipes`) - searches recipe titles/descriptions
+  (Mealie's search does not cover ingredients), shows a preview, prints
+  title, total time, ingredients and instructions.
+- **Random recipe** - optionally filtered by one or more ingredients
+  (any/all). Ingredient names must match a Mealie food exactly
+  (case-insensitive, singular or plural) - otherwise close matches are
+  suggested.
+- **Shopping list import** (on `/shopping`) - appends the unchecked items
+  of a Mealie shopping list to the current list. Append-only, and
+  read-only towards Mealie (nothing is checked off there).
+
+UI-only (no `/print/*` JSON API, see [Endpoints](#endpoints)), no logo
+slot. Fraction characters in Mealie's ingredient text (e.g. `¹/₂`) are
+printed as plain ASCII (`1/2`).
+
 ### Easy-Read (large text)
 
 A single switch under `/settings/print-rules` ("text size": Normal /
@@ -361,15 +410,20 @@ few KB, not the original photo) rather than the full upload.
 
 ### Module toggles
 
-`/settings/modules` lets each of the 7 catalog modules (lists,
-message, weather, images, wifi, system, games) be switched on or off
-individually:
+`/settings/modules` lets each of the 8 catalog modules (lists,
+message, weather, images, wifi, system, games, recipes) be switched on or
+off individually:
 
 - Disabling a module removes its tile from the home page **and** blocks
   all of its routes - web UI pages, `/ui/*` form posts, and `/print/*`
   API endpoints alike - with a 404, not just hiding the tile.
-- The home page's status strip shows how many of these 7 modules are
-  currently active.
+- A module can have an additional precondition on top of its toggle:
+  **recipes** is only active while a recipe manager is selected under
+  `/settings/recipes`. With the recipe manager set to "Off" it is
+  treated exactly like a disabled module; its checkbox here stays as
+  saved and shows a note explaining why the module is hidden.
+- The home page's status strip shows how many of these 8 modules are
+  currently active (toggle and precondition).
 - History, the Settings pages themselves, and the generic automation
   webhook are outside this toggle system and stay reachable regardless.
 - Two of the three watchers respect this: `fritzbox_wifi_watch.py` and

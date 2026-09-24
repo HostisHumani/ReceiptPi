@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block header_icon %}<span class="mark"><span class="icon icon-chef-hat" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.index.recipes.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<div class="hint">{{ t('settings.recipes.hint') }}</div>
+
+<form method="post" action="/ui/settings/recipes" class="card" id="recipes_form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="rc_provider">{{ t('settings.recipes.provider_label') }}</label>
+  <select id="rc_provider" name="provider">
+    <option value="off" {% if recipes.provider == "off" %}selected{% endif %}>{{ t('settings.recipes.provider_off') }}</option>
+    <option value="mealie" {% if recipes.provider == "mealie" %}selected{% endif %}>Mealie</option>
+  </select>
+
+  <div id="rc_mealie_fields">
+    <label for="rc_base_url">{{ t('settings.recipes.url_label') }}</label>
+    <input type="text" id="rc_base_url" name="base_url" value="{{ recipes.mealie.base_url }}" placeholder="http://192.168.1.10:9000" inputmode="url" autocapitalize="off" spellcheck="false">
+    <div class="hint">{{ t('settings.recipes.url_hint') }}</div>
+
+    <div class="field-label-row">
+      <label for="rc_token">{{ t('settings.recipes.token_label') }}</label>
+      {% if has_token %}<span class="badge badge-accent">{{ t('settings.recipes.token_saved_badge') }}</span>{% endif %}
+    </div>
+    <input type="password" id="rc_token" name="token" autocomplete="new-password" maxlength="2000"
+           placeholder="{{ t('settings.recipes.token_placeholder_saved') if has_token else t('settings.recipes.token_placeholder') }}">
+    <div class="hint">{{ t('settings.recipes.token_hint') }}</div>
+
+    <button type="button" class="btn btn-secondary btn-block" id="rc_test"
+            data-testing-text="{{ t('settings.recipes.testing') }}"
+            data-network-error-text="{{ t('recipes.error.unreachable') }}">{{ t('settings.recipes.test_button') }}</button>
+    <div class="msg inline-result" id="rc_test_result" role="status" hidden>
+      <span class="icon" aria-hidden="true"></span>
+      <span class="rc-test-text"></span>
+    </div>
+  </div>
+
+  <button type="submit">{{ t('settings.save') }}</button>
+</form>
+
+{% if has_token %}
+<form method="post" action="/ui/settings/recipes/token/delete" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="hint hint-standalone">{{ t('settings.recipes.token_delete_hint') }}</div>
+  <button type="submit" class="btn btn-danger btn-block">{{ t('settings.recipes.token_delete') }}</button>
+</form>
+{% endif %}
+
+<script>
+  (function () {
+    var form = document.getElementById('recipes_form');
+    var provider = document.getElementById('rc_provider');
+    var fields = document.getElementById('rc_mealie_fields');
+    var testBtn = document.getElementById('rc_test');
+    var result = document.getElementById('rc_test_result');
+    if (!form || !provider || !fields || !testBtn || !result) return;
+
+    function syncFields() {
+      fields.hidden = provider.value !== 'mealie';
+    }
+    provider.addEventListener('change', syncFields);
+    syncFields();
+
+    function showResult(ok, text) {
+      result.hidden = false;
+      result.className = 'msg inline-result ' + (ok ? 'ok' : 'err');
+      result.querySelector('.icon').className = 'icon ' + (ok ? 'icon-circle-check' : 'icon-circle-alert');
+      result.querySelector('.rc-test-text').textContent = text;
+    }
+
+    // Posts the CURRENT form values (incl. an unsaved token) - nothing
+    // is saved by this, see ui_test_recipes_connection().
+    testBtn.addEventListener('click', function () {
+      var label = testBtn.textContent;
+      testBtn.disabled = true;
+      testBtn.textContent = testBtn.dataset.testingText;
+      fetch('/ui/settings/recipes/test', { method: 'POST', body: new FormData(form) })
+        .then(function (res) { return res.json(); })
+        .then(function (data) { showResult(!!data.ok, data.message || ''); })
+        .catch(function () { showResult(false, testBtn.dataset.networkErrorText); })
+        .finally(function () {
+          testBtn.disabled = false;
+          testBtn.textContent = label;
+        });
+    });
+  })();
+</script>
+{% endblock %}

@@ -28,6 +28,34 @@ MODULES = [
     {"key": "wifi", "icon": "wifi", "url": "/wifi"},
     {"key": "system", "icon": "server", "url": "/system"},
     {"key": "games", "icon": "gamepad-2", "url": "/games"},
+    {"key": "recipes", "icon": "chef-hat", "url": "/recipes"},
 ]
 
 MODULE_KEYS = {m["key"] for m in MODULES}
+
+
+def active_modules(settings):
+    """Effective on/off state per module key: the user's
+    enabled_modules toggle AND any module-specific precondition. Used
+    for everything that hides/blocks a module - app.py's before_request
+    404 hook, the home page tiles and module count, and UI bits of
+    other modules that link into it (the Mealie import on /shopping) -
+    so they can never disagree with each other.
+
+    Why a separate precondition and not just the toggle: "recipes" has
+    a second switch of its own - the provider dropdown on
+    /settings/recipes ("off"/"mealie"). With the provider "off" there's
+    nothing the module could do, so it must behave exactly like a
+    disabled module (no tile, 404 on its routes) instead of showing a
+    tile that leads to a "not configured" page.
+
+    The raw enabled_modules dict stays the source for the checkboxes on
+    /settings/modules - showing the effective state there would make
+    saving that page silently write recipes=False while the provider
+    is off, so switching the provider back on later wouldn't bring the
+    module back."""
+    enabled = settings.get("enabled_modules", {})
+    active = {m["key"]: bool(enabled.get(m["key"], True)) for m in MODULES}
+    if settings.get("recipes", {}).get("provider", "off") == "off":
+        active["recipes"] = False
+    return active

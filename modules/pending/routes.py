@@ -29,6 +29,7 @@ from modules.history.routes import JOB_TYPE_LABELS
 from modules.images.routes import _raw_print_image
 from modules.lists.routes import _raw_print_list, _raw_print_task
 from modules.message.routes import _raw_print_message
+from modules.recipes.routes import _raw_print_recipe
 from modules.system.routes import _raw_print_system_report
 from modules.weather.routes import _raw_print_weather
 from modules.wifi.routes import _raw_print_wifi
@@ -106,6 +107,17 @@ def _replay_images(entry):
     )
 
 
+def _replay_recipe(entry):
+    # The payload is the full printable recipe (see
+    # mealie.recipe_to_printable()) - replaying never needs Mealie to
+    # be reachable, and prints the recipe as it was when first sent.
+    return enqueue_print(
+        _raw_print_recipe, entry["payload"],
+        job_type="recipes", summary=entry["summary"], source="pending",
+        bypass_quiet_hours=True, bypass_duplicate=True,
+    )
+
+
 # job_type -> replay handler. Deliberately explicit/closed rather than
 # a fallback default - a job_type with no entry here simply can't be
 # replayed (shouldn't happen in practice, since only the job types
@@ -122,6 +134,7 @@ REPLAY_HANDLERS = {
     "weather": _replay_weather,
     "system": _replay_system,
     "images": _replay_images,
+    "recipes": _replay_recipe,
 }
 
 

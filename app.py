@@ -12,7 +12,7 @@ Modular structure:
                        Flask-Babel/gettext toolchain)
   - modules/            one Flask blueprint per printing feature
                        (shopping, message, images, wifi, weather, system,
-                       settings)
+                       settings, recipes, ...)
   - watchers/            standalone cron scripts that watch something and
                        send a print job to this server when needed (do
                        NOT run inside this process)
@@ -47,6 +47,7 @@ from modules.images.routes import images_bp
 from modules.lists.routes import lists_bp
 from modules.message.routes import message_bp
 from modules.pending.routes import pending_bp
+from modules.recipes.routes import recipes_bp
 from modules.settings.routes import settings_bp
 from modules.system.routes import system_bp
 from modules.weather.routes import weather_bp
@@ -106,7 +107,10 @@ start_worker()  # start the print queue worker thread
 i18n.load_translations()  # load translation JSON files once at startup
 ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see logos.py
 
-for blueprint in (lists_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp, history_bp, pending_bp, games_bp):
+for blueprint in (
+    lists_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp,
+    history_bp, pending_bp, games_bp, recipes_bp,
+):
     app.register_blueprint(blueprint)
 
 
@@ -117,12 +121,14 @@ def _enforce_enabled_modules():
     page tile. request.blueprint is None for routes not in any
     blueprint (e.g. /, /health), so those are always left alone. See
     module_catalog.py for why the blueprint name and the module key
-    are guaranteed to match."""
+    are guaranteed to match. "Disabled" means the EFFECTIVE state from
+    module_catalog.active_modules() (toggle + module-specific
+    precondition, e.g. recipes needs a provider selected), not just the
+    raw enabled_modules toggle."""
     bp = request.blueprint
     if bp not in module_catalog.MODULE_KEYS:
         return
-    enabled = settings_store.get_settings().get("enabled_modules", {})
-    if not enabled.get(bp, True):
+    if not module_catalog.active_modules(settings_store.get_settings()).get(bp, True):
         abort(404)
 
 
@@ -150,7 +156,11 @@ def inject_i18n():
         "supported_themes": themes.SUPPORTED_THEMES,
         "current_text_scale": text_scale,
         "all_modules": module_catalog.MODULES,
+        # Raw toggles - only for the checkboxes on /settings/modules.
+        # Everything that shows/hides a module uses active_modules
+        # instead, see module_catalog.active_modules().
         "enabled_modules": settings.get("enabled_modules", {}),
+        "active_modules": module_catalog.active_modules(settings),
         "current_version": version.format_display(version.CURRENT_VERSION),
         "update_available": bool(update_cache.get("update_available")) and bool(latest_version),
         "latest_version": version.format_display(latest_version) if latest_version else None,
@@ -195,8 +205,8 @@ def health():
 
 @app.route("/", methods=["GET"])
 def index():
-    enabled = settings_store.get_settings().get("enabled_modules", {})
-    active_count = sum(1 for m in module_catalog.MODULES if enabled.get(m["key"], True))
+    active = module_catalog.active_modules(settings_store.get_settings())
+    active_count = sum(1 for m in module_catalog.MODULES if active[m["key"]])
     total_prints = history_store.get_stats()["total"]
     return render_template(
         "home.html",

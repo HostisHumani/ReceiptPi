@@ -72,14 +72,14 @@ receiptpi/
 ├── print_queue.py         zentrale Druck-Queue + Druckregeln-Prüfung
 ├── printer.py             Drucker-Hardware-Zugriff (USB)
 ├── security.py            CSRF-Schutz, API-Token-Schutz, JSON-Parsing
-├── secrets_crypto.py      Fernet-Verschlüsselung für System-Report-SSH-Passwörter (Schlüssel in STATE_DIR, nicht im Git)
+├── secrets_crypto.py      Fernet-Verschlüsselung für System-Report-SSH-Passwörter und den API-Token des Rezeptmanagers (Schlüssel in STATE_DIR, nicht im Git)
 ├── settings_store.py      zentrale Settings (JSON in STATE_DIR, nicht im Projektordner)
 ├── history_store.py       SQLite-Druckhistorie (STATE_DIR), Auto-Pruning nach 180 Tagen
 ├── lists_store.py          angefangene Listen-/Task-Karten-Entwürfe (STATE_DIR), gelöscht nach Druck
 ├── pending_store.py        blockierte/fehlgeschlagene Druckaufträge (STATE_DIR, 0600), siehe "Ausstehende Aufträge" unten
 ├── logos.py                Logo-Auflösung je Druckart, Upload-Validierung, Seeding
 ├── i18n.py                 minimales Übersetzungs-Lookup (JSON-Dateien, kein Flask-Babel)
-├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL)
+├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL) + deren tatsächlicher Aktiv-Zustand
 ├── text_style.py           Easy-Read-Textgrößen-Skalierung, gemeinsam für Druck und Web-UI
 ├── themes.py                Registry der wählbaren Web-UI-Farbschemata
 ├── version.py               liest VERSION, minimaler Vergleich für ReceiptPis eigenes Versionsschema
@@ -93,6 +93,7 @@ receiptpi/
 │   ├── weather/                Wetterbericht (DWD + Netatmo)
 │   ├── system/                 Systembericht (Proxmox/PBS via SSH, plus eigene SSH-Befehle für andere Hosts)
 │   ├── games/                  Offline-Spiele (Sudoku, Würfelblock, Tic-Tac-Toe)
+│   ├── recipes/                Rezeptsuche/-druck + Einkaufslisten-Import (Mealie)
 │   ├── automation/            generischer Automation-Webhook
 │   ├── history/                Druckhistorie-Dashboard
 │   ├── pending/                 Ausstehende Druckaufträge ansehen/nachdrucken/verwerfen
@@ -107,6 +108,7 @@ receiptpi/
 ├── static/
 │   ├── style.css             Design-System (Spacing/Farben/Themes, Card-/Tile-/Icon-Stile)
 │   ├── draft-autosave.js      generisches Auto-Save für die Listen-/Task-Karten-Formulare
+│   ├── mealie-import.js       Import einer Mealie-Einkaufsliste auf der Einkaufszettel-Seite
 │   └── icons/                 lokaler Lucide-SVG-Iconsatz (siehe LICENSE in diesem Ordner)
 └── templates/                gemeinsames Layout und Modul-Seiten
     ├── base.html
@@ -120,6 +122,7 @@ receiptpi/
     ├── system.html
     ├── history.html
     ├── games_*.html            Spiele-Übersicht + eine Seite je Spiel
+    ├── recipes*.html           Rezeptsuche/Zufallsrezept + Rezept-Vorschau
     └── settings_*.html        Settings-Übersicht + eine Unterseite je Bereich
 ```
 
@@ -175,6 +178,7 @@ Unterseite pro Bereich verlinkt – statt eines langen Formulars:
 - `/settings/weather` – Wetterbericht-Anbieter (DWD oder Open-Meteo), Wetter-Standorte, sowie ein unabhängiger Unwetterwarnungs-Anbieter (DWD, MeteoAlarm oder NWS) mit eigenem Aktiv-Schalter und optionalem "Ruhezeiten ignorieren"
 - `/settings/github-watch` – beobachtete GitHub-Repos
 - `/settings/system-report` – eine frei erweiterbare Liste von SSH-Zielen für den Systembericht, siehe [Systembericht](#systembericht) unten
+- `/settings/recipes` – Rezeptmanager (Aus / Mealie), Mealie-Base-URL, verschlüsselter API-Token, Verbindungstest, siehe [Rezepte](#rezepte) unten
 
 ## Endpunkte
 
@@ -207,6 +211,19 @@ Ein blockierter Auftrag antwortet mit `429`.
 - `GET|POST /settings/logos/config` – globale/pro Modul Logo-Schalter
 - `POST /settings/logos/upload/<slot>`, `DELETE /settings/logos/upload/<slot>` – Logo-Bild hochladen/löschen (base64), `slot` ist `default` oder ein Modul-Key
 
+**Rezepte (Web-UI-Routen)**
+
+Das Rezepte-Modul hat keine `/print/*`-JSON-API und keine Settings-API –
+seine Routen bedienen die Web-UI und brauchen kein `X-Api-Token`. Alle
+antworten mit `404`, solange das Modul inaktiv ist (siehe
+[Modul-Schalter](#modul-schalter)).
+- `GET /recipes?q=<Begriff>` – Suchseite mit Treffern
+- `GET /recipes/view/<slug>` – Rezept-Vorschau
+- `GET /recipes/random?ingredients=<a,b>&match=all` – Zufallsrezept; `ingredients` optional (max. 5), `match=all` verlangt alle statt irgendeiner Zutat
+- `POST /ui/recipes/print` – Formular-Post (CSRF-geschützt), Feld `slug`
+- `GET /recipes/import/lists` – Mealie-Einkaufslisten als JSON (für den Import auf `/shopping`)
+- `GET /recipes/import/lists/<id>` – nicht abgehakte Einträge einer Liste als JSON, fertig formatiert als Einkaufszettel-Zeilen
+
 ## Nach der Installation
 
 ```bash
@@ -237,6 +254,7 @@ bestehende Crontab übernehmen (`crontab -e`).
 - Wetterberichte (DWD oder Open-Meteo wählbar, + optional Netatmo), mit optionalem Unwetterwarnungs-Watcher (DWD, MeteoAlarm oder NWS, druckt nur bei tatsächlich aktiver Warnung)
 - Systemberichte: Proxmox/PBS via SSH, plus eine Eigener-Befehl-Rolle für jeden anderen Host (z. B. ein NAS), mit optionalem verschlüsseltem Passwort-Login, siehe [Systembericht](#systembericht) unten
 - Offline-Spiele (Sudoku, Würfelblock, Tic-Tac-Toe), siehe [Spiele](#spiele) unten
+- Rezepte aus [Mealie](https://mealie.io): Rezepte suchen, ansehen und drucken, Zufallsrezept nach Zutat, Mealie-Einkaufsliste in den Einkaufszettel importieren, siehe [Rezepte](#rezepte) unten
 - Druckhistorie-Dashboard (Statistik + paginierte Liste, SQLite-basiert)
 - Ausstehende Aufträge: durch Ruhezeiten/Rate-Limit blockierte oder durch echten Druckerfehler fehlgeschlagene Aufträge ansehen, nachdrucken oder verwerfen, siehe "Ausstehende Aufträge" unten
 - Optionale Logos je Druckart mit globalem Standard-Fallback
@@ -323,6 +341,42 @@ Logo-Slot.
 - **Tic-Tac-Toe** (`/games/tictactoe`) – leere 3x3-Spielfelder zum
   handschriftlichen Ausfüllen, 3/6/9 Runden pro Druck.
 
+
+### Rezepte
+
+Verbindet ReceiptPi mit einer selbst gehosteten
+[Mealie](https://mealie.io)-Instanz (getestet mit v3.27.0). Einrichtung
+unter `/settings/recipes`: Base-URL + API-Token (in Mealie unter Profil →
+API-Tokens erzeugen). Der Token wird Fernet-verschlüsselt gespeichert
+(gleiches Verfahren wie die SSH-Passwörter des Systemberichts) und nie
+wieder angezeigt; bleibt das Token-Feld beim Speichern leer, bleibt der
+gespeicherte erhalten, "Token entfernen" löscht ihn. "Verbindung testen"
+prüft URL und Token (über `/api/users/self` – Mealies `/api/app/about`
+antwortet ohne Anmeldung und kann einen Token allein nicht prüfen), ohne
+etwas zu speichern.
+
+Das Modul ist nur aktiv, wenn sein Schalter unter `/settings/modules` an
+**und** ein Rezeptmanager gewählt ist – steht der Rezeptmanager auf
+"Aus", verhält es sich wie ein deaktiviertes Modul (keine Kachel, `404`
+auf allen Routen, kein Import auf `/shopping`), siehe
+[Modul-Schalter](#modul-schalter).
+
+- **Suchen + drucken** (`/recipes`) – durchsucht Rezepttitel und
+  -beschreibung (Mealies Suche umfasst keine Zutaten), zeigt eine
+  Vorschau, druckt Titel, Gesamtzeit, Zutaten und Zubereitung.
+- **Zufallsrezept** – optional gefiltert nach einer oder mehreren Zutaten
+  (eine/alle). Zutatennamen müssen exakt einem Mealie-Lebensmittel
+  entsprechen (Groß-/Kleinschreibung egal, Singular oder Plural) –
+  sonst werden ähnliche Namen vorgeschlagen.
+- **Einkaufslisten-Import** (auf `/shopping`) – hängt die nicht
+  abgehakten Einträge einer Mealie-Einkaufsliste an den aktuellen Zettel
+  an. Nur anhängen, und gegenüber Mealie nur lesend (dort wird nichts
+  abgehakt).
+
+Nur Web-UI (keine `/print/*`-JSON-API, siehe [Endpunkte](#endpunkte)),
+kein Logo-Slot. Bruch-Zeichen in Mealies Zutatentext (z. B. `¹/₂`)
+werden als einfaches ASCII (`1/2`) gedruckt.
+
 ### Easy-Read (große Schrift)
 
 Ein einzelner Schalter unter `/settings/print-rules` ("Textgröße":
@@ -371,15 +425,21 @@ druckfertige Version gespeichert (wenige KB, nicht das Original-Foto).
 
 ### Modul-Schalter
 
-Unter `/settings/modules` lässt sich jedes der 7 Katalog-Module
-(Listen, Nachricht, Wetter, Bild, Gäste-WLAN, System, Spiele) einzeln
-ein- oder ausschalten:
+Unter `/settings/modules` lässt sich jedes der 8 Katalog-Module
+(Listen, Nachricht, Wetter, Bild, Gäste-WLAN, System, Spiele, Rezepte)
+einzeln ein- oder ausschalten:
 
 - Ein deaktiviertes Modul verschwindet nicht nur von der Startseite,
   sondern **alle** seine Routen – Web-UI-Seiten, `/ui/*`-Formular-Posts
   und `/print/*`-API-Endpunkte gleichermaßen – antworten mit 404.
-- Der Status-Streifen der Startseite zeigt an, wie viele dieser 7 Module
-  aktuell aktiv sind.
+- Ein Modul kann zusätzlich zu seinem Schalter eine Voraussetzung haben:
+  **Rezepte** ist nur aktiv, solange unter `/settings/recipes` ein
+  Rezeptmanager gewählt ist. Steht der Rezeptmanager auf "Aus", wird es
+  genau wie ein deaktiviertes Modul behandelt; seine Checkbox hier
+  bleibt wie gespeichert und zeigt einen Hinweis, warum das Modul
+  ausgeblendet ist.
+- Der Status-Streifen der Startseite zeigt an, wie viele dieser 8 Module
+  aktuell aktiv sind (Schalter und Voraussetzung).
 - Verlauf, die Settings-Seiten selbst und der generische
   Automation-Webhook liegen außerhalb dieses Schalter-Systems und
   bleiben immer erreichbar.

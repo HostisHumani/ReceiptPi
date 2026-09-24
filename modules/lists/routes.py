@@ -18,6 +18,7 @@ from flask import Blueprint, jsonify, render_template, request
 import i18n
 import lists_store
 from logos import print_logo
+from modules.recipes import mealie
 from print_queue import enqueue_print
 from printer import get_printer
 from security import (
@@ -277,6 +278,7 @@ def shopping_page():
         draft_title=draft.get("title", default_title),
         draft_items=draft.get("items", ""),
         draft_loaded_at=lists_store.now(),
+        mealie_import_available=mealie.is_configured(),
     )
 
 
@@ -324,6 +326,7 @@ def ui_print_list():
         # executes), so typing again on this same re-rendered page
         # autosaves normally instead of being rejected as stale.
         draft_loaded_at=lists_store.now(),
+        mealie_import_available=mealie.is_configured(),
     )
 
 

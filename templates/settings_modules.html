@@ -13,6 +13,11 @@
            {% if enabled_modules.get(m.key, True) %}checked{% endif %}>
     <span class="icon icon-{{ m.icon }}" aria-hidden="true"></span> {{ t('tile.' ~ m.key ~ '.name') }}
   </label>
+  {% if enabled_modules.get(m.key, True) and not active_modules.get(m.key, True) %}
+  {# Toggle is on, but a module-specific precondition isn't met (see
+     module_catalog.active_modules) - say why it's still hidden. #}
+  <div class="hint">{{ t('settings.modules.inactive_hint.' ~ m.key) }}</div>
+  {% endif %}
   {% endfor %}
   <div class="hint">{{ t('settings.modules.hint') }}</div>
 

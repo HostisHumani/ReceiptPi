@@ -761,6 +761,23 @@ nav .icon-btn .icon { width: 18px; height: 18px; }
 .list-row-meta { font-size: 0.8em; color: var(--text-dim); margin-top: 2px; }
 .list-row-timestamp { flex-shrink: 0; }
 .list-row-actions { display: flex; gap: var(--space-2); flex-shrink: 0; align-items: center; }
+/* A whole .list-row as a link (recipe search results) - keeps the row
+   looking like the non-link rows elsewhere instead of browser-default
+   underlined link text. */
+a.list-row { text-decoration: none; color: inherit; }
+a.list-row .list-row-actions { color: var(--text-dim); }
+
+/* Recipe preview (templates/recipes_detail.html) - a readable version
+   of what gets printed, so list markers/spacing matter here. */
+.recipe-ingredients, .recipe-steps { margin: 0; padding-left: 1.3em; line-height: 1.5; }
+.recipe-steps li + li { margin-top: var(--space-2); }
+.recipe-steps li { white-space: pre-line; }
+/* Inline result boxes (connection test on /settings/recipes, Mealie
+   import on /shopping) sit INSIDE a card right under a button - .msg
+   alone only has bottom margin since it normally sits above content
+   at the top of a page. */
+.card .msg.inline-result { margin: var(--space-3) 0 0; }
+#mealie_list_picker, #rc_mealie_fields { margin-top: var(--space-4); }
 
 .inline-form { margin: 0; }
 
@@ -809,7 +826,7 @@ label {
 }
 label:first-of-type { margin-top: 0; }
 
-input[type="text"], input[type="number"], input[type="time"], input[type="date"], input[type="file"], textarea, select {
+input[type="text"], input[type="password"], input[type="number"], input[type="time"], input[type="date"], input[type="file"], textarea, select {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -1095,6 +1112,9 @@ footer a { color: var(--accent); text-decoration: none; }
 .icon-wifi { -webkit-mask-image: url("/static/icons/wifi.svg"); mask-image: url("/static/icons/wifi.svg"); }
 .icon-server { -webkit-mask-image: url("/static/icons/server.svg"); mask-image: url("/static/icons/server.svg"); }
 .icon-gamepad-2 { -webkit-mask-image: url("/static/icons/gamepad-2.svg"); mask-image: url("/static/icons/gamepad-2.svg"); }
+.icon-chef-hat { -webkit-mask-image: url("/static/icons/chef-hat.svg"); mask-image: url("/static/icons/chef-hat.svg"); }
+.icon-search { -webkit-mask-image: url("/static/icons/search.svg"); mask-image: url("/static/icons/search.svg"); }
+.icon-shuffle { -webkit-mask-image: url("/static/icons/shuffle.svg"); mask-image: url("/static/icons/shuffle.svg"); }
 .icon-grid-3x3 { -webkit-mask-image: url("/static/icons/grid-3x3.svg"); mask-image: url("/static/icons/grid-3x3.svg"); }
 .icon-dice-5 { -webkit-mask-image: url("/static/icons/dice-5.svg"); mask-image: url("/static/icons/dice-5.svg"); }
 .icon-hash { -webkit-mask-image: url("/static/icons/hash.svg"); mask-image: url("/static/icons/hash.svg"); }

@@ -26,6 +26,7 @@ import module_catalog
 import secrets_crypto
 import settings_store
 import themes
+from modules.recipes import mealie
 from security import (
     MAX_ITEM_LEN,
     MAX_TEXT_LEN,
@@ -286,6 +287,19 @@ def _render_github_watch(message=None, success=None):
     )
 
 
+def _render_recipes(message=None, success=None):
+    settings = settings_store.get_settings()
+    return render_template(
+        "settings_recipes.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+        recipes=settings["recipes"],
+        # Only a yes/no for the template - neither the token nor its
+        # ciphertext is ever handed to the page.
+        has_token=bool(settings["recipes"]["mealie"].get("token_encrypted")),
+    )
+
+
 def _render_logos(message=None, success=None):
     return render_template(
         "settings_logos.html",
@@ -344,6 +358,11 @@ def settings_system_report_page():
 @settings_bp.route("/settings/github-watch", methods=["GET"])
 def settings_github_watch_page():
     return _render_github_watch()
+
+
+@settings_bp.route("/settings/recipes", methods=["GET"])
+def settings_recipes_page():
+    return _render_recipes()
 
 
 @settings_bp.route("/settings/logos", methods=["GET"])
@@ -660,6 +679,85 @@ def ui_delete_system_report_host():
     else:
         message, success = i18n.tr("settings.system_report.not_found"), False
     return _render_system_report(message, success)
+
+
+RECIPE_PROVIDERS = ("off", "mealie")
+
+
+@settings_bp.route("/ui/settings/recipes", methods=["POST"])
+@csrf_protect
+def ui_save_recipes():
+    """Saves provider + Mealie URL/token. An empty token field means
+    "keep the stored token" - the page never shows the token again
+    (only a "saved" badge), so re-submitting the form to change just
+    the URL must not wipe it. Switching the provider to "off" keeps
+    the stored URL/token, so switching back doesn't mean re-entering
+    them; "remove token" is its own explicit action below."""
+    provider = request.form.get("provider", "off")
+    if provider not in RECIPE_PROVIDERS:
+        return _render_recipes(i18n.tr("settings.recipes.provider_invalid"), False)
+
+    raw_url = request.form.get("base_url", "").strip()
+    base_url = mealie.normalize_base_url(raw_url) if raw_url else ""
+    if base_url is None:
+        return _render_recipes(i18n.tr("settings.recipes.url_invalid"), False)
+    token = request.form.get("token", "").strip()[:MAX_TEXT_LEN]
+
+    has_stored_token = bool(settings_store.get_settings()["recipes"]["mealie"].get("token_encrypted"))
+    if provider == "mealie" and (not base_url or not (token or has_stored_token)):
+        return _render_recipes(i18n.tr("settings.recipes.missing_fields"), False)
+
+    # Encrypted before the transaction, same as the system report host
+    # passwords - the plaintext never gets near what's written to disk.
+    token_encrypted = secrets_crypto.encrypt_password(token) if token else None
+
+    def _mutate(settings):
+        section = settings["recipes"]
+        section["provider"] = provider
+        section["mealie"]["base_url"] = base_url
+        if token_encrypted:
+            section["mealie"]["token_encrypted"] = token_encrypted
+
+    settings_store.update_settings_transaction(_mutate)
+    return _render_recipes(i18n.tr("settings.recipes.saved"), True)
+
+
+@settings_bp.route("/ui/settings/recipes/test", methods=["POST"])
+@csrf_protect
+def ui_test_recipes_connection():
+    """Called via fetch() from the settings page, so the typed-in
+    (unsaved) token stays in its field instead of being lost to a page
+    reload. Tests exactly what's in the form; an empty token field
+    falls back to the stored one (the normal case when just re-testing
+    an existing setup). Never saves anything."""
+    base_url = mealie.normalize_base_url(request.form.get("base_url", ""))
+    if base_url is None:
+        return jsonify({"ok": False, "message": i18n.tr("settings.recipes.url_invalid")}), 200
+    token = request.form.get("token", "").strip()[:MAX_TEXT_LEN]
+    if not token:
+        token = secrets_crypto.decrypt_password(
+            settings_store.get_settings()["recipes"]["mealie"].get("token_encrypted")
+        ) or ""
+    if not token:
+        return jsonify({"ok": False, "message": i18n.tr("settings.recipes.token_missing")}), 200
+    try:
+        info = mealie.check_connection(base_url, token)
+    except mealie.MealieError as e:
+        return jsonify({"ok": False, "message": i18n.tr(f"recipes.error.{e.kind}")}), 200
+    return jsonify({
+        "ok": True,
+        "message": i18n.tr("settings.recipes.test_ok", version=info["version"], user=info["user"]),
+    }), 200
+
+
+@settings_bp.route("/ui/settings/recipes/token/delete", methods=["POST"])
+@csrf_protect
+def ui_delete_recipes_token():
+    def _mutate(settings):
+        settings["recipes"]["mealie"]["token_encrypted"] = ""
+
+    settings_store.update_settings_transaction(_mutate)
+    return _render_recipes(i18n.tr("settings.recipes.token_deleted"), True)
 
 
 @settings_bp.route("/ui/settings/github_watch/add", methods=["POST"])
