@@ -1,0 +1,33 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Montag 06:00 UTC, damit es nicht mit anderen wöchentlichen Jobs kollidiert.
+    - cron: '0 6 * * 1'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # javascript-typescript deckt static/*.js (Service Worker, Mealie-Import,
+        # Draft-Autosave) und die Inline-<script>-Blöcke in templates/ ab.
+        language: [ "python", "javascript-typescript" ]
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
