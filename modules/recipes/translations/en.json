@@ -21,6 +21,7 @@
   "settings.recipes.testing": "Testing …",
   "settings.recipes.test_ok": "Connection OK: Mealie {version}, signed in as {user}",
   "settings.recipes.token_missing": "No API token entered and none saved.",
+  "settings.recipes.token_required_new_url": "The address has changed - please enter the API token again. The saved token is only ever sent to the saved address.",
   "settings.recipes.url_invalid": "Invalid address - please include http:// or https://.",
   "settings.recipes.provider_invalid": "Unknown recipe manager.",
   "settings.recipes.missing_fields": "Mealie needs both an address and an API token.",

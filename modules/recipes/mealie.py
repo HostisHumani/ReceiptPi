@@ -68,6 +68,44 @@ def normalize_base_url(raw):
     return url
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _url_key(url):
+    """Comparison key for "same address": scheme and host are
+    case-insensitive per RFC 3986 (urlsplit's .hostname is already
+    lowercased), an explicit default port equals no port, everything else
+    (path, query, userinfo) must match exactly. Raises ValueError for an
+    unparseable port (e.g. ":abc", ":99999")."""
+    parsed = urllib.parse.urlsplit(url)
+    scheme = parsed.scheme.lower()
+    port = parsed.port or _DEFAULT_PORTS.get(scheme)
+    return (scheme, parsed.hostname, port, parsed.username, parsed.password,
+            parsed.path, parsed.query)
+
+
+def same_base_url(a, b):
+    """Whether two base URLs point at the same Mealie address - the gate
+    for reusing the stored token (see settings routes). Trailing slashes
+    are ignored via normalize_base_url(). Anything unparseable counts as
+    different, so the caller falls back to demanding a freshly entered
+    token rather than sending the stored one somewhere unexpected."""
+    a, b = normalize_base_url(a), normalize_base_url(b)
+    if not a or not b:
+        return False
+    try:
+        return _url_key(a) == _url_key(b)
+    except ValueError:
+        return False
+
+
+def _same_origin(a, b):
+    try:
+        return _url_key(a)[:3] == _url_key(b)[:3]
+    except ValueError:
+        return False
+
+
 def _settings():
     return settings_store.get_settings().get("recipes", {})
 
@@ -101,6 +139,27 @@ def get_config():
 # HTTP
 # ---------------------------------------------------------------
 
+class _NoAuthOnCrossOriginRedirect(urllib.request.HTTPRedirectHandler):
+    """urllib's default redirect handling copies every header except
+    Content-Length/Content-Type onto the redirected request - the
+    Authorization header included, whatever host the redirect points to.
+    A Mealie (or anything posing as one) answering with a redirect to a
+    different scheme/host/port would thus get the token forwarded there.
+    Strip it for those; a same-origin redirect keeps it, so a Mealie
+    behind a path-rewriting reverse proxy still works."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new_req = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new_req is not None and not _same_origin(req.full_url, new_req.full_url):
+            new_req.remove_header("Authorization")
+        return new_req
+
+
+# build_opener() swaps its default HTTPRedirectHandler for this subclass;
+# everything else (proxy env vars, HTTPS handling) stays as urlopen() had it.
+_OPENER = urllib.request.build_opener(_NoAuthOnCrossOriginRedirect)
+
+
 def _get(base_url, token, path, params=None):
     url = base_url + path
     if params:
@@ -113,7 +172,7 @@ def _get(base_url, token, path, params=None):
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
+        with _OPENER.open(req, timeout=TIMEOUT_SECONDS) as resp:
             body = resp.read()
     except urllib.error.HTTPError as e:
         # HTTPError must be caught before URLError (it's a subclass).

@@ -361,7 +361,9 @@ with v3.27.0). Set it up under `/settings/recipes`: base URL + an API
 token (created in Mealie under Profile -> API Tokens). The token is stored
 Fernet-encrypted (same mechanism as the system report SSH passwords) and
 never shown again; leaving the token field empty when saving keeps the
-stored one, and "Remove token" deletes it. "Test connection" checks both
+stored one (only while the base URL stays the same - a changed URL needs
+the token entered again, so the stored token is never sent to a new
+address), and "Remove token" deletes it. "Test connection" checks both
 the URL and the token (via `/api/users/self` - Mealie's `/api/app/about`
 answers without authentication, so it alone can't validate a token)
 without saving anything.

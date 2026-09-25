@@ -20,12 +20,15 @@ Deliberately capped to LOGO_MAX_WIDTH px - meant as a small, unobtrusive
 header mark, not a dominant visual element eating up receipt paper.
 """
 import io
+import logging
 import os
 import shutil
 
 from PIL import Image, ImageOps
 
 import settings_store
+
+logger = logging.getLogger(__name__)
 
 LOGOS_DIR = os.path.join(settings_store.STATE_DIR, "logos")
 
@@ -55,13 +58,28 @@ MAX_UPLOAD_DIMENSION = 4000
 # logo on top of it would look odd.
 MODULE_KEYS = ("shopping", "message", "wifi", "weather", "system", "automation")
 
+# The one place a logo file path is derived from a slot name - everything
+# below and the settings routes look it up here. A fixed mapping instead of
+# os.path.join(LOGOS_DIR, f"{slot}.png") means a slot string from a request
+# can only ever select one of these paths, never shape one (e.g. "../x"),
+# regardless of whether the caller validated it first. Callers still do,
+# for their own error messages/status codes.
+_SLOT_PATHS = {key: os.path.join(LOGOS_DIR, f"{key}.png") for key in (*MODULE_KEYS, "default")}
+
+
+def slot_path(slot):
+    """Path of the logo file for slot (one of MODULE_KEYS or "default"),
+    or None for anything else."""
+    return _SLOT_PATHS.get(slot)
+
 
 def has_custom_logo(module_key):
-    return os.path.isfile(os.path.join(LOGOS_DIR, f"{module_key}.png"))
+    path = slot_path(module_key)
+    return path is not None and os.path.isfile(path)
 
 
 def has_default_logo():
-    return os.path.isfile(os.path.join(LOGOS_DIR, "default.png"))
+    return os.path.isfile(slot_path("default"))
 
 
 def ensure_default_logo_seeded():
@@ -93,7 +111,7 @@ def ensure_default_logo_seeded():
         if os.path.isfile(marker):
             return
         os.makedirs(LOGOS_DIR, exist_ok=True)
-        default_path = os.path.join(LOGOS_DIR, "default.png")
+        default_path = slot_path("default")
         if os.path.isfile(default_path):
             # Already has one - either a previous successful seed or
             # the user's own upload. Nothing to do, but remember so we
@@ -119,6 +137,12 @@ def save_logo(slot, file_bytes):
     so print_logo() only ever has to deal with one file type. Returns
     (ok, detail) - detail is an error message on failure, empty on
     success."""
+    path = slot_path(slot)
+    if path is None:
+        # Unreachable through today's callers (all validate the slot
+        # first) - a new caller that doesn't is a bug, so fail loudly
+        # instead of adding a user-facing message for it.
+        raise ValueError(f"unknown logo slot: {slot!r}")
     if len(file_bytes) > MAX_UPLOAD_BYTES:
         return False, f"Logo file too large ({len(file_bytes)} bytes, maximum {MAX_UPLOAD_BYTES} bytes)"
 
@@ -129,11 +153,15 @@ def save_logo(slot, file_bytes):
         if img.width > MAX_UPLOAD_DIMENSION or img.height > MAX_UPLOAD_DIMENSION:
             return False, f"Logo too large ({img.width}x{img.height}), maximum {MAX_UPLOAD_DIMENSION}px per side"
         img = img.convert("RGBA") if img.mode in ("RGBA", "LA", "P") else img.convert("RGB")
-    except Exception as e:
-        return False, f"Could not process logo image: {e}"
+    except Exception:
+        # Full exception only to the server log (journalctl): Pillow's
+        # messages carry internals like object reprs/memory addresses that
+        # don't belong in an API response - the caller gets a fixed text.
+        logger.exception("Could not process uploaded logo image for slot %s", slot)
+        return False, "Could not process logo image"
 
     os.makedirs(LOGOS_DIR, exist_ok=True)
-    img.save(os.path.join(LOGOS_DIR, f"{slot}.png"), format="PNG")
+    img.save(path, format="PNG")
     return True, ""
 
 
@@ -141,7 +169,10 @@ def delete_logo(slot):
     """Removes a stored logo (custom or default). Returns True if a
     file was actually there and got removed, False if there was
     nothing to delete."""
-    path = os.path.join(LOGOS_DIR, f"{slot}.png")
+    path = slot_path(slot)
+    if path is None:
+        # Same reasoning as in save_logo().
+        raise ValueError(f"unknown logo slot: {slot!r}")
     if os.path.isfile(path):
         os.remove(path)
         return True
@@ -149,10 +180,10 @@ def delete_logo(slot):
 
 
 def _resolve_logo_path(module_key):
-    custom = os.path.join(LOGOS_DIR, f"{module_key}.png")
-    if os.path.isfile(custom):
+    custom = slot_path(module_key)
+    if custom is not None and os.path.isfile(custom):
         return custom
-    default = os.path.join(LOGOS_DIR, "default.png")
+    default = slot_path("default")
     if os.path.isfile(default):
         return default
     return None

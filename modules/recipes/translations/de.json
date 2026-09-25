@@ -21,6 +21,7 @@
   "settings.recipes.testing": "Teste …",
   "settings.recipes.test_ok": "Verbindung OK: Mealie {version}, angemeldet als {user}",
   "settings.recipes.token_missing": "Kein API-Token eingegeben und keiner gespeichert.",
+  "settings.recipes.token_required_new_url": "Die Adresse wurde geändert - bitte den API-Token neu eingeben. Der gespeicherte Token wird nur an die gespeicherte Adresse gesendet.",
   "settings.recipes.url_invalid": "Ungültige Adresse - bitte mit http:// oder https:// angeben.",
   "settings.recipes.provider_invalid": "Unbekannter Rezeptmanager.",
   "settings.recipes.missing_fields": "Für Mealie werden Adresse und API-Token benötigt.",

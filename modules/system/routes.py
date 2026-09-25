@@ -10,7 +10,9 @@ anything else (a NAS of any kind, a QNAP, ...) goes through role=
 function, since no particular NAS software can be assumed for everyone.
 """
 import json
+import os
 import subprocess
+import threading
 from datetime import datetime
 
 import paramiko
@@ -24,6 +26,56 @@ from print_queue import enqueue_print
 from security import csrf_protect, get_csrf_token, require_api_token
 
 system_bp = Blueprint("system", __name__)
+
+# Host keys pinned for password-auth hosts (the paramiko path only - the
+# key path pins via OpenSSH's own ~/.ssh/known_hosts, see _ssh_run_key()).
+# A separate file in STATE_DIR instead of ~/.ssh/known_hosts because
+# paramiko's HostKeys.save() rewrites the whole file in its own format and
+# has no business touching entries OpenSSH manages there. It's still the
+# OpenSSH line format, so a stale pin (target server reinstalled) can be
+# removed with `ssh-keygen -R <host> -f <this file>`.
+KNOWN_HOSTS_FILE = os.path.join(settings_store.STATE_DIR, "ssh_known_hosts")
+
+# Serializes the read-modify-write in _AcceptNewHostKeyPolicy. ssh_run() is
+# currently only reached from the print queue's single worker thread, so
+# this guards against a future caller on a request thread rather than an
+# existing race.
+_known_hosts_lock = threading.Lock()
+
+
+class _AcceptNewHostKeyPolicy(paramiko.MissingHostKeyPolicy):
+    """paramiko counterpart to the key path's StrictHostKeyChecking=
+    accept-new: a host seen for the first time gets its key pinned in
+    KNOWN_HOSTS_FILE, every later connect is checked against that pin.
+
+    Replaces AutoAddPolicy, which - with a fresh SSHClient per call and no
+    host keys loaded - silently accepted ANY key on EVERY connect, so an
+    active MITM on the LAN could have collected the plaintext password.
+
+    paramiko only calls this for a host with no pinned key at all. A pinned
+    host presenting a different key raises BadHostKeyException inside
+    connect() before this is ever reached - deliberately left to propagate,
+    so that section of the report prints as an error instead of the
+    password going to whoever answered.
+
+    Only writes on a host's first contact, never on a routine connect (SD
+    card wear)."""
+
+    def missing_host_key(self, client, hostname, key):
+        with _known_hosts_lock:
+            # Re-read under the lock instead of reusing what the client
+            # loaded before connecting, so a pin written by a concurrent
+            # connect in the meantime isn't dropped by this save.
+            host_keys = paramiko.HostKeys()
+            if os.path.isfile(KNOWN_HOSTS_FILE):
+                host_keys.load(KNOWN_HOSTS_FILE)
+            host_keys.add(hostname, key.get_name(), key)
+            os.makedirs(settings_store.STATE_DIR, exist_ok=True)
+            # Temp file + os.replace, same as settings_store._write(): a
+            # crash mid-write must not truncate the pins of other hosts.
+            tmp_path = KNOWN_HOSTS_FILE + ".tmp"
+            host_keys.save(tmp_path)
+            os.replace(tmp_path, KNOWN_HOSTS_FILE)
 
 
 def _ssh_run_key(user, host, remote_command, timeout=10):
@@ -61,7 +113,11 @@ def _ssh_run_password(user, host, password, remote_command, timeout=10):
     stdout, raises on non-zero exit/timeout) so both are interchangeable
     to callers via ssh_run() below."""
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # isfile() guard: load_host_keys() raises on a missing file, which is
+    # the normal state until the very first password host gets pinned.
+    if os.path.isfile(KNOWN_HOSTS_FILE):
+        client.load_host_keys(KNOWN_HOSTS_FILE)
+    client.set_missing_host_key_policy(_AcceptNewHostKeyPolicy())
     try:
         client.connect(host, username=user, password=password, timeout=timeout)
         _stdin, stdout, stderr = client.exec_command(remote_command, timeout=timeout)

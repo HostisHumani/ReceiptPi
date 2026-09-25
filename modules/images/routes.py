@@ -14,6 +14,7 @@ page respects the language switch (see ui_print_image below).
 import base64
 import hashlib
 import io
+import logging
 
 from flask import Blueprint, jsonify, render_template, request
 from PIL import Image, ImageOps
@@ -24,6 +25,7 @@ from printer import get_printer
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 
 images_bp = Blueprint("images", __name__)
+logger = logging.getLogger(__name__)
 
 # High enough for real phone photos (even higher-res sensors), while
 # keeping worst-case decoded memory in check on a 512MB Pi Zero 2 W: a
@@ -89,8 +91,12 @@ def process_and_enqueue_image(img_bytes, source="ui"):
         # blobs. For very high-contrast motifs (comics, plain text
         # screenshots) this makes barely any visible difference.
         img = img.convert("1")
-    except Exception as e:
-        return False, f"Could not process image: {e}", 400
+    except Exception:
+        # Full exception only to the server log (journalctl): Pillow's
+        # messages carry internals like object reprs/memory addresses that
+        # don't belong in an API response - the caller gets a fixed text.
+        logger.exception("Could not process uploaded image (%d bytes)", len(img_bytes))
+        return False, "Could not process image", 400
 
     return enqueue_print(
         _raw_print_image, img, dedupe_key=dedupe_key,
@@ -121,8 +127,10 @@ def print_image():
         # validate=True aborts immediately on invalid base64 characters,
         # instead of silently ignoring them (Python's default behavior).
         img_bytes = base64.b64decode(image_b64, validate=True)
-    except Exception as e:
-        return jsonify({"status": "error", "detail": f"Invalid base64: {e}"}), 400
+    except Exception:
+        # Details only to the server log, same as process_and_enqueue_image().
+        logger.exception("Invalid base64 in /print/image")
+        return jsonify({"status": "error", "detail": "Invalid base64"}), 400
 
     ok, detail, status_code = process_and_enqueue_image(img_bytes, source="api")
     if ok:

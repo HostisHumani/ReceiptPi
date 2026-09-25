@@ -374,7 +374,10 @@ unter `/settings/recipes`: Base-URL + API-Token (in Mealie unter Profil →
 API-Tokens erzeugen). Der Token wird Fernet-verschlüsselt gespeichert
 (gleiches Verfahren wie die SSH-Passwörter des Systemberichts) und nie
 wieder angezeigt; bleibt das Token-Feld beim Speichern leer, bleibt der
-gespeicherte erhalten, "Token entfernen" löscht ihn. "Verbindung testen"
+gespeicherte erhalten (nur solange die Base-URL gleich bleibt – bei
+geänderter URL muss der Token neu eingegeben werden, damit der
+gespeicherte nie an eine neue Adresse geht), "Token entfernen" löscht ihn.
+"Verbindung testen"
 prüft URL und Token (über `/api/users/self` – Mealies `/api/app/about`
 antwortet ohne Anmeldung und kann einen Token allein nicht prüfen), ohne
 etwas zu speichern.

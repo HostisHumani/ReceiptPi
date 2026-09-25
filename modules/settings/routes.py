@@ -15,6 +15,7 @@ Two access paths to the same data:
     language.
 """
 import base64
+import logging
 import os
 import uuid
 
@@ -38,6 +39,7 @@ from security import (
 )
 
 settings_bp = Blueprint("settings", __name__)
+logger = logging.getLogger(__name__)
 
 ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6]  # 0=Monday..6=Sunday, matches datetime.weekday()
 
@@ -377,10 +379,8 @@ def logos_file(slot):
     a filename. Not access-controlled beyond what the rest of the
     web UI already has (see the no-login-wall note in settings_store.py
     migration comments) - a logo image isn't sensitive."""
-    if slot not in logos.MODULE_KEYS and slot != "default":
-        return "", 404
-    path = os.path.join(logos.LOGOS_DIR, f"{slot}.png")
-    if not os.path.isfile(path):
+    path = logos.slot_path(slot)
+    if path is None or not os.path.isfile(path):
         return "", 404
     return send_file(path, mimetype="image/png")
 
@@ -692,7 +692,14 @@ def ui_save_recipes():
     (only a "saved" badge), so re-submitting the form to change just
     the URL must not wipe it. Switching the provider to "off" keeps
     the stored URL/token, so switching back doesn't mean re-entering
-    them; "remove token" is its own explicit action below."""
+    them; "remove token" is its own explicit action below.
+
+    The stored token is only kept for the stored URL, though: /ui/* has
+    no login, so otherwise anyone on the LAN could point the saved URL
+    at their own machine and have every later Mealie request deliver the
+    token there. A changed URL needs the token entered again - checked
+    regardless of provider, or saving "off" + new URL first and then
+    "mealie" with that (now stored) URL would get around it."""
     provider = request.form.get("provider", "off")
     if provider not in RECIPE_PROVIDERS:
         return _render_recipes(i18n.tr("settings.recipes.provider_invalid"), False)
@@ -703,9 +710,15 @@ def ui_save_recipes():
         return _render_recipes(i18n.tr("settings.recipes.url_invalid"), False)
     token = request.form.get("token", "").strip()[:MAX_TEXT_LEN]
 
-    has_stored_token = bool(settings_store.get_settings()["recipes"]["mealie"].get("token_encrypted"))
+    stored = settings_store.get_settings()["recipes"]["mealie"]
+    has_stored_token = bool(stored.get("token_encrypted"))
     if provider == "mealie" and (not base_url or not (token or has_stored_token)):
         return _render_recipes(i18n.tr("settings.recipes.missing_fields"), False)
+    # An emptied URL is exempt: it sends the token nowhere, and whatever
+    # URL gets entered after it differs from "" and hits this check then.
+    if (base_url and has_stored_token and not token
+            and not mealie.same_base_url(base_url, stored.get("base_url"))):
+        return _render_recipes(i18n.tr("settings.recipes.token_required_new_url"), False)
 
     # Encrypted before the transaction, same as the system report host
     # passwords - the plaintext never gets near what's written to disk.
@@ -729,15 +742,17 @@ def ui_test_recipes_connection():
     (unsaved) token stays in its field instead of being lost to a page
     reload. Tests exactly what's in the form; an empty token field
     falls back to the stored one (the normal case when just re-testing
-    an existing setup). Never saves anything."""
+    an existing setup) - but only if the form's URL is the stored one,
+    see ui_save_recipes() for why. Never saves anything."""
     base_url = mealie.normalize_base_url(request.form.get("base_url", ""))
     if base_url is None:
         return jsonify({"ok": False, "message": i18n.tr("settings.recipes.url_invalid")}), 200
     token = request.form.get("token", "").strip()[:MAX_TEXT_LEN]
     if not token:
-        token = secrets_crypto.decrypt_password(
-            settings_store.get_settings()["recipes"]["mealie"].get("token_encrypted")
-        ) or ""
+        stored = settings_store.get_settings()["recipes"]["mealie"]
+        if stored.get("token_encrypted") and not mealie.same_base_url(base_url, stored.get("base_url")):
+            return jsonify({"ok": False, "message": i18n.tr("settings.recipes.token_required_new_url")}), 200
+        token = secrets_crypto.decrypt_password(stored.get("token_encrypted")) or ""
     if not token:
         return jsonify({"ok": False, "message": i18n.tr("settings.recipes.token_missing")}), 200
     try:
@@ -1203,8 +1218,10 @@ def upload_logo(slot):
 
     try:
         file_bytes = base64.b64decode(logo_b64, validate=True)
-    except Exception as e:
-        return jsonify({"status": "error", "detail": f"Invalid base64: {e}"}), 400
+    except Exception:
+        # Details only to the server log, same as logos.save_logo().
+        logger.exception("Invalid base64 in logo upload for slot %s", slot)
+        return jsonify({"status": "error", "detail": "Invalid base64"}), 400
 
     ok, detail = logos.save_logo(slot, file_bytes)
     if ok:
