@@ -14,7 +14,6 @@ from flask import Blueprint, jsonify, render_template, request
 import i18n
 from logos import print_logo
 from print_queue import enqueue_print
-from printer import get_printer
 from security import (
     MAX_TEXT_LEN,
     MAX_TITLE_LEN,
@@ -41,6 +40,14 @@ def _raw_print_message(title, text, module="message", use_text_scale=True):
     notice, not user content, and shouldn't grow just because Easy-Read
     is turned on for actual receipts."""
     scale = get_text_scale() if use_text_scale else SCALES["normal"]
+    # Imported lazily on purpose: watchers/storm_warning_watch.py
+    # imports this module (via the weather module), and a module-level
+    # import would pull in python-escpos, whose capabilities.py calls
+    # mkdtemp() and writes a ~70 KB pickle on every import - one leaked
+    # temp dir per cron run (filled /tmp and then /var/tmp on the SD
+    # card, 2026-09).
+    from printer import get_printer
+
     p = get_printer()
     try:
         logo_printed = print_logo(p, module)

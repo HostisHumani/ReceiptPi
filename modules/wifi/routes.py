@@ -17,7 +17,6 @@ from PIL import Image
 import i18n
 from logos import print_logo
 from print_queue import enqueue_print
-from printer import get_printer
 from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
 from text_style import get_text_scale
 
@@ -67,6 +66,13 @@ def _raw_print_wifi(ssid, password, auth_type="WPA"):
         qr_img = qr_img.resize((qr_target_width, int(qr_img.height * ratio)), Image.NEAREST)
 
     scale = get_text_scale()
+    # Imported lazily on purpose: watchers/fritzbox_wifi_watch.py imports this
+    # module, and a module-level import would pull in python-escpos,
+    # whose capabilities.py calls mkdtemp() and writes a ~70 KB pickle
+    # on every import - one leaked temp dir per cron run (filled /tmp
+    # and then /var/tmp on the SD card, 2026-09).
+    from printer import get_printer
+
     p = get_printer()
     try:
         logo_printed = print_logo(p, "wifi")

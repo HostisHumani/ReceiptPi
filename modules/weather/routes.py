@@ -27,7 +27,6 @@ from logos import print_logo
 from modules.message.routes import _raw_print_message
 from modules.weather.alerts import fetch_open_meteo_forecast
 from print_queue import enqueue_print
-from printer import get_printer
 from security import csrf_protect, get_csrf_token, require_api_token
 from text_style import get_text_scale, wrap_body_text
 
@@ -163,6 +162,13 @@ def _raw_print_weather(location_name=None):
             netatmo_lines.append(i18n.tr("receipt.weather.netatmo_error", error=e))
 
     scale = get_text_scale()
+    # Imported lazily on purpose: watchers/storm_warning_watch.py imports this
+    # module, and a module-level import would pull in python-escpos,
+    # whose capabilities.py calls mkdtemp() and writes a ~70 KB pickle
+    # on every import - one leaked temp dir per cron run (filled /tmp
+    # and then /var/tmp on the SD card, 2026-09).
+    from printer import get_printer
+
     p = get_printer()
     try:
         logo_printed = print_logo(p, "weather")
