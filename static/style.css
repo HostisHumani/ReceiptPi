@@ -799,6 +799,28 @@ a.list-row .list-row-actions { color: var(--text-dim); }
 
 .logo-preview { max-width: 150px; max-height: 80px; display: block; margin: 10px 0; }
 
+/* Settings backup page (templates/settings_backup.html) - plain bullet
+   lists for the restore summary, and a neutral (not error-red) box for
+   the "this file is sensitive" notice above the download button. */
+.backup-list { margin: var(--space-1) 0 0; padding-left: 1.2em; line-height: 1.5; overflow-wrap: anywhere; }
+.backup-list li + li { margin-top: 2px; }
+.card .msg.backup-warning { margin: 0 0 var(--space-2); background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
+
+/* Image preview (templates/images.html, static/image-preview.js) - the
+   1-bit print image at its native size: one image pixel per CSS pixel,
+   so 512px is the real print width. The frame extends into the .page
+   side padding, which lets 512px fit inside the 520px page on wide
+   screens; narrower screens scroll sideways instead of scaling, since
+   scaling would blur or drop single dots. White "paper" regardless of
+   theme, because that's what the dots are printed on. */
+.image-preview { margin-top: var(--space-4); }
+.image-preview-frame { margin-inline: -16px; overflow-x: auto; padding: 1px 0; }
+.image-preview-paper { width: 512px; margin: 0 auto; background: #fff; outline: 1px solid var(--line); }
+.image-preview-paper img { display: block; image-rendering: crisp-edges; image-rendering: pixelated; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
 .day-picker { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
 .day-picker .checkbox-row { margin: 0; }
 
@@ -1127,6 +1149,7 @@ footer a { color: var(--accent); text-decoration: none; }
 .icon-printer { -webkit-mask-image: url("/static/icons/printer.svg"); mask-image: url("/static/icons/printer.svg"); }
 .icon-menu { -webkit-mask-image: url("/static/icons/menu.svg"); mask-image: url("/static/icons/menu.svg"); }
 .icon-history { -webkit-mask-image: url("/static/icons/history.svg"); mask-image: url("/static/icons/history.svg"); }
+.icon-activity { -webkit-mask-image: url("/static/icons/activity.svg"); mask-image: url("/static/icons/activity.svg"); }
 .icon-settings { -webkit-mask-image: url("/static/icons/settings.svg"); mask-image: url("/static/icons/settings.svg"); }
 .icon-arrow-left { -webkit-mask-image: url("/static/icons/arrow-left.svg"); mask-image: url("/static/icons/arrow-left.svg"); }
 .icon-arrow-right { -webkit-mask-image: url("/static/icons/arrow-right.svg"); mask-image: url("/static/icons/arrow-right.svg"); }

@@ -4,13 +4,49 @@
 {% block content %}
 <a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
-<form method="post" action="/ui/images" enctype="multipart/form-data" class="card">
+<form method="post" action="/ui/images" enctype="multipart/form-data" class="card" id="image_form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <label for="image">{{ t('images.file_label') }}</label>
   <input type="file" id="image" name="image" accept="image/png, image/jpeg" required>
   <div class="hint">{{ t('images.hint') }}</div>
 
+  <label for="dither">{{ t('images.dither_label') }}</label>
+  <select id="dither" name="dither">
+    {% for method in dither_methods %}
+      <option value="{{ method }}"{% if method == selected_dither %} selected{% endif %}>{{ t('images.dither.' ~ method) }}</option>
+    {% endfor %}
+  </select>
+  <div class="hint">{{ t('images.dither_hint') }}</div>
+
+  <button type="button" class="btn btn-secondary btn-block" id="image_preview_btn"><span class="icon icon-image" aria-hidden="true"></span> {{ t('images.preview_button') }}</button>
   <button type="submit">{{ t('images.button') }}</button>
 </form>
+
+{# Preview of the exact 1-bit image the print path would send, see
+   static/image-preview.js and /ui/images/preview. Outside the card, so
+   the 512px print width fits on desktop without being scaled. #}
+<div id="image_preview" class="image-preview"
+     data-loading-text="{{ t('images.preview_loading') }}"
+     data-no-file-text="{{ t('images.no_file_selected') }}"
+     data-network-error-text="{{ t('images.preview_network_error') }}"
+     data-timeout-text="{{ t('images.preview_timeout') }}"
+     data-size-text="{{ t('images.preview_hint') }}">
+  <div class="msg inline-result image-preview-status" id="image_preview_loading" role="status" aria-live="polite" hidden>
+    <span class="icon icon-refresh-cw spin" aria-hidden="true"></span>
+    <span>{{ t('images.preview_loading') }}</span>
+  </div>
+  <div class="msg err image-preview-status" id="image_preview_error" role="alert" hidden>
+    <span class="icon icon-circle-alert" aria-hidden="true"></span>
+    <span class="image-preview-error-text"></span>
+  </div>
+  <div id="image_preview_result" hidden>
+    <h2 class="section-title">{{ t('images.preview_heading') }}</h2>
+    <div class="image-preview-frame">
+      <div class="image-preview-paper"><img id="image_preview_img" alt="{{ t('images.preview_heading') }}"></div>
+    </div>
+    <div class="hint" id="image_preview_info"></div>
+  </div>
+</div>
 {% endblock %}
+{% block extra_scripts %}<script src="{{ static_url('image-preview.js') }}" defer></script>{% endblock %}
