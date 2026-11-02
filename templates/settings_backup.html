@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block header_icon %}<span class="mark"><span class="icon icon-history" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.index.backup.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+{% macro token_field(id) %}
+  {% if token_required %}
+    <label for="{{ id }}">{{ t('backup.token_label') }}</label>
+    <input type="password" id="{{ id }}" name="api_token" autocomplete="off" maxlength="500" required>
+    <div class="hint">{{ t('backup.token_hint') }}</div>
+  {% endif %}
+{% endmacro %}
+
+{% macro item_list(items) %}
+  <ul class="backup-list">
+    {% for item in items %}<li>{{ t(item.key, **item.params) }}</li>{% endfor %}
+  </ul>
+{% endmacro %}
+
+{% if mode == "summary" %}
+  <h2 class="section-title section-title-flush">{{ t('backup.summary.heading') }}</h2>
+  <div class="card">
+    <div class="list-row list-row-flush"><span>{{ t('backup.summary.created_at') }}</span><span class="mono">{{ manifest.created_at }}</span></div>
+    <div class="list-row list-row-flush"><span>{{ t('backup.summary.app_version') }}</span><span class="mono">{{ manifest.app_version }}</span></div>
+    <div class="list-row list-row-flush"><span>{{ t('backup.summary.format_version') }}</span><span class="mono">{{ manifest.format_version }}</span></div>
+
+    <h3 class="section-subtitle">{{ t('backup.summary.replaced') }}</h3>
+    {% if report.sections %}
+      <ul class="backup-list">{% for s in report.sections %}<li>{{ t('backup.section.' ~ s) }}</li>{% endfor %}</ul>
+    {% else %}<div class="hint hint-standalone">{{ t('backup.summary.no_settings') }}</div>{% endif %}
+
+    <h3 class="section-subtitle">{{ t('backup.summary.logos') }}</h3>
+    {% if logo_slots %}<div class="mono">{{ logo_slots | join(', ') }}</div>
+    {% else %}<div class="hint hint-standalone">{{ t('backup.summary.no_logos') }}</div>{% endif %}
+    <div class="hint">{{ t('backup.summary.logos_hint') }}</div>
+
+    {% if report.ignored %}
+      <h3 class="section-subtitle">{{ t('backup.summary.ignored') }}</h3>
+      <ul class="backup-list mono">{% for path in report.ignored %}<li>{{ path }}</li>{% endfor %}</ul>
+      <div class="hint">{{ t('backup.summary.ignored_hint') }}</div>
+    {% endif %}
+    {% if report.conflicts %}
+      <h3 class="section-subtitle">{{ t('backup.summary.conflicts') }}</h3>
+      {{ item_list(report.conflicts) }}
+    {% endif %}
+    {% if report.reenter %}
+      <h3 class="section-subtitle">{{ t('backup.summary.reenter') }}</h3>
+      {{ item_list(report.reenter) }}
+    {% endif %}
+    {% if report.errors %}
+      <div class="msg err inline-result">
+        <span class="icon icon-circle-alert" aria-hidden="true"></span>
+        <span>{{ t('backup.summary.invalid') }}</span>
+      </div>
+      {{ item_list(report.errors) }}
+    {% endif %}
+  </div>
+
+  {% if staging_id %}
+    <form method="post" action="/ui/settings/backup/restore/apply" class="card">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="staging_id" value="{{ staging_id }}">
+      <div class="hint hint-standalone">{{ t('backup.confirm.hint') }}</div>
+      <label class="checkbox-row">
+        <input type="checkbox" name="confirm" value="yes" required>
+        <span>{{ t('backup.confirm.checkbox') }}</span>
+      </label>
+      {{ token_field('apply_token') }}
+      <button type="submit">{{ t('backup.confirm.button') }}</button>
+    </form>
+  {% endif %}
+  <form method="post" action="/ui/settings/backup/restore/cancel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="staging_id" value="{{ staging_id or '' }}">
+    <button type="submit" class="btn btn-secondary btn-block">{{ t('backup.confirm.cancel') }}</button>
+  </form>
+
+{% elif mode == "result" %}
+  <div class="card">
+    <h3 class="section-subtitle section-title-flush">{{ t('backup.result.replaced') }}</h3>
+    {% if report.sections %}
+      <ul class="backup-list">{% for s in report.sections %}<li>{{ t('backup.section.' ~ s) }}</li>{% endfor %}</ul>
+    {% else %}<div class="hint hint-standalone">{{ t('backup.summary.no_settings') }}</div>{% endif %}
+    <h3 class="section-subtitle">{{ t('backup.summary.logos') }}</h3>
+    {% if report.logos %}<div class="mono">{{ report.logos | join(', ') }}</div>
+    {% else %}<div class="hint hint-standalone">{{ t('backup.summary.no_logos') }}</div>{% endif %}
+    {% if report.ignored %}
+      <h3 class="section-subtitle">{{ t('backup.summary.ignored') }}</h3>
+      <ul class="backup-list mono">{% for path in report.ignored %}<li>{{ path }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if report.conflicts %}
+      <h3 class="section-subtitle">{{ t('backup.summary.conflicts') }}</h3>
+      {{ item_list(report.conflicts) }}
+    {% endif %}
+  </div>
+
+  <h2 class="section-title">{{ t('backup.result.reenter_heading') }}</h2>
+  <div class="card">
+    {% if report.reenter %}{{ item_list(report.reenter) }}
+    {% else %}<div class="hint hint-standalone">{{ t('backup.result.nothing_to_reenter') }}</div>{% endif %}
+    <h3 class="section-subtitle">{{ t('backup.result.config_heading') }}</h3>
+    <div class="hint hint-standalone">{{ t('backup.result.config_hint') }}</div>
+    {% for item in config_status %}
+      <div class="list-row list-row-flush">
+        <span class="mono">{{ item.name }}</span>
+        <span class="badge {{ 'badge-accent' if item.configured else 'badge-muted' }}">{{ t('backup.result.configured') if item.configured else t('backup.result.not_configured') }}</span>
+      </div>
+    {% endfor %}
+    <div class="hint">{{ t('backup.result.ssh_key_hint') }}</div>
+  </div>
+
+  <div class="hint">{{ t('backup.result.no_restart') }}</div>
+  <div class="hint">{{ t('backup.result.snapshot', name=snapshot_name) }}</div>
+  <a class="btn btn-secondary btn-block" href="/settings/backup">{{ t('backup.result.back') }}</a>
+
+{% else %}
+  <h2 class="section-title section-title-flush">{{ t('backup.download.heading') }}</h2>
+  <form method="post" action="/ui/settings/backup/download" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="msg inline-result backup-warning">
+      <span class="icon icon-circle-alert" aria-hidden="true"></span>
+      <span>{{ t('backup.download.sensitive') }}</span>
+    </div>
+    <div class="hint">{{ t('backup.download.included') }}</div>
+    <div class="hint">{{ t('backup.download.excluded') }}</div>
+    {% if too_large_to_restore %}<div class="hint">{{ t('backup.download.too_large', max_mb=max_archive_mb) }}</div>{% endif %}
+    {{ token_field('download_token') }}
+    <button type="submit">{{ t('backup.download.button') }}</button>
+  </form>
+
+  <h2 class="section-title">{{ t('backup.restore.heading') }}</h2>
+  {% if restore_locked %}
+    <div class="card">
+      <div class="msg err inline-result">
+        <span class="icon icon-circle-alert" aria-hidden="true"></span>
+        <span>{{ t('backup.error.restore_locked') }}</span>
+      </div>
+    </div>
+  {% else %}
+    <form method="post" action="/ui/settings/backup/restore/check" enctype="multipart/form-data" class="card">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="archive">{{ t('backup.restore.file_label', max_mb=max_archive_mb) }}</label>
+      <input type="file" id="archive" name="archive" accept=".zip,application/zip" required>
+      <div class="hint">{{ t('backup.restore.hint') }}</div>
+      {{ token_field('check_token') }}
+      <button type="submit">{{ t('backup.restore.check_button') }}</button>
+    </form>
+  {% endif %}
+{% endif %}
+{% endblock %}
