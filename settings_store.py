@@ -50,7 +50,7 @@ DEFAULT_SETTINGS = {
     },
     "weather": {
         "locations": {
-            "Standard": {"lat": 53.30, "lon": 9.96}
+            "Standard": {"lat": 52.52, "lon": 13.40}
         },
         "default_location": "Standard",
         # "dwd" or "open-meteo" - which backend the regular weather
@@ -157,6 +157,27 @@ DEFAULT_SETTINGS = {
             "system": {"enabled": False},
             "automation": {"enabled": False},
         },
+    },
+    # MQTT bridge (mqtt_bridge.py). Off until configured on
+    # /settings/mqtt - with "enabled" false nothing MQTT-related is
+    # imported or started. Existing installations get this section via
+    # _deep_merge_defaults(), no migration needed.
+    "mqtt": {
+        "enabled": False,
+        "host": "",
+        "port": 1883,
+        "tls": False,
+        "username": "",
+        # Fernet token (see secrets_crypto.py), "" = no password set.
+        # The plaintext password is never written anywhere.
+        "password_encrypted": "",
+        "prefix": "receiptpi",
+        "discovery": False,
+        # Bookkeeping, not a user setting: the Home Assistant discovery
+        # topic this device last published a config to, so it can be
+        # cleared again after discovery is switched off or the prefix
+        # changes - even if that happens while the broker is unreachable.
+        "discovery_topic": "",
     },
 }
 

@@ -38,17 +38,17 @@
   </select>
 
   <label for="dwd_state">{{ t('settings.storm_warning.dwd_state_label') }}</label>
-  <input type="text" id="dwd_state" name="dwd_state" value="{{ settings.weather.storm_warning.dwd_state }}" placeholder="z.B. Niedersachsen">
+  <input type="text" id="dwd_state" name="dwd_state" value="{{ settings.weather.storm_warning.dwd_state }}" placeholder="{{ t('settings.storm_warning.dwd_state_placeholder') }}">
 
   <label for="dwd_region_name">{{ t('settings.storm_warning.dwd_region_label') }}</label>
-  <input type="text" id="dwd_region_name" name="dwd_region_name" value="{{ settings.weather.storm_warning.dwd_region_name }}" placeholder="z.B. Landkreis Harburg">
+  <input type="text" id="dwd_region_name" name="dwd_region_name" value="{{ settings.weather.storm_warning.dwd_region_name }}" placeholder="{{ t('settings.storm_warning.dwd_region_placeholder') }}">
   <div class="hint">{{ t('settings.storm_warning.dwd_hint') }}</div>
 
   <label for="meteoalarm_country">{{ t('settings.storm_warning.meteoalarm_country_label') }}</label>
-  <input type="text" id="meteoalarm_country" name="meteoalarm_country" value="{{ settings.weather.storm_warning.meteoalarm_country }}" placeholder="z.B. germany">
+  <input type="text" id="meteoalarm_country" name="meteoalarm_country" value="{{ settings.weather.storm_warning.meteoalarm_country }}" placeholder="{{ t('settings.storm_warning.meteoalarm_country_placeholder') }}">
 
   <label for="meteoalarm_region">{{ t('settings.storm_warning.meteoalarm_region_label') }}</label>
-  <input type="text" id="meteoalarm_region" name="meteoalarm_region" value="{{ settings.weather.storm_warning.meteoalarm_region }}" placeholder="z.B. Bayerischer Wald">
+  <input type="text" id="meteoalarm_region" name="meteoalarm_region" value="{{ settings.weather.storm_warning.meteoalarm_region }}" placeholder="{{ t('settings.storm_warning.meteoalarm_region_placeholder') }}">
   <div class="hint">{{ t('settings.storm_warning.meteoalarm_hint') }}</div>
 
   <div class="list-row">
@@ -99,13 +99,13 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <label for="loc_name">{{ t('settings.weather_locations.name') }}</label>
-  <input type="text" id="loc_name" name="name" placeholder="e.g. Berlin">
+  <input type="text" id="loc_name" name="name" placeholder="{{ t('settings.weather_locations.name_placeholder') }}">
 
   <label for="loc_lat">{{ t('settings.weather_locations.lat') }}</label>
-  <input type="text" id="loc_lat" name="lat" placeholder="e.g. 52.52">
+  <input type="text" id="loc_lat" name="lat" placeholder="{{ t('settings.weather_locations.lat_placeholder') }}">
 
   <label for="loc_lon">{{ t('settings.weather_locations.lon') }}</label>
-  <input type="text" id="loc_lon" name="lon" placeholder="e.g. 13.40">
+  <input type="text" id="loc_lon" name="lon" placeholder="{{ t('settings.weather_locations.lon_placeholder') }}">
 
   <label class="checkbox-row">
     <input type="checkbox" name="set_default">

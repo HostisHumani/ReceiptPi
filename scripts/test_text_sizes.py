@@ -6,7 +6,7 @@ finalizing the Easy-Read feature - see the text-size implementation
 plan discussion.
 
 Usage on the Pi (with the real printer connected):
-    cd /home/adrian/receiptpi
+    cd /path/to/receiptpi
     python3 scripts/test_text_sizes.py
 
 Safe to delete after the hardware test - has no other purpose.

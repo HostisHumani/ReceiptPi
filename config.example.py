@@ -34,9 +34,8 @@ WIFI_QR_AUTH_TYPE = "WPA"  # WPA covers WPA/WPA2/WPA3-mixed; "nopass" for open n
 SECRET_KEY = "Insert a random value here via secrets.token_hex(32)"
 
 # --- Direct SSH queries for the system report (CPU/RAM/LXC/Docker/backups) --
-# Requires passwordless SSH access from the ReceiptPi Pi to these hosts -
-# the same commands as in the Termux Lab Commander
-# (scripts/termux-lab-commander.sh), no Zabbix needed.
+# Requires passwordless SSH access from the ReceiptPi Pi to these hosts,
+# no Zabbix needed.
 # Example IPs below - replace with the actual addresses on your network.
 # NOTE: these values are only used ONCE, as a starting point copied into
 # settings.json on the very first start (see settings_store.py). After
