@@ -53,6 +53,10 @@ python3 app.py
 The server then runs on port 5000, web UI at `http://<pi-hostname>:5000`.
 `python3 app.py` uses Flask's development server - for production the
 service runs via Gunicorn with `gunicorn.conf.py` and exactly 1 worker, which is required because the print queue is process-local.
+On every service start Gunicorn prints a short boot greeting (hostname and
+IP) once, from a separate short-lived process (`boot_greeting.py`) - not
+again when the worker restarts. An unreachable printer or a greeting that
+takes longer than 30 seconds only gets logged; the server starts anyway.
 
 Most settings (quiet-hour rules, weather locations, GitHub-watched repos,
 SSH targets for the system report, per-module logos, UI language) are
@@ -67,11 +71,14 @@ login/auth for the web UI itself.
 ```
 receiptpi/
 ├── app.py                 Create the Flask app, register blueprints
-├── gunicorn.conf.py       on_starting hook for the boot greeting
+├── gunicorn.conf.py       on_starting hook, starts the boot greeting once per service start
+├── boot_greeting.py       boot greeting receipt (runs as its own short-lived process)
 ├── print_queue.py         central print queue + print-rule checks
 ├── printer.py             printer hardware access (USB)
+├── printer_status.py      printer status without printing (USB presence + printer-class port status), used by /health and MQTT
+├── mqtt_bridge.py         optional MQTT bridge: print commands in, printer status out, Home Assistant discovery
 ├── security.py            CSRF protection, API token protection, JSON parsing
-├── secrets_crypto.py      Fernet encryption for system-report SSH passwords and the recipe manager API token (key in STATE_DIR, not in git)
+├── secrets_crypto.py      Fernet encryption for system-report SSH passwords, the recipe manager API token and the MQTT password (key in STATE_DIR, not in git)
 ├── settings_store.py      central settings (JSON in STATE_DIR, not in the project folder)
 ├── history_store.py       SQLite print history (STATE_DIR), auto-pruned after 180 days
 ├── lists_store.py          in-progress list/task-card drafts (STATE_DIR), cleared once printed
@@ -81,13 +88,14 @@ receiptpi/
 ├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL) + their effective on/off state
 ├── text_style.py           Easy-Read text-size scaling, shared by print jobs and the web UI
 ├── themes.py                registry of the selectable web UI color themes
+├── static_versioning.py     content-hash `?v=` URLs for static files (cache busting)
 ├── version.py               reads VERSION, minimal comparison for ReceiptPi's own version scheme
-├── VERSION                  single source of truth for the running version (e.g. "0.1.9alpha")
+├── VERSION                  single source of truth for the running version (e.g. "1.2.3")
 ├── config.example.py       template for config.py (fill in locally)
 ├── modules/
 │   ├── lists/                 shopping lists, to-do lists, task/kanban cards
 │   ├── message/               status messages (free title + text)
-│   ├── images/                print images
+│   ├── images/                print images (three dithering methods + preview)
 │   ├── wifi/                  guest wifi slip (text + QR code)
 │   ├── weather/                weather report (DWD + Netatmo)
 │   ├── system/                 system report (Proxmox/PBS via SSH, plus custom SSH commands for other hosts)
@@ -96,6 +104,7 @@ receiptpi/
 │   ├── automation/            generic automation webhook
 │   ├── history/                print history dashboard
 │   ├── pending/                 review/reprint/discard blocked or failed print jobs
+│   ├── backup/                  settings backup and restore (.zip)
 │   └── settings/                settings pages (web UI) + settings API
 ├── watchers/
 │   ├── github_star_watch.py     cron: prints on a new GitHub star
@@ -108,8 +117,10 @@ receiptpi/
 │   ├── style.css             design system (spacing/colors/themes, card/tile/icon styles)
 │   ├── draft-autosave.js      generic auto-save for the lists/task-card forms
 │   ├── mealie-import.js       Mealie shopping list import on the shopping list page
+│   ├── image-preview.js       preview of the 1-bit print image on the images page
 │   ├── manifest.json          web app manifest (home-screen name/icons/colors)
 │   ├── sw.js                  service worker (served at /sw.js, HTTPS only)
+│   ├── fonts/                 self-hosted IBM Plex fonts (see LICENSE.txt in that folder)
 │   └── icons/                 local Lucide SVG icon set (see LICENSE in that folder)
 └── templates/                shared layout and module pages
     ├── base.html
@@ -197,6 +208,28 @@ area, instead of one long form:
 - `/settings/github-watch` - watched GitHub repositories
 - `/settings/system-report` - a free-form list of SSH targets for the system report, see [System report](#system-report) below
 - `/settings/recipes` - recipe manager (Off / Mealie), Mealie base URL, encrypted API token, connection test, see [Recipes](#recipes) below
+- `/settings/mqtt` - MQTT broker connection, topic prefix and Home Assistant discovery, see [MQTT](#mqtt) below
+- `/settings/backup` - download a backup of the settings and logos, or restore one (see below)
+
+**Backup and restore** (`/settings/backup`): the backup is a `.zip` with an
+allowlisted copy of the settings, all logo files and a manifest (format and
+app version, SHA-256 per file). It never contains secrets: not `config.py`,
+not the API token, not the encrypted Mealie token or SSH passwords (not even
+encrypted), not `secret.key`, not the SSH `command` of system-report
+hosts, and not the MQTT password, user name or CA file. Print history, pending jobs and list drafts are not included either.
+The file still contains personal data (host and user names, locations,
+addresses), so store it accordingly. Restoring checks the archive first and
+shows a summary; nothing changes before you confirm. Secrets already on the
+device stay as they are, everything not in the backup has to be entered
+again afterwards (the result page lists it), and `config.py` values have to
+be set on a new device by hand. With `API_TOKEN` set, download and restore
+ask for it; without one, restoring is locked. Restoring only runs while no
+print job is queued, saves the previous state first (the last 5 are kept in
+`STATE_DIR/restore_snapshots/`) and needs no restart. An archive can be at
+most 8 MB; an uploaded archive that hasn't been confirmed is discarded after
+one hour. Limit: a power loss in
+the middle of a restore can leave a mix of old and new files - the latest
+snapshot is the way back then.
 
 ## Endpoints
 
@@ -210,20 +243,21 @@ A blocked job responds with `429`.
 - `POST /print/list` - `{ "title": "...", "items": ["..."] }` - shopping list, unchanged since before the lists module existed, kept fully backward compatible
 - `POST /print/todo` - `{ "title": "...", "items": ["..."] }` - to-do list, same shape as `/print/list`
 - `POST /print/task` - `{ "title": "...", "description": "optional", "items": ["optional checklist"], "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD" }` - printable task/kanban card; only `title` is required
-- `POST /print/image` - multipart upload (max. 6000px per side, 12MB)
+- `POST /print/image` - `{ "image_base64": "...", "dither": "floyd-steinberg" }` (max. 6000px per side, 12MB); `dither` is optional: `floyd-steinberg` (default), `atkinson` or `bayer`. Images are scaled down to 512px width; Atkinson is limited to 1,024,000 pixels after scaling (512x2000) and to 15 seconds of processing, `400`/`504` otherwise
+- `POST /print/image/preview` - same body as `/print/image`, returns the 1-bit print image as PNG without printing (no print rules, no history)
 - `POST /print/wifi` - `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
-- `POST /print/weather` - optional `{ "location": "Berlin" }`, otherwise the default location
+- `POST /print/weather` - optional `{ "location": "Berlin" }`, otherwise the default location; also `GET /print/weather?location=Berlin`
 - `POST /print/system` - no body needed
 - `POST /print/automation` - `{ "title": "optional", "text": "..." }` - generic automation webhook (compatible with Home Assistant, Node-RED, n8n, or any tool that can do an HTTP POST)
-- `GET /health` - check printer reachability (no token needed, but runs through the same queue; excluded from print history)
+- `GET /health` - check printer reachability without printing (no token needed): USB presence plus the printer's status byte, cached for 10 s and shared by all callers, no print job and no USB reset. 200 `{"status": "ok", "printer": "reachable", "state": "ready", "problem": false}` while the printer is attached and switched on - also with paper out or an open cover, then `state` is `paper_out`/`error` and `problem` is `true`; `state` is `unknown` if the status byte can't be read at that moment (during a print job, or after switching on until the first print while the kernel's `usblp` driver holds the printer). 500 `{"status": "error", "detail": "...", "state": "offline", "problem": false}` if the printer isn't on the USB bus (switched off or unplugged)
 
 **Settings API**
-- `GET /settings/api` - current print rules + weather locations (JSON)
+- `GET /settings/api` - all settings sections as JSON; encrypted secrets are replaced by flags (`has_token` for the Mealie token, `has_password` for SSH and MQTT passwords)
 - `POST /settings/print_rules` - change rate limit/duplicate window
 - `GET|POST /settings/quiet_hours/rules`, `POST /settings/quiet_hours/rules/<id>/toggle`, `DELETE /settings/quiet_hours/rules/<id>`
 - `GET|POST /settings/weather/locations`, `DELETE /settings/weather/locations/<name>`
 - `GET /settings/system_report` - current list of system-report hosts (JSON, passwords redacted to a `has_password` flag)
-- `POST /settings/system_report` - `{ "name": "...", "role": "proxmox"|"pbs"|"custom", "host": "...", "user": "...", "command": "required for role=custom", "password": "optional" }` - adds one host
+- `POST /settings/system_report` - `{ "name": "...", "role": "proxmox"|"pbs"|"custom", "host": "...", "user": "...", "command": "required for role=custom", "password": "optional" }` - adds one host; `host` and `user` must match an allowlist (DNS name or IP address; POSIX user name; no leading `-`, no whitespace), otherwise `400`
 - `DELETE /settings/system_report/<id>` - removes one host
 - `GET|POST /settings/github_watch/repos`, `DELETE /settings/github_watch/repos/<owner>/<repo>`
 - `GET|POST /settings/logos/config` - global/per-module logo toggles
@@ -240,6 +274,93 @@ routes serve the web UI and need no `X-Api-Token`. All of them answer
 - `POST /ui/recipes/print` - form post (CSRF-protected), field `slug`
 - `GET /recipes/import/lists` - Mealie shopping lists as JSON (used by the import on `/shopping`)
 - `GET /recipes/import/lists/<id>` - unchecked items of one list as JSON, formatted as shopping list lines
+
+## MQTT
+
+Optional and off by default. Configured on `/settings/mqtt`; uses the
+`paho-mqtt` package from `requirements.txt` (on an existing installation,
+run `pip install -r requirements.txt` again in the service's venv). With
+MQTT switched off nothing MQTT-related is imported or started.
+
+Topics, with `<p>` the configurable prefix (default `receiptpi`):
+
+| Topic | Direction | Retained | Content |
+|---|---|---|---|
+| `<p>/availability` | out | yes | `online` / `offline` (also the last will) |
+| `<p>/state` | out | yes | JSON, published only when something changes |
+| `<p>/cmd/message` | in | - | `{ "title": "optional", "text": "..." }` - like `/print/automation` |
+| `<p>/cmd/list` | in | - | `{ "title": "...", "items": ["..."] }` - like `/print/list` |
+| `<p>/cmd/todo` | in | - | `{ "title": "...", "items": ["..."] }` - like `/print/todo` |
+| `<p>/cmd/task` | in | - | same body as `/print/task` |
+| `<p>/cmd/weather` | in | - | `{}` or `{ "location": "..." }` - like `/print/weather` |
+| `<p>/result` | out | no | one result per command |
+
+Every command may carry an optional `"id"` (1-64 characters `A-Z a-z 0-9 _ . -`),
+which is echoed in its result:
+
+```json
+{"id": "k42", "cmd": "list", "status": "printed", "code": 200, "detail": "2 items printed"}
+{"id": "k43", "cmd": "message", "status": "error", "code": 429, "detail": "..."}
+```
+
+The state message:
+
+```json
+{"printer": "ready", "printer_since": "2030-01-15T08:00:12", "problem": false, "pending": 0,
+ "last_job_type": "shopping", "last_job_result": "ok", "last_job_at": "2030-01-15T07:59:58", "version": "1.3.0"}
+```
+
+`printer` is one of `ready`, `paper_out`, `error` (any other printer error,
+e.g. an open cover), `offline` (USB device gone), `unknown`. It comes from the USB printer-class port status (no
+print job, no USB reset) every 15 seconds, after each print job and when
+the USB device appears again; presence is checked every 5 seconds. A
+kernel driver holding the printer interface (`usblp`) gives `unknown`.
+
+Commands go through exactly the same checks as the HTTP API: input
+validation, quiet hours, rate limit, duplicate suppression and the pending
+list (result code `429` when blocked). Messages larger than 64 KiB, invalid
+JSON, unknown commands and disabled modules are refused with a result.
+Retained messages on command topics are ignored. Wi-Fi, system report and
+image printing are deliberately not available over MQTT.
+
+**Home Assistant discovery** (optional switch on the settings page) creates
+one device with printer status, problem, pending jobs, last job and a
+"print weather report" button. Switching it off removes the device again.
+
+**Security.** Anyone who may publish to `<p>/cmd/#` on the broker can print.
+ReceiptPi itself supports a user name/password (stored encrypted, never
+shown, never returned by the API, never part of a backup), TLS with
+certificate and host name verification, and your own CA. Users and access
+rules are up to the broker. The settings page warns if no user name or no
+TLS is configured. An own CA has to be a proper RFC 5280 CA (key usage and
+key identifier extensions): from Python 3.13 on, certificates are checked
+strictly (`VERIFY_X509_STRICT`). Example for
+Mosquitto 2.x (placeholder paths and names):
+
+```
+listener 8883
+cafile /etc/mosquitto/certs/ca.crt
+certfile /etc/mosquitto/certs/server.crt
+keyfile /etc/mosquitto/certs/server.key
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+acl_file /etc/mosquitto/acl
+max_packet_size 65536
+```
+
+`/etc/mosquitto/acl`:
+
+```
+user receiptpi
+topic readwrite receiptpi/#
+topic write homeassistant/device/#
+topic read homeassistant/status
+
+user homeassistant
+topic readwrite homeassistant/#
+topic read receiptpi/#
+topic write receiptpi/cmd/#
+```
 
 ## After installation
 
@@ -265,7 +386,7 @@ existing crontab (`crontab -e`).
 
 - Lists: shopping lists, to-do lists, and printable task/kanban cards, see [Lists](#lists) below
 - Free-form messages
-- Image uploads and API image printing
+- Image printing from the web UI or the JSON API, with a choice of dithering (Floyd-Steinberg, Atkinson, Bayer) and a preview of the exact 1-bit print image
 - Guest Wi-Fi credentials and QR codes
 - Weather reports (DWD or Open-Meteo, selectable, + optional Netatmo), with an optional storm-warning watcher (DWD, MeteoAlarm, or NWS, prints only when a warning is actually active)
 - System reports: Proxmox/PBS via SSH, plus a custom-command role for any other host (e.g. a NAS), with optional encrypted password auth, see [System report](#system-report) below
@@ -281,6 +402,8 @@ existing crontab (`crontab -e`).
 - German/English UI, including receipt content itself (not just the UI chrome)
 - USB-connected ESC/POS printer (python-escpos + pyusb, Epson TM-T88V profile)
 - Version footer with GitHub release update notice (checked every 12h, no auto-update)
+- Optional MQTT: print commands, printer status and Home Assistant discovery, see [MQTT](#mqtt)
+- Backup and restore of settings and logos, without secrets, see [Settings pages](#settings-pages)
 
 ### Lists
 
@@ -335,6 +458,13 @@ password.
   lives in its own file under `STATE_DIR` (`secret.key`, mode 0600),
   generated on first use, never in git and never in `settings.json`
   itself.
+- **Host keys and inputs**: a host's SSH key is pinned on first contact
+  (`StrictHostKeyChecking=accept-new` for key auth, the same rule in
+  `STATE_DIR/ssh_known_hosts` for password auth); a host presenting a
+  different key later is reported as an error instead of being connected
+  to. Host and user have to pass an allowlist (no leading `-`, no
+  whitespace), and the `ssh` call passes them as `-l <user> -- <host>`, so
+  neither can be read as an `ssh` option.
 
 ### Games
 
@@ -465,6 +595,10 @@ change as ReceiptPi is tested on more hardware.
 ## Contributing
 
 Issues and pull requests are welcome. New modules should use Flask Blueprints, submit print jobs through the central queue and avoid direct writes to the printer or settings files.
+
+Every push and pull request to `main` runs Ruff and a Python syntax check
+(`.github/workflows/ci.yml`) as well as CodeQL for Python and JavaScript
+(`.github/workflows/codeql.yml`, also weekly).
 
 ## Trademark Notice
 

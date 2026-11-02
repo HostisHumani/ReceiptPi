@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="#features">Features</a> •
-  <a href="#quick-start">Quick Start</a> •
+  <a href="#schnellstart">Quick Start</a> •
   <a href="#roadmap">Roadmap</a> •
   <a href="../../issues">Issues</a>
 </p>
@@ -54,6 +54,11 @@ python3 app.py
 Server läuft dann auf Port 5000, Web-UI unter `http://<pi-hostname>:5000`.
 `python3 app.py` nutzt den Flask-Entwicklungsserver – für den Dauerbetrieb
 läuft der Service stattdessen über Gunicorn mit `gunicorn.conf.py` und genau einem Worker, da die Print-Queue prozesslokal arbeitet.
+Bei jedem Dienststart druckt Gunicorn einmal einen kurzen Boot-Gruß
+(Hostname und IP), aus einem eigenen kurzlebigen Prozess
+(`boot_greeting.py`) – nicht erneut, wenn der Worker neu startet. Ein nicht
+erreichbarer Drucker oder ein Gruß, der länger als 30 Sekunden braucht,
+wird nur protokolliert; der Server startet trotzdem.
 
 Die meisten Einstellungen (Ruhezeit-Regeln, Wetter-Standorte, beobachtete
 GitHub-Repos, SSH-Ziele für den Systembericht, Logos je Druckart,
@@ -68,11 +73,14 @@ aktuell keinen Login/Auth-Schutz für die Web-UI selbst hat.
 ```
 receiptpi/
 ├── app.py                 Flask-App erzeugen, Blueprints registrieren
-├── gunicorn.conf.py       on_starting-Hook für den Boot-Gruß
+├── gunicorn.conf.py       on_starting-Hook, startet den Boot-Gruß einmal pro Dienststart
+├── boot_greeting.py       Boot-Gruß-Bon (läuft als eigener kurzlebiger Prozess)
 ├── print_queue.py         zentrale Druck-Queue + Druckregeln-Prüfung
 ├── printer.py             Drucker-Hardware-Zugriff (USB)
+├── printer_status.py      Druckerstatus ohne Druck (USB-Präsenz + Port-Status der Druckerklasse), genutzt von /health und MQTT
+├── mqtt_bridge.py         optionale MQTT-Bridge: Druckbefehle rein, Druckerstatus raus, Home Assistant Discovery
 ├── security.py            CSRF-Schutz, API-Token-Schutz, JSON-Parsing
-├── secrets_crypto.py      Fernet-Verschlüsselung für System-Report-SSH-Passwörter und den API-Token des Rezeptmanagers (Schlüssel in STATE_DIR, nicht im Git)
+├── secrets_crypto.py      Fernet-Verschlüsselung für System-Report-SSH-Passwörter, den API-Token des Rezeptmanagers und das MQTT-Passwort (Schlüssel in STATE_DIR, nicht im Git)
 ├── settings_store.py      zentrale Settings (JSON in STATE_DIR, nicht im Projektordner)
 ├── history_store.py       SQLite-Druckhistorie (STATE_DIR), Auto-Pruning nach 180 Tagen
 ├── lists_store.py          angefangene Listen-/Task-Karten-Entwürfe (STATE_DIR), gelöscht nach Druck
@@ -82,13 +90,14 @@ receiptpi/
 ├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL) + deren tatsächlicher Aktiv-Zustand
 ├── text_style.py           Easy-Read-Textgrößen-Skalierung, gemeinsam für Druck und Web-UI
 ├── themes.py                Registry der wählbaren Web-UI-Farbschemata
+├── static_versioning.py     Inhalts-Hash-URLs (`?v=`) für statische Dateien (Cache-Busting)
 ├── version.py               liest VERSION, minimaler Vergleich für ReceiptPis eigenes Versionsschema
-├── VERSION                  einzige Versionsquelle (z.B. "0.1.9alpha")
+├── VERSION                  einzige Versionsquelle (z.B. "1.2.3")
 ├── config.example.py       Vorlage für config.py (lokal ausfüllen)
 ├── modules/
 │   ├── lists/                 Einkaufslisten, To-Do-Listen, Task-/Kanban-Karten
 │   ├── message/               Statusmeldungen (freier Titel + Text)
-│   ├── images/                Bilder drucken
+│   ├── images/                Bilder drucken (drei Dithering-Verfahren + Vorschau)
 │   ├── wifi/                  Gäste-WLAN-Zettel (Text + QR-Code)
 │   ├── weather/                Wetterbericht (DWD + Netatmo)
 │   ├── system/                 Systembericht (Proxmox/PBS via SSH, plus eigene SSH-Befehle für andere Hosts)
@@ -97,6 +106,7 @@ receiptpi/
 │   ├── automation/            generischer Automation-Webhook
 │   ├── history/                Druckhistorie-Dashboard
 │   ├── pending/                 Ausstehende Druckaufträge ansehen/nachdrucken/verwerfen
+│   ├── backup/                  Sicherung und Wiederherstellung der Einstellungen (.zip)
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── watchers/
 │   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
@@ -109,8 +119,10 @@ receiptpi/
 │   ├── style.css             Design-System (Spacing/Farben/Themes, Card-/Tile-/Icon-Stile)
 │   ├── draft-autosave.js      generisches Auto-Save für die Listen-/Task-Karten-Formulare
 │   ├── mealie-import.js       Import einer Mealie-Einkaufsliste auf der Einkaufszettel-Seite
+│   ├── image-preview.js       Vorschau des 1-Bit-Druckbilds auf der Bilder-Seite
 │   ├── manifest.json          Web-App-Manifest (Name/Icons/Farben für den Homescreen)
 │   ├── sw.js                  Service Worker (ausgeliefert unter /sw.js, nur über HTTPS)
+│   ├── fonts/                 selbst gehostete IBM-Plex-Schriften (siehe LICENSE.txt in diesem Ordner)
 │   └── icons/                 lokaler Lucide-SVG-Iconsatz (siehe LICENSE in diesem Ordner)
 └── templates/                gemeinsames Layout und Modul-Seiten
     ├── base.html
@@ -203,6 +215,32 @@ Unterseite pro Bereich verlinkt – statt eines langen Formulars:
 - `/settings/github-watch` – beobachtete GitHub-Repos
 - `/settings/system-report` – eine frei erweiterbare Liste von SSH-Zielen für den Systembericht, siehe [Systembericht](#systembericht) unten
 - `/settings/recipes` – Rezeptmanager (Aus / Mealie), Mealie-Base-URL, verschlüsselter API-Token, Verbindungstest, siehe [Rezepte](#rezepte) unten
+- `/settings/mqtt` – Verbindung zum MQTT-Broker, Themen-Präfix und Home Assistant Discovery, siehe [MQTT](#mqtt) unten
+- `/settings/backup` – Sicherung der Einstellungen und Logos herunterladen oder einspielen (siehe unten)
+
+**Sicherung und Wiederherstellung** (`/settings/backup`): Die Sicherung ist
+eine `.zip` mit einer Allowlist-Kopie der Einstellungen, allen Logo-Dateien
+und einem Manifest (Format- und App-Version, SHA-256 je Datei). Sie enthält
+nie Geheimnisse: nicht `config.py`, nicht den API-Token, nicht den
+verschlüsselten Mealie-Token oder SSH-Passwörter (auch nicht verschlüsselt),
+nicht `secret.key`, nicht den SSH-`command` der Systembericht-Server und
+nicht Passwort, Benutzernamen oder CA-Datei für MQTT.
+Druckhistorie, ausstehende Aufträge und Listen-Entwürfe sind ebenfalls nicht
+enthalten. Die Datei enthält trotzdem persönliche Daten (Host- und
+Benutzernamen, Orte, Adressen) und sollte entsprechend aufbewahrt werden.
+Beim Einspielen wird das Archiv zuerst geprüft und eine Zusammenfassung
+angezeigt; geändert wird erst nach Bestätigung. Geheimnisse auf dem Gerät
+bleiben unverändert, alles, was nicht in der Sicherung ist, muss danach neu
+eingegeben werden (die Ergebnisseite listet es auf), und Werte aus
+`config.py` müssen auf einem neuen Gerät von Hand gesetzt werden. Ist
+`API_TOKEN` gesetzt, fragen Download und Wiederherstellung danach; ohne
+Token ist die Wiederherstellung gesperrt. Eingespielt wird nur bei leerer
+Druck-Queue, vorher wird der aktuelle Stand gesichert (die letzten 5 liegen
+in `STATE_DIR/restore_snapshots/`), ein Neustart ist nicht nötig. Ein Archiv
+darf höchstens 8 MB groß sein; ein hochgeladenes, nicht bestätigtes Archiv
+wird nach einer Stunde verworfen. Grenze:
+Ein Stromausfall mitten im Einspielen kann eine Mischung aus alten und neuen
+Dateien hinterlassen – der letzte Schnappschuss ist dann der Rückweg.
 
 ## Endpunkte
 
@@ -216,20 +254,21 @@ Ein blockierter Auftrag antwortet mit `429`.
 - `POST /print/list` – `{ "title": "...", "items": ["..."] }` – Einkaufsliste, unverändert seit vor dem Lists-Modul, weiterhin voll abwärtskompatibel
 - `POST /print/todo` – `{ "title": "...", "items": ["..."] }` – To-Do-Liste, gleiche Form wie `/print/list`
 - `POST /print/task` – `{ "title": "...", "description": "optional", "items": ["optionale Checkliste"], "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD" }` – druckbare Task-/Kanban-Karte; nur `title` ist Pflicht
-- `POST /print/image` – Multipart-Upload (max. 6000px pro Seite, 12MB)
+- `POST /print/image` – `{ "image_base64": "...", "dither": "floyd-steinberg" }` (max. 6000px pro Seite, 12MB); `dither` ist optional: `floyd-steinberg` (Standard), `atkinson` oder `bayer`. Bilder werden auf 512px Breite verkleinert; Atkinson ist auf 1.024.000 Pixel nach dem Skalieren (512x2000) und 15 Sekunden Rechenzeit begrenzt, sonst `400`/`504`
+- `POST /print/image/preview` – gleicher Body wie `/print/image`, liefert das 1-Bit-Druckbild als PNG, ohne zu drucken (keine Druckregeln, keine Historie)
 - `POST /print/wifi` – `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
-- `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort
+- `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort; auch `GET /print/weather?location=Berlin`
 - `POST /print/system` – kein Body nötig
 - `POST /print/automation` – `{ "title": "optional", "text": "..." }` – generischer Automation-Webhook (kompatibel mit Home Assistant, Node-RED, n8n oder jedem Tool, das HTTP-POST beherrscht)
-- `GET /health` – Drucker-Erreichbarkeit prüfen (kein Token nötig, läuft aber über dieselbe Queue; nicht Teil der Druckhistorie)
+- `GET /health` – Drucker-Erreichbarkeit prüfen, ohne zu drucken (kein Token nötig): USB-Präsenz plus Statusbyte des Druckers, 10 s für alle Aufrufer gemeinsam gecacht, kein Druckauftrag und kein USB-Reset. 200 `{"status": "ok", "printer": "reachable", "state": "ready", "problem": false}`, solange der Drucker angeschlossen und eingeschaltet ist – auch bei leerem Papier oder offenem Deckel, dann ist `state` `paper_out`/`error` und `problem` `true`; `state` ist `unknown`, wenn sich das Statusbyte gerade nicht lesen lässt (während eines Druckauftrags oder nach dem Einschalten bis zum ersten Druck, solange der Kernel-Treiber `usblp` den Drucker belegt). 500 `{"status": "error", "detail": "...", "state": "offline", "problem": false}`, wenn der Drucker nicht am USB-Bus hängt (ausgeschaltet oder abgezogen)
 
 **Settings-API**
-- `GET /settings/api` – aktuelle Druckregeln + Wetter-Standorte (JSON)
+- `GET /settings/api` – alle Einstellungsbereiche als JSON; verschlüsselte Geheimnisse sind durch Flags ersetzt (`has_token` für den Mealie-Token, `has_password` für SSH- und MQTT-Passwörter)
 - `POST /settings/print_rules` – Rate-Limit/Duplikat-Fenster ändern
 - `GET|POST /settings/quiet_hours/rules`, `POST /settings/quiet_hours/rules/<id>/toggle`, `DELETE /settings/quiet_hours/rules/<id>`
 - `GET|POST /settings/weather/locations`, `DELETE /settings/weather/locations/<name>`
 - `GET /settings/system_report` – aktuelle Liste der System-Report-Hosts (JSON, Passwörter als `has_password`-Flag redigiert)
-- `POST /settings/system_report` – `{ "name": "...", "role": "proxmox"|"pbs"|"custom", "host": "...", "user": "...", "command": "nur bei role=custom Pflicht", "password": "optional" }` – fügt einen Host hinzu
+- `POST /settings/system_report` – `{ "name": "...", "role": "proxmox"|"pbs"|"custom", "host": "...", "user": "...", "command": "nur bei role=custom Pflicht", "password": "optional" }` – fügt einen Host hinzu; `host` und `user` müssen einer Allowlist entsprechen (DNS-Name oder IP-Adresse; POSIX-Benutzername; kein führendes `-`, keine Leerzeichen), sonst `400`
 - `DELETE /settings/system_report/<id>` – entfernt einen Host
 - `GET|POST /settings/github_watch/repos`, `DELETE /settings/github_watch/repos/<owner>/<repo>`
 - `GET|POST /settings/logos/config` – globale/pro Modul Logo-Schalter
@@ -247,6 +286,97 @@ antworten mit `404`, solange das Modul inaktiv ist (siehe
 - `POST /ui/recipes/print` – Formular-Post (CSRF-geschützt), Feld `slug`
 - `GET /recipes/import/lists` – Mealie-Einkaufslisten als JSON (für den Import auf `/shopping`)
 - `GET /recipes/import/lists/<id>` – nicht abgehakte Einträge einer Liste als JSON, fertig formatiert als Einkaufszettel-Zeilen
+
+## MQTT
+
+Optional und standardmäßig aus. Eingerichtet wird es auf `/settings/mqtt`;
+es nutzt das Paket `paho-mqtt` aus `requirements.txt` (bei einer
+bestehenden Installation `pip install -r requirements.txt` im venv des
+Dienstes erneut ausführen). Ist MQTT ausgeschaltet, wird nichts davon
+importiert oder gestartet.
+
+Themen, mit `<p>` als einstellbarem Präfix (Standard `receiptpi`):
+
+| Thema | Richtung | Retained | Inhalt |
+|---|---|---|---|
+| `<p>/availability` | aus | ja | `online` / `offline` (auch als Last Will) |
+| `<p>/state` | aus | ja | JSON, nur bei Änderung veröffentlicht |
+| `<p>/cmd/message` | ein | – | `{ "title": "optional", "text": "..." }` – wie `/print/automation` |
+| `<p>/cmd/list` | ein | – | `{ "title": "...", "items": ["..."] }` – wie `/print/list` |
+| `<p>/cmd/todo` | ein | – | `{ "title": "...", "items": ["..."] }` – wie `/print/todo` |
+| `<p>/cmd/task` | ein | – | gleicher Body wie `/print/task` |
+| `<p>/cmd/weather` | ein | – | `{}` oder `{ "location": "..." }` – wie `/print/weather` |
+| `<p>/result` | aus | nein | ein Ergebnis pro Befehl |
+
+Jeder Befehl kann eine optionale `"id"` mitbringen (1–64 Zeichen
+`A-Z a-z 0-9 _ . -`), die im Ergebnis zurückkommt:
+
+```json
+{"id": "k42", "cmd": "list", "status": "printed", "code": 200, "detail": "2 items printed"}
+{"id": "k43", "cmd": "message", "status": "error", "code": 429, "detail": "..."}
+```
+
+Die Statusnachricht:
+
+```json
+{"printer": "ready", "printer_since": "2030-01-15T08:00:12", "problem": false, "pending": 0,
+ "last_job_type": "shopping", "last_job_result": "ok", "last_job_at": "2030-01-15T07:59:58", "version": "1.3.0"}
+```
+
+`printer` ist `ready`, `paper_out`, `error` (jeder andere Druckerfehler,
+z. B. offener Deckel), `offline` (USB-Gerät weg) oder `unknown`. Der Wert stammt aus dem Port-Status der USB-Druckerklasse
+(kein Druckauftrag, kein USB-Reset), abgefragt alle 15 Sekunden, nach jedem
+Druckauftrag und sobald das USB-Gerät wieder auftaucht; die Anwesenheit wird
+alle 5 Sekunden geprüft. Hält ein Kernel-Treiber (`usblp`) das
+Drucker-Interface, lautet der Status `unknown`.
+
+Befehle durchlaufen genau dieselben Prüfungen wie die HTTP-API:
+Eingabeprüfung, Ruhezeiten, Rate-Limit, Duplikatsperre und die Liste der
+ausstehenden Aufträge (Ergebniscode `429`, wenn blockiert). Nachrichten über
+64 KiB, ungültiges JSON, unbekannte Befehle und deaktivierte Module werden
+mit einem Ergebnis abgelehnt. Retained-Nachrichten auf Befehlsthemen werden
+ignoriert. WLAN-Zettel, Systembericht und Bilder gibt es bewusst nicht per
+MQTT.
+
+**Home Assistant Discovery** (optionaler Schalter auf der Einstellungsseite)
+legt ein Gerät mit Druckerstatus, Problem, ausstehenden Aufträgen, letztem
+Auftrag und einem Button „Wetterbericht drucken“ an. Beim Abschalten wird
+das Gerät wieder entfernt.
+
+**Sicherheit.** Wer auf dem Broker nach `<p>/cmd/#` schreiben darf, kann
+drucken. ReceiptPi selbst unterstützt Benutzername/Passwort (verschlüsselt
+gespeichert, nie angezeigt, nie über die API ausgegeben, nie im Backup), TLS
+mit Prüfung von Zertifikat und Hostname sowie eine eigene CA. Benutzer und
+Zugriffsregeln sind Sache des Brokers. Die Einstellungsseite warnt, wenn kein
+Benutzername oder kein TLS eingerichtet ist. Eine eigene CA muss eine
+saubere RFC-5280-CA sein (Erweiterungen Key Usage und Key Identifier): ab
+Python 3.13 werden Zertifikate streng geprüft (`VERIFY_X509_STRICT`).
+Beispiel für Mosquitto 2.x (Platzhalter für Pfade und Namen):
+
+```
+listener 8883
+cafile /etc/mosquitto/certs/ca.crt
+certfile /etc/mosquitto/certs/server.crt
+keyfile /etc/mosquitto/certs/server.key
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+acl_file /etc/mosquitto/acl
+max_packet_size 65536
+```
+
+`/etc/mosquitto/acl`:
+
+```
+user receiptpi
+topic readwrite receiptpi/#
+topic write homeassistant/device/#
+topic read homeassistant/status
+
+user homeassistant
+topic readwrite homeassistant/#
+topic read receiptpi/#
+topic write receiptpi/cmd/#
+```
 
 ## Nach der Installation
 
@@ -273,7 +403,7 @@ bestehende Crontab übernehmen (`crontab -e`).
 
 - Listen: Einkaufslisten, To-Do-Listen und druckbare Task-/Kanban-Karten, siehe [Listen](#listen) unten
 - Freie Textmeldungen
-- Bild-Upload und Bilddruck per API
+- Bilddruck aus der Web-UI oder per JSON-API, mit wählbarem Dithering (Floyd-Steinberg, Atkinson, Bayer) und einer Vorschau des exakten 1-Bit-Druckbilds
 - Gäste-WLAN-Zugangsdaten und QR-Codes
 - Wetterberichte (DWD oder Open-Meteo wählbar, + optional Netatmo), mit optionalem Unwetterwarnungs-Watcher (DWD, MeteoAlarm oder NWS, druckt nur bei tatsächlich aktiver Warnung)
 - Systemberichte: Proxmox/PBS via SSH, plus eine Eigener-Befehl-Rolle für jeden anderen Host (z. B. ein NAS), mit optionalem verschlüsseltem Passwort-Login, siehe [Systembericht](#systembericht) unten
@@ -289,6 +419,8 @@ bestehende Crontab übernehmen (`crontab -e`).
 - Deutsch/Englisch-UI, inklusive des eigentlichen Bon-Inhalts (nicht nur der UI drumherum)
 - USB-angeschlossener ESC/POS-Drucker (python-escpos + pyusb, Epson-TM-T88V-Profil)
 - Versions-Footer mit GitHub-Release-Update-Hinweis (alle 12h geprüft, kein Auto-Update)
+- Optional MQTT: Druckbefehle, Druckerstatus und Home Assistant Discovery, siehe [MQTT](#mqtt)
+- Sicherung und Wiederherstellung von Einstellungen und Logos, ohne Geheimnisse, siehe [Settings-Seiten](#settings-seiten)
 
 ### Listen
 
@@ -345,6 +477,14 @@ per SSH-Key (Standard) oder optional per Passwort.
   Schlüssel dafür liegt in einer eigenen Datei unter `STATE_DIR`
   (`secret.key`, Modus 0600), beim ersten Gebrauch erzeugt, weder im
   Git noch in `settings.json` selbst.
+- **Host-Keys und Eingaben**: der SSH-Key eines Hosts wird beim ersten
+  Kontakt festgehalten (`StrictHostKeyChecking=accept-new` bei Key-Login,
+  dieselbe Regel in `STATE_DIR/ssh_known_hosts` bei Passwort-Login); zeigt
+  ein Host später einen anderen Key, erscheint ein Fehler im Bericht
+  statt einer Verbindung. Host und Nutzer müssen eine Allowlist passieren
+  (kein führendes `-`, keine Leerzeichen), und der `ssh`-Aufruf übergibt
+  sie als `-l <nutzer> -- <host>`, sodass keiner von beiden als
+  `ssh`-Option gelesen werden kann.
 
 ### Spiele
 
@@ -486,6 +626,10 @@ kann sich mit weiteren Hardwaretests ändern.
 ## Mitwirken
 
 Issues und Pull Requests sind willkommen. Neue Module sollen Flask-Blueprints verwenden, Druckaufträge ausschließlich über die zentrale Queue einreichen und weder direkt auf den Drucker noch auf Settings-Dateien schreiben.
+
+Jeder Push und Pull Request auf `main` durchläuft Ruff und eine
+Python-Syntaxprüfung (`.github/workflows/ci.yml`) sowie CodeQL für Python
+und JavaScript (`.github/workflows/codeql.yml`, zusätzlich wöchentlich).
 
 ## Trademark Notice
 
