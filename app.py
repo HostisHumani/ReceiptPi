@@ -11,7 +11,7 @@ Modular structure:
   - i18n.py             minimal translation lookup (JSON files, no
                        Flask-Babel/gettext toolchain)
   - modules/            one Flask blueprint per printing feature
-                       (shopping, message, images, wifi, weather, system,
+                       (lists, message, images, wifi, weather, system,
                        settings, recipes, ...)
   - watchers/            standalone cron scripts that watch something and
                        send a print job to this server when needed (do
@@ -64,15 +64,14 @@ app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB - headroom over MAX_
 # ETag/Last-Modified) - every page load re-requests style.css, every
 # icon's individual SVG (see the CSS mask-image icon system in
 # style.css), and the per-page JS files, each a conditional GET
-# round-trip to the Pi even when nothing changed. No cache-busting
-# exists anywhere in this codebase (url_for('static', ...) and every
-# hardcoded icon URL in style.css are plain, unversioned paths -
-# verified, not assumed), so a UI deploy is only picked up once the
-# max-age window has actually elapsed, not immediately. 1 hour keeps
-# that window short enough that a deploy is visible within the same
-# session for anyone actively testing it, while still skipping the
-# round-trip entirely for the (far more common) case of just
-# navigating between pages within that hour.
+# round-trip to the Pi even when nothing changed. Templates reference
+# static files through static_url(), and the served style.css has its
+# icon and font URLs rewritten (both in static_versioning.py), so a
+# changed file gets a new ?v=<content hash> URL after a deploy and is
+# fetched right away instead of waiting out this max-age. Only static
+# paths without a ?v= (e.g. the icon paths inside manifest.json) can
+# stay stale for up to this hour; for everything else it just lets
+# navigation between pages skip the revalidation round-trip.
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 3600
 
 # Written by watchers/update_check_watch.py (cron, every 12h) - read here
