@@ -1,9 +1,7 @@
 """
-Module: system report - largely uses the same SSH commands as the
-existing Termux Lab Commander (scripts/termux-lab-commander.sh in the
-HomeLab repo): CPU temp/load, RAM, LXC/VM list, PBS backups, and update
-check (the Commander's version doesn't cover PBS, this one does).
-Deliberately no Zabbix, to avoid needing extra item/template
+Module: system report - collects CPU temp/load, RAM, LXC/VM list, PBS
+backups and pending updates from the configured hosts via plain SSH
+commands. Deliberately no Zabbix, to avoid needing extra item/template
 configuration. Only two structured roles exist (Proxmox, PBS) -
 anything else (a NAS of any kind, a QNAP, ...) goes through role=
 "custom" with a user-supplied command instead of a dedicated fetch_*
@@ -82,14 +80,24 @@ def _ssh_run_key(user, host, remote_command, timeout=10):
     """Runs a command via the system `ssh` CLI, authenticating with the
     ReceiptPi Pi's own SSH key (passwordless login must already be set
     up on the target). Returns stdout as a string, raises on
-    errors/timeout."""
+    errors/timeout.
+
+    User and host are separate arguments ("-l user" instead of
+    "user@host"), and "--" ends option parsing right before the host:
+    ssh would otherwise read a host, a user or any argument after the
+    destination that starts with "-" as one of its own options (e.g.
+    -oProxyCommand=..., which runs a local command). This holds even for
+    a stored value that predates the allowlist in security.py.
+    remote_command is still sent to the target as-is."""
     result = subprocess.run(
         [
             "ssh",
             "-o", "BatchMode=yes",
             "-o", "ConnectTimeout=5",
             "-o", "StrictHostKeyChecking=accept-new",
-            f"{user}@{host}",
+            "-l", user,
+            "--",
+            host,
             remote_command,
         ],
         capture_output=True,
@@ -143,8 +151,7 @@ def ssh_run(user, host, remote_command, password=None, timeout=10):
 
 
 def fetch_pve_status(user, host, password=None):
-    """CPU temp, CPU load, RAM on a Proxmox-like host - identical
-    commands to the Termux Commander (check_status())."""
+    """CPU temp, CPU load, RAM on a Proxmox-like host."""
     lines = []
     cpu_temp = ssh_run(user, host,
                         "cat /sys/class/thermal/thermal_zone0/temp | awk '{printf \"%.0f\", $1/1000}'",
@@ -181,9 +188,8 @@ def fetch_lxc_vm_status(user, host, password=None):
 
 def fetch_pbs_recent_backups(user, host, password=None, limit=5):
     """Most recent PBS backup tasks (Backup/Sync/Prune/Verify/GC) from a
-    PBS-like host, analogous to the Python evaluation in the Termux
-    Commander, parsed here locally instead of remotely via an embedded
-    Python call."""
+    PBS-like host, parsed here locally instead of remotely via an
+    embedded Python call."""
     output = ssh_run(user, host,
                       "proxmox-backup-manager task list --all --output-format json-pretty",
                       password=password)
@@ -225,10 +231,9 @@ def fetch_updates_for_host(label, user, host, password=None):
 
 
 def fetch_update_counts(hosts):
-    """Update status for every configured host, like the Termux
-    Commander's 'u) Update-Check' - PBS wasn't covered there, added
-    here. Runs across ALL configured hosts regardless of role (not just
-    a fixed PVE/OMV/PBS triple) since "apt list --upgradable" is the
+    """Update status for every configured host. Runs across ALL
+    configured hosts regardless of role (not just a fixed PVE/OMV/PBS
+    triple) since "apt list --upgradable" is the
     same command on every Debian-based host (Proxmox, OMV, PBS). Each
     host is wrapped in its own try/except (unlike the other fetch_*
     functions, which rely on the caller's single try/except around the
