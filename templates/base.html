@@ -23,16 +23,35 @@
         <span id="printer-status" class="printer-status js-printer-status" title="{{ t('status.checking') }}"
               data-online="{{ t('status.online') }}" data-offline="{{ t('status.offline') }}"
               data-checking="{{ t('status.checking') }}"><span class="dot" aria-hidden="true"></span></span>
+        {#- Hidden on the login page: every entry needs a login there, and
+            the pending count is not for anonymous visitors. #}
+        {%- if not auth_admin_exists or auth_user %}
         <details class="burger-menu">
           <summary class="icon-btn" aria-label="Menu"><span class="icon icon-menu" aria-hidden="true"></span></summary>
           <div class="burger-dropdown">
             <a href="/history"><span class="icon icon-history" aria-hidden="true"></span> {{ t('menu.history') }}</a>
             <a href="/pending"><span class="icon icon-clipboard-list" aria-hidden="true"></span> {{ t('menu.pending') }}{% if pending_count %} ({{ pending_count }}){% endif %}</a>
             <a href="/settings"><span class="icon icon-settings" aria-hidden="true"></span> {{ t('menu.settings') }}</a>
+            {%- if auth_user %}
+              <a href="/account"><span class="icon icon-lock" aria-hidden="true"></span> {{ t('auth.menu.account') }}</a>
+              {# Logout is a POST with CSRF token, so no other site can trigger it. #}
+              <form method="post" action="/logout" class="burger-form">
+                <input type="hidden" name="csrf_token" value="{{ menu_csrf_token() }}">
+                <button type="submit"><span class="icon icon-log-out" aria-hidden="true"></span> {{ t('auth.menu.logout') }}</button>
+              </form>
+            {%- endif %}
           </div>
         </details>
+        {%- endif %}
       </div>
     </nav>
+
+    {%- if auth_setup_needed and request.endpoint not in ('auth.setup_page', 'auth.setup_submit') %}
+      <div class="msg notice">
+        <span class="icon icon-info" aria-hidden="true"></span>
+        <span>{{ t('auth.banner.setup_needed') }} <a href="/setup">{{ t('auth.banner.setup_link') }}</a></span>
+      </div>
+    {%- endif %}
 
     {% if message %}
       <div class="msg {{ 'ok' if success else 'err' }}">

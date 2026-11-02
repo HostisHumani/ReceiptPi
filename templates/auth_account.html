@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block header_title %}{{ t('auth.account.header') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<div class="hint hint-standalone">{{ t('auth.account.signed_in_as', name=account.name) }}</div>
+
+<h2 class="section-title">{{ t('auth.account.password_heading') }}</h2>
+<form method="post" action="/account" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="action" value="change_password">
+
+  {# Lets password managers attach the new password to the right account. #}
+  <input type="text" name="username" value="{{ account.name }}" autocomplete="username" hidden>
+
+  <label for="current_password">{{ t('auth.account.current_password') }}</label>
+  <input type="password" id="current_password" name="current_password" maxlength="256" autocomplete="current-password" required>
+
+  <label for="new_password">{{ t('auth.account.new_password') }}</label>
+  <input type="password" id="new_password" name="new_password" maxlength="256" autocomplete="new-password" required>
+  <div class="hint">{{ t('auth.account.password_hint', min=password_min, max=password_max) }}</div>
+
+  <label for="new_password_repeat">{{ t('auth.account.new_password_repeat') }}</label>
+  <input type="password" id="new_password_repeat" name="new_password_repeat" maxlength="256" autocomplete="new-password" required>
+
+  <button type="submit">{{ t('auth.account.password_submit') }}</button>
+</form>
+
+<h2 class="section-title">{{ t('auth.account.sessions_heading') }}</h2>
+<form method="post" action="/account" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="action" value="logout_others">
+  <div class="hint hint-standalone">{{ t('auth.account.sessions_hint') }}</div>
+  <button type="submit" class="btn btn-secondary btn-block">{{ t('auth.account.logout_others') }}</button>
+</form>
+{% endblock %}

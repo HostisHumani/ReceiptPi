@@ -1031,6 +1031,12 @@ button { width: 100%; margin-top: var(--space-5); }
 .msg .icon { width: 16px; height: 16px; flex-shrink: 0; }
 .msg.ok { background: var(--good-bg); color: var(--good); border: 1px solid color-mix(in srgb, var(--good) 40%, transparent); }
 .msg.err { background: var(--critical-bg); color: var(--critical); border: 1px solid color-mix(in srgb, var(--critical) 40%, transparent); }
+/* Not in the mockup - a standing notice (setup banner, missing
+   API_TOKEN warning): neither success nor error, so built from the
+   amber tokens the settings icon chips already use. */
+.msg.notice { background: var(--amber-bg); color: var(--text); border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent); }
+.msg.notice .icon { color: var(--amber); }
+.msg.notice a { color: inherit; font-weight: 600; }
 
 /* hint - 1:1 from the mockup. */
 .hint { font-size: 0.719em; color: var(--text-dim); padding: 9px 4px 0; line-height: 1.5; }
@@ -1096,6 +1102,18 @@ footer a { color: var(--accent); text-decoration: none; }
 }
 .burger-dropdown a .icon { width: 17px; height: 17px; color: var(--text-dim); }
 .burger-dropdown a:hover { background: var(--surface-2); }
+/* Logout is a form button (POST), drawn exactly like the links above
+   instead of as the global full-width accent button. */
+.burger-form { margin: 0; }
+.burger-dropdown .burger-form button {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+  width: 100%; height: auto; margin: 0; padding: 12px 16px; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none; color: var(--text);
+  font-size: 0.95em; font-weight: 400; text-align: left;
+}
+.burger-dropdown .burger-form button .icon { width: 17px; height: 17px; color: var(--text-dim); }
+.burger-dropdown .burger-form button:hover { background: var(--surface-2); }
+.burger-dropdown .burger-form button:active { filter: none; }
 
 /* Not in the mockup - theme picker (settings_design.html), a small
    color swatch per radio option. */
@@ -1164,3 +1182,5 @@ footer a { color: var(--accent); text-decoration: none; }
 .icon-refresh-cw { -webkit-mask-image: url("/static/icons/refresh-cw.svg"); mask-image: url("/static/icons/refresh-cw.svg"); }
 .icon-activity { -webkit-mask-image: url("/static/icons/activity.svg"); mask-image: url("/static/icons/activity.svg"); }
 .icon-info { -webkit-mask-image: url("/static/icons/info.svg"); mask-image: url("/static/icons/info.svg"); }
+.icon-lock { -webkit-mask-image: url("/static/icons/lock.svg"); mask-image: url("/static/icons/lock.svg"); }
+.icon-log-out { -webkit-mask-image: url("/static/icons/log-out.svg"); mask-image: url("/static/icons/log-out.svg"); }

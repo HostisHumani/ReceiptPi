@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block header_title %}{{ t('auth.setup.header') }}{% endblock %}
+{% block content %}
+<div class="hint hint-standalone">{{ t('auth.setup.intro') }}</div>
+
+{% if not uses_api_token %}
+  <h2 class="section-title">{{ t('auth.setup.code_heading') }}</h2>
+  <form method="post" action="/setup" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="action" value="print_code">
+    <div class="hint hint-standalone">{{ t('auth.setup.code_hint_printed', minutes=code_ttl_minutes) }}</div>
+    <button type="submit" class="btn btn-secondary btn-block">
+      <span class="icon icon-printer" aria-hidden="true"></span> {{ t('auth.setup.print_button') }}
+    </button>
+  </form>
+{% endif %}
+
+<h2 class="section-title">{{ t('auth.setup.account_heading') }}</h2>
+<form method="post" action="/setup" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="action" value="create">
+
+  <label for="code">{{ t('auth.setup.code_label') }}</label>
+  <input type="{{ 'password' if uses_api_token else 'text' }}" id="code" name="code" maxlength="500"
+         autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+  {% if uses_api_token %}<div class="hint">{{ t('auth.setup.code_hint_token') }}</div>{% endif %}
+
+  <label for="name">{{ t('auth.field.name') }}</label>
+  <input type="text" id="name" name="name" value="{{ name_value }}" maxlength="64"
+         autocomplete="username" autocapitalize="none" spellcheck="false" required>
+  <div class="hint">{{ t('auth.field.name_hint') }}</div>
+
+  <label for="password">{{ t('auth.field.password') }}</label>
+  <input type="password" id="password" name="password" maxlength="256" autocomplete="new-password" required>
+  <div class="hint">{{ t('auth.field.password_hint', min=password_min, max=password_max) }}</div>
+
+  <label for="password_repeat">{{ t('auth.field.password_repeat') }}</label>
+  <input type="password" id="password_repeat" name="password_repeat" maxlength="256" autocomplete="new-password" required>
+
+  <button type="submit">{{ t('auth.setup.submit') }}</button>
+</form>
+{% endblock %}

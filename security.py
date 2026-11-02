@@ -2,6 +2,11 @@
 CSRF protection for the web UI forms (/ui/*), token protection for the
 JSON/automation endpoints (/print/*), robust JSON parsing, plus shared
 input limits used by several modules.
+
+Every view's access class for the login check (modules/auth/guard.py)
+comes from the decorators here, not from its URL: require_api_token
+marks a view as "api_token", public marks it as "public", and a view
+with neither needs a login once an admin account exists.
 """
 import re
 import secrets as secrets_module
@@ -9,6 +14,13 @@ from functools import wraps
 
 import config
 from flask import abort, jsonify, request, session
+
+import auth_store
+import i18n
+
+ACCESS_ATTR = "receiptpi_access"
+ACCESS_PUBLIC = "public"
+ACCESS_API_TOKEN = "api_token"
 
 # Shared input limits (used by shopping, message, and others)
 MAX_TITLE_LEN = 100
@@ -61,14 +73,33 @@ def get_csrf_token():
     return session["csrf_token"]
 
 
+def public(view_func):
+    """Marks a view as reachable without a login (health check, static
+    assets, the login page itself). The view is returned unchanged."""
+    setattr(view_func, ACCESS_ATTR, ACCESS_PUBLIC)
+    return view_func
+
+
 def require_api_token(view_func):
     """Protects the JSON/automation endpoints with a static token
     (X-Api-Token header). The web UI (/ui/*) is unaffected - it's only
     used from a browser on the internal network. Additionally
-    restricting the port to the LAN via firewall is recommended."""
+    restricting the port to the LAN via firewall is recommended.
+
+    Only ever the header: a login session cookie is never accepted here,
+    so a page in a logged-in browser can't be used to call the API on
+    the visitor's behalf.
+
+    Without an API_TOKEN, /print/* stays open as before. The JSON
+    settings API under /settings/ is the exception once an admin
+    account exists: it can change every setting, and with logins in
+    place an open settings API would be a way around them - so it
+    answers 403 until an API_TOKEN is configured."""
     @wraps(view_func)
     def wrapper(*args, **kwargs):
         token = getattr(config, "API_TOKEN", None)
+        if not token and request.path.startswith("/settings/") and auth_store.admin_exists():
+            return jsonify({"status": "error", "detail": i18n.tr("auth.error.api_token_required")}), 403
         # compare_digest instead of != : a plain string comparison
         # short-circuits on the first mismatched character, which
         # leaks (via response timing) how many leading characters of a
@@ -77,6 +108,7 @@ def require_api_token(view_func):
         if token and not secrets_module.compare_digest(request.headers.get("X-Api-Token", ""), token):
             return jsonify({"status": "error", "detail": "invalid or missing X-Api-Token"}), 401
         return view_func(*args, **kwargs)
+    setattr(wrapper, ACCESS_ATTR, ACCESS_API_TOKEN)
     return wrapper
 
 

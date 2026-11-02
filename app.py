@@ -7,6 +7,9 @@ Modular structure:
                        (quiet hours, rate limit, duplicate suppression)
   - printer.py         printer hardware access
   - security.py        CSRF protection, API token protection, JSON parsing
+  - auth_store.py      user accounts and login sessions (SQLite in
+                       STATE_DIR/auth.db); modules/auth/ has the login
+                       pages and the login check for every request
   - settings_store.py   central settings (JSON in STATE_DIR)
   - i18n.py             minimal translation lookup (JSON files, no
                        Flask-Babel/gettext toolchain)
@@ -31,6 +34,7 @@ import os
 
 import config
 from flask import Flask, abort, render_template, request
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import history_store
 import i18n
@@ -42,6 +46,8 @@ import settings_store
 import themes
 import version
 from logos import ensure_default_logo_seeded
+from modules.auth import guard as auth_guard
+from modules.auth.routes import auth_bp
 from modules.automation.routes import automation_bp
 from modules.backup.routes import backup_bp
 from modules.games.routes import games_bp
@@ -56,6 +62,7 @@ from modules.system.routes import system_bp
 from modules.weather.routes import weather_bp
 from modules.wifi.routes import wifi_bp
 from print_queue import start_worker
+from security import public
 from static_versioning import static_url, versioned_style_css
 
 app = Flask(__name__)
@@ -104,13 +111,25 @@ if getattr(config, "SECRET_KEY", "") in INVALID_SECRET_KEYS:
     )
 app.secret_key = config.SECRET_KEY  # needed for the web UI's CSRF token session
 
+# X-Forwarded-* headers are only believed with a reverse proxy declared
+# in config.py, and then for exactly that many proxy hops: any client
+# can send these headers itself, and the client address they would set
+# is what the login brute-force protection counts per IP. X-Forwarded-
+# Prefix is never used, the app always runs at the root path.
+_trusted_proxies = getattr(config, "TRUSTED_PROXY_COUNT", 0)
+if isinstance(_trusted_proxies, bool) or not isinstance(_trusted_proxies, int) or _trusted_proxies < 0:
+    raise RuntimeError("TRUSTED_PROXY_COUNT in config.py must be a whole number >= 0")
+if _trusted_proxies:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_trusted_proxies, x_proto=_trusted_proxies,
+                            x_host=_trusted_proxies, x_port=_trusted_proxies, x_prefix=0)
+
 start_worker()  # start the print queue worker thread
 i18n.load_translations()  # load translation JSON files once at startup
 ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see logos.py
 
 for blueprint in (
     lists_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp,
-    history_bp, pending_bp, games_bp, recipes_bp, backup_bp,
+    history_bp, pending_bp, games_bp, recipes_bp, backup_bp, auth_bp,
 ):
     app.register_blueprint(blueprint)
 
@@ -118,6 +137,13 @@ for blueprint in (
 # worker after Gunicorn forks, so the MQTT threads live in the one process
 # that also owns the print queue. Does nothing unless MQTT is enabled.
 mqtt_bridge.start()
+
+# Registered before _enforce_enabled_modules on purpose: Flask runs
+# before_request hooks in registration order, and without a login a
+# disabled module's URL should lead to the login page like any other,
+# not reveal through a 404 which modules are switched off.
+app.before_request(auth_guard.enforce_login)
+app.after_request(auth_guard.after_request)
 
 
 @app.before_request
@@ -184,6 +210,7 @@ def inject_i18n():
 
 
 @app.route("/static/style.css")
+@public
 def style_css():
     """Serves static/style.css with its internal /static/icons/*.svg
     and /static/fonts/*.woff2 references rewritten to versioned URLs
@@ -206,6 +233,7 @@ _sw_body_cache = None
 
 
 @app.route("/sw.js", methods=["GET"])
+@public
 def service_worker():
     """Serves static/sw.js at the site root: a service worker can only
     control URLs at or below the path it's served from, so the copy
@@ -230,6 +258,7 @@ def service_worker():
 
 
 @app.route("/health", methods=["GET"])
+@public
 def health():
     """Printer reachability without a print job and without opening the
     printer (see printer_status.health_snapshot()). "Reachable" means

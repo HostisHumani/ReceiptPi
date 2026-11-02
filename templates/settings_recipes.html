@@ -78,7 +78,9 @@
       testBtn.textContent = testBtn.dataset.testingText;
       fetch('/ui/settings/recipes/test', { method: 'POST', body: new FormData(form) })
         .then(function (res) { return res.json(); })
-        .then(function (data) { showResult(!!data.ok, data.message || ''); })
+        // detail: the error text of a refused request (e.g. 401 after
+        // the login session ended), which carries no "message".
+        .then(function (data) { showResult(!!data.ok, data.message || data.detail || ''); })
         .catch(function () { showResult(false, testBtn.dataset.networkErrorText); })
         .finally(function () {
           testBtn.disabled = false;

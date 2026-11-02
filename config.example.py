@@ -53,7 +53,25 @@ SSH_PBS_USER = "root"
 # weather, system, automation) require the header "X-Api-Token: <value>".
 # Leave empty ("") to disable the protection entirely (recommended only
 # for a purely internal network).
+# Once a web UI admin account exists, the JSON settings API under
+# /settings/ answers 403 while this is empty; /print/* stays open.
+# Also accepted as the setup code on the first-time setup page (/setup).
 API_TOKEN = ""
+
+# --- Web UI login ---------------------------------------------------------
+# Marks the login cookie as Secure, so the browser only sends it over
+# HTTPS. Leave False while the web UI is reached over plain HTTP (the
+# default, e.g. http://<host>:5000): with True, a browser on HTTP never
+# sends the cookie back and nobody can stay logged in.
+LOGIN_COOKIE_SECURE = False
+
+# Number of reverse proxies in front of the server (e.g. 1 for one
+# nginx/Caddy that terminates HTTPS). Only then are the X-Forwarded-For/
+# -Proto/-Host/-Port headers of exactly that many hops used, for the
+# client address (per-IP login brute-force protection) and the
+# original scheme and host. 0 = no proxy: these headers are ignored,
+# since any client could send them.
+TRUSTED_PROXY_COUNT = 0
 
 # --- Runtime data for the watch scripts -----------------------------------
 # FHS-compliant path instead of inside the project/source directory -

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block header_title %}{{ t('auth.login.header') }}{% endblock %}
+{% block content %}
+<form method="post" action="/login" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="next" value="{{ next_target }}">
+
+  <label for="name">{{ t('auth.field.name') }}</label>
+  <input type="text" id="name" name="name" value="{{ name_value }}" maxlength="64"
+         autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+
+  <label for="password">{{ t('auth.field.password') }}</label>
+  <input type="password" id="password" name="password" maxlength="256" autocomplete="current-password" required>
+
+  <label class="checkbox-row">
+    <input type="checkbox" name="remember" value="yes">
+    <span>{{ t('auth.login.remember') }}</span>
+  </label>
+  <div class="hint">{{ t('auth.login.remember_hint') }}</div>
+
+  <button type="submit">{{ t('auth.login.submit') }}</button>
+</form>
+{% endblock %}

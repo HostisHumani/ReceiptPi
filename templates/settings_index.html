@@ -4,6 +4,13 @@
 {% block content %}
 <a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
+{%- if auth_api_token_missing %}
+  <div class="msg notice">
+    <span class="icon icon-circle-alert" aria-hidden="true"></span>
+    <span>{{ t('auth.settings.api_token_missing') }}</span>
+  </div>
+{%- endif %}
+
 <div class="section">
   <div class="heading">{{ t('settings.group.general') }}</div>
   <div class="list">

@@ -32,7 +32,18 @@
       if (showSavedStatus === undefined) showSavedStatus = true;
       fetch(draftUrl, { method: "POST", body: new FormData(form) })
         .then(function (res) {
-          if (res.ok && showSavedStatus) setStatus(form.dataset.draftSavedText);
+          if (res.ok) {
+            if (showSavedStatus) setStatus(form.dataset.draftSavedText);
+            return;
+          }
+          // 401: the login session has ended, so neither this draft nor
+          // the print button will get through any more. Show the
+          // server's translated hint instead of failing silently.
+          if (res.status === 401) {
+            return res.json().then(function (data) {
+              setStatus(data.detail || "");
+            }, function () {});
+          }
         })
         .catch(function () {
           // A failed autosave must never interrupt typing or printing -
