@@ -24,6 +24,7 @@ from datetime import time as dtime
 import history_store
 import i18n
 import pending_store
+import printer_status
 import settings_store
 
 PRINT_QUEUE = queue.Queue(maxsize=100)
@@ -41,6 +42,10 @@ _recent_job_hashes = {}
 # the lock, two parallel requests could both pass the same duplicate
 # check before either one records its fingerprint.
 _rules_lock = threading.Lock()
+
+# Callbacks notified after every job outcome (printed, failed, blocked) -
+# see add_job_listener().
+_job_listeners = []
 
 
 def _job_fingerprint(func, args, dedupe_key=None):
@@ -168,7 +173,11 @@ def _print_worker():
     while True:
         func, args, result, event, meta = PRINT_QUEUE.get()
         try:
-            func(*args)
+            # Held for the whole job, so a printer status check (see
+            # printer_status.read_port_status) never touches the USB
+            # interface while a job is using it.
+            with printer_status.USB_LOCK:
+                func(*args)
             result["ok"] = True
             result["detail"] = "printed"
         except Exception as e:
@@ -191,8 +200,34 @@ def _print_worker():
                 meta.get("job_type", "other"), meta.get("summary", ""), meta.get("source", "system"),
                 "error", result.get("detail", ""), meta["retry_payload"],
             )
+        _notify_job_listeners(meta, "ok" if result["ok"] else "error")
         event.set()
         PRINT_QUEUE.task_done()
+
+
+def add_job_listener(callback):
+    """Registers callback(event) to be called after every job outcome:
+    event = {"job_type", "status" ("ok"/"error"/"blocked"), "logged"
+    (False for jobs enqueued with log_history=False), "at" (ISO time)}.
+    Runs on the print worker thread (or the request thread for a blocked
+    job), so a listener must only record the event and return - never
+    block or do I/O itself."""
+    _job_listeners.append(callback)
+
+
+def _notify_job_listeners(meta, status):
+    event = {
+        "job_type": meta.get("job_type", "other"),
+        "status": status,
+        "logged": meta.get("log_history", True),
+        "at": datetime.now().isoformat(timespec="seconds"),
+    }
+    for callback in _job_listeners:
+        try:
+            callback(event)
+        except Exception:
+            # A broken listener must never take the print worker down.
+            pass
 
 
 def start_worker():
@@ -212,9 +247,8 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     (ok: bool, detail: str, http_status: int).
 
     bypass_rules=True skips quiet hours/rate limit/duplicate suppression
-    entirely - only meant for internal, non-user-triggered actions like
-    the health check or the boot greeting, NOT for regular print
-    functions.
+    entirely - only meant for internal, non-user-triggered actions, NOT
+    for regular print functions.
 
     bypass_quiet_hours=True skips ONLY the quiet-hours check (rate
     limit/duplicate suppression still apply) - for the opt-in "ignore
@@ -241,8 +275,7 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     human-readable detail (title, SSID, location, ...) - NEVER put
     secrets in summary. source is where the request came from ("ui",
     "api", "system"). Set log_history=False for internal, non-user-
-    facing jobs that shouldn't clutter the dashboard (e.g. the /health
-    check, which runs every 60s from every open browser tab).
+    facing jobs that shouldn't clutter the dashboard.
 
     retry_payload: optional JSON-serializable dict (or, for job_type
     "images" specifically, {"image": <PIL Image>} - see
@@ -278,6 +311,7 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
             # submission, so there's nothing here worth recovering.
             if retry_payload is not None and block_kind in ("quiet_hours", "rate_limit"):
                 pending_store.add(job_type, summary, source, "blocked", reason, retry_payload)
+            _notify_job_listeners({"job_type": job_type, "log_history": log_history}, "blocked")
             return False, reason, 429
 
     result = {}

@@ -121,6 +121,21 @@ def _parse_draft_loaded_at():
         return None
 
 
+def parse_list_body(data, default_title):
+    """Validates a {"title", "items"} JSON body - shared by /print/list,
+    /print/todo and the MQTT list/todo commands (see mqtt_bridge.py).
+    Returns ((title, items), None) or (None, (detail, http_status))."""
+    title = data.get("title")
+    if title is not None and not isinstance(title, str):
+        return None, ("title must be a string", 400)
+    title = (title or default_title)[:MAX_TITLE_LEN]
+    raw_items = data.get("items", [])
+    if not isinstance(raw_items, list):
+        return None, ("items must be a list", 400)
+    items = [str(item)[:MAX_ITEM_LEN] for item in raw_items[:MAX_ITEMS]]
+    return (title, items), None
+
+
 def do_print_list(title, items, job_type="shopping", source="ui"):
     """Returns (ok, detail, http_status), see enqueue_print(). job_type
     distinguishes shopping ("shopping", unchanged from before this
@@ -164,6 +179,10 @@ def parse_task_fields(data):
     non-empty but invalid priority/due_date is a hard error rather
     than being silently dropped.
     """
+    for key in ("title", "description", "priority", "due_date"):
+        if data.get(key) is not None and not isinstance(data.get(key), str):
+            return None, (f"{key} must be a string", 400)
+
     title = (data.get("title") or "").strip()[:MAX_TITLE_LEN]
     if not title:
         return None, ("title is required", 400)
@@ -291,12 +310,11 @@ def print_list():
     data, err = get_json_body()
     if err:
         return err
-    title = (data.get("title") or "List")[:MAX_TITLE_LEN]
-    raw_items = data.get("items", [])
-    if not isinstance(raw_items, list):
-        return jsonify({"status": "error", "detail": "items must be a list"}), 400
-    items = [str(item)[:MAX_ITEM_LEN] for item in raw_items[:MAX_ITEMS]]
-    ok, detail, status_code = do_print_list(title, items, job_type="shopping", source="api")
+    fields, error = parse_list_body(data, "List")
+    if error:
+        detail, status = error
+        return jsonify({"status": "error", "detail": detail}), status
+    ok, detail, status_code = do_print_list(*fields, job_type="shopping", source="api")
     if ok:
         return jsonify({"status": "printed", "detail": detail}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
@@ -362,12 +380,11 @@ def print_todo():
     data, err = get_json_body()
     if err:
         return err
-    title = (data.get("title") or i18n.tr("lists.todo.title_default"))[:MAX_TITLE_LEN]
-    raw_items = data.get("items", [])
-    if not isinstance(raw_items, list):
-        return jsonify({"status": "error", "detail": "items must be a list"}), 400
-    items = [str(item)[:MAX_ITEM_LEN] for item in raw_items[:MAX_ITEMS]]
-    ok, detail, status_code = do_print_list(title, items, job_type="todo", source="api")
+    fields, error = parse_list_body(data, i18n.tr("lists.todo.title_default"))
+    if error:
+        detail, status = error
+        return jsonify({"status": "error", "detail": detail}), status
+    ok, detail, status_code = do_print_list(*fields, job_type="todo", source="api")
     if ok:
         return jsonify({"status": "printed", "detail": detail}), 200
     return jsonify({"status": "error", "detail": detail}), status_code

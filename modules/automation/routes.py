@@ -33,6 +33,34 @@ from security import (
 automation_bp = Blueprint("automation", __name__)
 
 
+def parse_automation_body(data):
+    """Validates a {"title", "text"} body - shared by /print/automation
+    and the MQTT "message" command (see mqtt_bridge.py), so both apply
+    exactly the same rules. Returns ((title, text), None) or (None,
+    (detail, http_status))."""
+    title = data.get("title")
+    text = data.get("text")
+    if title is not None and not isinstance(title, str):
+        return None, ("'title' must be a string", 400)
+    if text is not None and not isinstance(text, str):
+        return None, ("'text' must be a string", 400)
+    title = (title or "")[:MAX_TITLE_LEN] or None
+    text = (text or "")[:MAX_TEXT_LEN]
+    if not text:
+        return None, ("'text' must not be empty", 400)
+    return (title, text), None
+
+
+def do_print_automation(title, text, source="webhook"):
+    """Returns (ok, detail, http_status), see enqueue_print()."""
+    summary = title or (text[:60] + ("…" if len(text) > 60 else ""))
+    return enqueue_print(
+        _raw_print_message, title, text, "automation",
+        job_type="automation", summary=summary, source=source,
+        retry_payload={"title": title, "text": text, "module": "automation"},
+    )
+
+
 @automation_bp.route("/print/automation", methods=["POST"])
 @require_api_token
 def print_automation():
@@ -48,17 +76,11 @@ def print_automation():
     data, err = get_json_body()
     if err:
         return err
-    title = (data.get("title") or "")[:MAX_TITLE_LEN] or None
-    text = (data.get("text") or "")[:MAX_TEXT_LEN]
-    if not text:
-        return jsonify({"status": "error", "detail": "'text' must not be empty"}), 400
-
-    summary = title or (text[:60] + ("…" if len(text) > 60 else ""))
-    ok, detail, status_code = enqueue_print(
-        _raw_print_message, title, text, "automation",
-        job_type="automation", summary=summary, source="webhook",
-        retry_payload={"title": title, "text": text, "module": "automation"},
-    )
+    fields, error = parse_automation_body(data)
+    if error:
+        detail, status = error
+        return jsonify({"status": "error", "detail": detail}), status
+    ok, detail, status_code = do_print_automation(*fields)
     if ok:
         return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code

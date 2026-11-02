@@ -27,7 +27,7 @@ from logos import print_logo
 from modules.message.routes import _raw_print_message
 from modules.weather.alerts import fetch_open_meteo_forecast
 from print_queue import enqueue_print
-from security import csrf_protect, get_csrf_token, require_api_token
+from security import MAX_TITLE_LEN, csrf_protect, get_csrf_token, require_api_token
 from text_style import get_text_scale, wrap_body_text
 
 weather_bp = Blueprint("weather", __name__)
@@ -202,6 +202,28 @@ def _raw_print_weather(location_name=None):
         p.close()
 
 
+def parse_weather_location(value):
+    """Validates the optional location name - shared by /print/weather
+    and the MQTT weather command (see mqtt_bridge.py). Returns
+    (location_name or None, None) or (None, (detail, http_status)). An
+    unknown name is not an error: resolve_location() falls back to the
+    default location."""
+    if value is None or value == "":
+        return None, None
+    if not isinstance(value, str):
+        return None, ("location must be a string", 400)
+    return value[:MAX_TITLE_LEN], None
+
+
+def do_print_weather(location_name, source="ui"):
+    """Returns (ok, detail, http_status), see enqueue_print()."""
+    resolved_name, _lat, _lon = resolve_location(location_name)
+    return enqueue_print(
+        _raw_print_weather, location_name, job_type="weather", summary=resolved_name or "", source=source,
+        retry_payload={"location_name": location_name},
+    )
+
+
 @weather_bp.route("/weather", methods=["GET"])
 def weather_page():
     weather_settings = settings_store.get_settings()["weather"]
@@ -224,13 +246,15 @@ def print_weather():
     """
     location_name = request.args.get("location")
     if request.method == "POST" and request.is_json:
-        location_name = (request.get_json(silent=True) or {}).get("location", location_name)
+        body = request.get_json(silent=True)
+        if isinstance(body, dict):
+            location_name = body.get("location", location_name)
 
-    resolved_name, _lat, _lon = resolve_location(location_name)
-    ok, detail, status_code = enqueue_print(
-        _raw_print_weather, location_name, job_type="weather", summary=resolved_name or "", source="api",
-        retry_payload={"location_name": location_name},
-    )
+    location_name, error = parse_weather_location(location_name)
+    if error:
+        detail, status = error
+        return jsonify({"status": "error", "detail": detail}), status
+    ok, detail, status_code = do_print_weather(location_name, source="api")
     if ok:
         return jsonify({"status": "printed"}), 200
     return jsonify({"status": "error", "detail": detail}), status_code
@@ -240,11 +264,7 @@ def print_weather():
 @csrf_protect
 def ui_print_weather():
     location_name = request.form.get("location") or None
-    resolved_name, _lat, _lon = resolve_location(location_name)
-    ok, detail, _status_code = enqueue_print(
-        _raw_print_weather, location_name, job_type="weather", summary=resolved_name or "", source="ui",
-        retry_payload={"location_name": location_name},
-    )
+    ok, detail, _status_code = do_print_weather(location_name, source="ui")
     message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
     weather_settings = settings_store.get_settings()["weather"]
     return render_template(

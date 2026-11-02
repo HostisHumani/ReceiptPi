@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block header_icon %}<span class="mark"><span class="icon icon-activity" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.index.mqtt.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<div class="hint">{{ t('settings.mqtt.hint') }}</div>
+
+<div class="card">
+  <div class="list-row">
+    <div class="list-row-main">
+      <span class="list-row-title">{{ t('settings.mqtt.status_label') }}</span>
+      <div class="list-row-meta" id="mqtt_status">{{ t('settings.mqtt.status.' ~ status.state) }}{% if status.detail %} ({{ status.detail }}){% endif %}</div>
+    </div>
+  </div>
+  {% if mqtt.enabled and not mqtt.username %}
+  <div class="msg err inline-result" role="status"><span class="icon icon-circle-alert" aria-hidden="true"></span><span>{{ t('settings.mqtt.warning_no_auth') }}</span></div>
+  {% endif %}
+  {% if mqtt.enabled and not mqtt.tls %}
+  <div class="msg err inline-result" role="status"><span class="icon icon-circle-alert" aria-hidden="true"></span><span>{{ t('settings.mqtt.warning_no_tls') }}</span></div>
+  {% endif %}
+</div>
+
+<form method="post" action="/ui/settings/mqtt" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="list-row">
+    <div class="list-row-main">
+      <span class="list-row-title">{{ t('settings.mqtt.enabled_label') }}</span>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" name="enabled" {% if mqtt.enabled %}checked{% endif %}>
+      <span class="track"><span class="thumb"></span></span>
+    </label>
+  </div>
+
+  <label for="mq_host">{{ t('settings.mqtt.host_label') }}</label>
+  <input type="text" id="mq_host" name="host" value="{{ mqtt.host }}" maxlength="253"
+         placeholder="{{ t('settings.mqtt.host_placeholder') }}" autocapitalize="off" spellcheck="false">
+
+  <label for="mq_port">{{ t('settings.mqtt.port_label') }}</label>
+  <input type="number" id="mq_port" name="port" value="{{ mqtt.port }}" min="1" max="65535" inputmode="numeric">
+
+  <div class="list-row">
+    <div class="list-row-main">
+      <span class="list-row-title">{{ t('settings.mqtt.tls_label') }}</span>
+      <div class="list-row-meta">{{ t('settings.mqtt.tls_hint') }}</div>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" name="tls" {% if mqtt.tls %}checked{% endif %}>
+      <span class="track"><span class="thumb"></span></span>
+    </label>
+  </div>
+
+  <label for="mq_username">{{ t('settings.mqtt.username_label') }}</label>
+  <input type="text" id="mq_username" name="username" value="{{ mqtt.username }}" maxlength="128"
+         autocomplete="off" autocapitalize="off" spellcheck="false">
+
+  <div class="field-label-row">
+    <label for="mq_password">{{ t('settings.mqtt.password_label') }}</label>
+    {% if has_password %}<span class="badge badge-accent">{{ t('settings.mqtt.password_saved_badge') }}</span>{% endif %}
+  </div>
+  <input type="password" id="mq_password" name="password" autocomplete="new-password" maxlength="256"
+         placeholder="{{ t('settings.mqtt.password_placeholder_saved') if has_password else '' }}">
+  <div class="hint">{{ t('settings.mqtt.password_hint') }}</div>
+
+  <label for="mq_prefix">{{ t('settings.mqtt.prefix_label') }}</label>
+  <input type="text" id="mq_prefix" name="prefix" value="{{ mqtt.prefix }}" maxlength="64"
+         autocapitalize="off" spellcheck="false">
+  <div class="hint">{{ t('settings.mqtt.prefix_hint', prefix=mqtt.prefix) }}</div>
+
+  <div class="list-row">
+    <div class="list-row-main">
+      <span class="list-row-title">{{ t('settings.mqtt.discovery_label') }}</span>
+      <div class="list-row-meta">{{ t('settings.mqtt.discovery_hint') }}</div>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" name="discovery" {% if mqtt.discovery %}checked{% endif %}>
+      <span class="track"><span class="thumb"></span></span>
+    </label>
+  </div>
+
+  <button type="submit">{{ t('settings.save') }}</button>
+</form>
+
+{% if has_password %}
+<form method="post" action="/ui/settings/mqtt/password/delete" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="hint hint-standalone">{{ t('settings.mqtt.password_delete_hint') }}</div>
+  <button type="submit" class="btn btn-danger btn-block">{{ t('settings.mqtt.password_delete') }}</button>
+</form>
+{% endif %}
+
+<h2 class="section-title">{{ t('settings.mqtt.ca_heading') }}</h2>
+<form method="post" action="/ui/settings/mqtt/ca" class="card" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field-label-row">
+    <label for="mq_ca">{{ t('settings.mqtt.ca_label') }}</label>
+    {% if has_ca %}<span class="badge badge-accent">{{ t('settings.mqtt.ca_saved_badge') }}</span>{% endif %}
+  </div>
+  <input type="file" id="mq_ca" name="ca_file" accept=".pem,.crt,.cer">
+  <div class="hint">{{ t('settings.mqtt.ca_hint') }}</div>
+  <button type="submit" class="btn btn-secondary btn-block">{{ t('settings.mqtt.ca_upload') }}</button>
+</form>
+{% if has_ca %}
+<form method="post" action="/ui/settings/mqtt/ca/delete" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="btn btn-danger btn-block">{{ t('settings.mqtt.ca_delete') }}</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -17,6 +17,7 @@ Two access paths to the same data:
 import base64
 import logging
 import os
+import ssl
 import uuid
 
 from flask import Blueprint, jsonify, render_template, request, send_file
@@ -24,6 +25,7 @@ from flask import Blueprint, jsonify, render_template, request, send_file
 import i18n
 import logos
 import module_catalog
+import mqtt_bridge
 import secrets_crypto
 import settings_store
 import themes
@@ -35,6 +37,8 @@ from security import (
     csrf_protect,
     get_csrf_token,
     get_json_body,
+    is_valid_ssh_host,
+    is_valid_ssh_user,
     require_api_token,
 )
 
@@ -42,6 +46,12 @@ settings_bp = Blueprint("settings", __name__)
 logger = logging.getLogger(__name__)
 
 ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6]  # 0=Monday..6=Sunday, matches datetime.weekday()
+
+# Valid values for the weather report backend and the storm-warning
+# provider - module-level so the settings backup restore
+# (modules/backup/) checks against exactly the same lists as the forms.
+WEATHER_REPORT_PROVIDERS = ("dwd", "open-meteo")
+STORM_WARNING_PROVIDERS = ("dwd", "meteoalarm", "nws")
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +204,12 @@ def validate_system_report_host_entry(name_raw, role_raw, host_raw, user_raw, co
         return None, error_key, error_kwargs
     if not host or not user:
         return None, "settings.validation.system_report_host_missing", {}
+    # Same allowlist the backup restore applies (see security.py) - host
+    # and user end up on the ssh command line of modules/system/routes.py.
+    if not is_valid_ssh_host(host):
+        return None, "settings.validation.ssh_host_invalid", {}
+    if not is_valid_ssh_user(user):
+        return None, "settings.validation.ssh_user_invalid", {}
 
     command = str(command_raw or "").strip()[:MAX_TEXT_LEN]
     if role == "custom" and not command:
@@ -302,6 +318,22 @@ def _render_recipes(message=None, success=None):
     )
 
 
+def _render_mqtt(message=None, success=None):
+    settings = settings_store.get_settings()
+    stored = settings["mqtt"]
+    return render_template(
+        "settings_mqtt.html",
+        message=message, success=success,
+        csrf_token=get_csrf_token(),
+        # Without the password's ciphertext - the page only ever gets a
+        # yes/no, same as the recipe token.
+        mqtt={k: v for k, v in stored.items() if k != "password_encrypted"},
+        has_password=bool(stored.get("password_encrypted")),
+        has_ca=mqtt_bridge.ca_file_present(),
+        status=mqtt_bridge.get_status(),
+    )
+
+
 def _render_logos(message=None, success=None):
     return render_template(
         "settings_logos.html",
@@ -365,6 +397,11 @@ def settings_github_watch_page():
 @settings_bp.route("/settings/recipes", methods=["GET"])
 def settings_recipes_page():
     return _render_recipes()
+
+
+@settings_bp.route("/settings/mqtt", methods=["GET"])
+def settings_mqtt_page():
+    return _render_mqtt()
 
 
 @settings_bp.route("/settings/logos", methods=["GET"])
@@ -483,7 +520,7 @@ def ui_delete_quiet_hours_rule():
 @csrf_protect
 def ui_set_weather_report_provider():
     provider = request.form.get("report_provider", "")
-    if provider not in ("dwd", "open-meteo"):
+    if provider not in WEATHER_REPORT_PROVIDERS:
         return _render_weather(i18n.tr("settings.weather_provider.unsupported", provider=provider), False)
 
     def _mutate(settings):
@@ -497,7 +534,7 @@ def ui_set_weather_report_provider():
 @csrf_protect
 def ui_set_storm_warning():
     provider = request.form.get("provider", "dwd")
-    if provider not in ("dwd", "meteoalarm", "nws"):
+    if provider not in STORM_WARNING_PROVIDERS:
         provider = "dwd"
 
     def _mutate(settings):
@@ -775,6 +812,122 @@ def ui_delete_recipes_token():
     return _render_recipes(i18n.tr("settings.recipes.token_deleted"), True)
 
 
+@settings_bp.route("/ui/settings/mqtt", methods=["POST"])
+@csrf_protect
+def ui_save_mqtt():
+    """Saves the MQTT connection settings and restarts the bridge with
+    them. An empty password field keeps the stored password, like the
+    recipe token - but only for the broker it was entered for: /ui/* has
+    no login, so otherwise anyone on the LAN could point host/port at a
+    machine of their own and receive the password with the next CONNECT.
+    For the same reason, switching TLS off needs the password again (it
+    would otherwise go out unencrypted to a broker it was only ever sent
+    to over TLS)."""
+    enabled = request.form.get("enabled") == "on"
+    host = request.form.get("host", "").strip()
+    tls = request.form.get("tls") == "on"
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    prefix = request.form.get("prefix", "").strip()
+    discovery = request.form.get("discovery") == "on"
+    raw_port = request.form.get("port", "").strip()
+    try:
+        port = int(raw_port) if raw_port else (8883 if tls else 1883)
+    except ValueError:
+        port = None
+
+    if not mqtt_bridge.is_valid_port(port):
+        return _render_mqtt(i18n.tr("settings.mqtt.port_invalid"), False)
+    if host and not mqtt_bridge.is_valid_host(host):
+        return _render_mqtt(i18n.tr("settings.mqtt.host_invalid"), False)
+    if enabled and not host:
+        return _render_mqtt(i18n.tr("settings.mqtt.host_required"), False)
+    if not mqtt_bridge.is_valid_prefix(prefix):
+        return _render_mqtt(i18n.tr("settings.mqtt.prefix_invalid"), False)
+    if not mqtt_bridge.is_valid_credential(username, mqtt_bridge.MAX_USERNAME_LEN):
+        return _render_mqtt(i18n.tr("settings.mqtt.username_invalid"), False)
+    if password and not mqtt_bridge.is_valid_credential(password, mqtt_bridge.MAX_PASSWORD_LEN):
+        return _render_mqtt(i18n.tr("settings.mqtt.password_invalid"), False)
+
+    stored = settings_store.get_settings()["mqtt"]
+    has_stored_password = bool(stored.get("password_encrypted"))
+    # MQTT 3.1.1 only allows a password together with a user name.
+    if (password or has_stored_password) and not username:
+        return _render_mqtt(i18n.tr("settings.mqtt.password_needs_username"), False)
+    if has_stored_password and not password and (
+            host != stored.get("host") or port != stored.get("port") or (stored.get("tls") and not tls)):
+        return _render_mqtt(i18n.tr("settings.mqtt.password_required_new_target"), False)
+
+    # Encrypted before the transaction, same as the other stored
+    # secrets - the plaintext never gets near what's written to disk.
+    password_encrypted = secrets_crypto.encrypt_password(password) if password else None
+
+    def _mutate(settings):
+        section = settings["mqtt"]
+        section.update({
+            "enabled": enabled, "host": host, "port": port, "tls": tls,
+            "username": username, "prefix": prefix, "discovery": discovery,
+        })
+        if password_encrypted:
+            section["password_encrypted"] = password_encrypted
+
+    settings_store.update_settings_transaction(_mutate)
+    mqtt_bridge.reload()
+    return _render_mqtt(i18n.tr("settings.mqtt.saved"), True)
+
+
+@settings_bp.route("/ui/settings/mqtt/password/delete", methods=["POST"])
+@csrf_protect
+def ui_delete_mqtt_password():
+    def _mutate(settings):
+        settings["mqtt"]["password_encrypted"] = ""
+
+    settings_store.update_settings_transaction(_mutate)
+    mqtt_bridge.reload()
+    return _render_mqtt(i18n.tr("settings.mqtt.password_deleted"), True)
+
+
+@settings_bp.route("/ui/settings/mqtt/ca", methods=["POST"])
+@csrf_protect
+def ui_upload_mqtt_ca():
+    """Stores a PEM CA bundle for verifying the broker's certificate
+    (without one, the system CAs are used). Only accepted if Python's
+    ssl module can load it as CA data; written 0600 into STATE_DIR."""
+    uploaded = request.files.get("ca_file")
+    if not uploaded or not uploaded.filename:
+        return _render_mqtt(i18n.tr("settings.mqtt.ca_missing"), False)
+    data = uploaded.read(mqtt_bridge.MAX_CA_BYTES + 1)
+    if len(data) > mqtt_bridge.MAX_CA_BYTES:
+        return _render_mqtt(i18n.tr("settings.mqtt.ca_too_large"), False)
+    try:
+        text = data.decode("ascii")
+        if "-----BEGIN CERTIFICATE-----" not in text:
+            raise ValueError("no PEM certificate")
+        ssl.create_default_context(cadata=text)
+    except (UnicodeDecodeError, ValueError, ssl.SSLError):
+        return _render_mqtt(i18n.tr("settings.mqtt.ca_invalid"), False)
+    tmp_path = mqtt_bridge.CA_FILE + ".tmp"
+    fd = os.open(tmp_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="ascii") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, mqtt_bridge.CA_FILE)
+    mqtt_bridge.reload()
+    return _render_mqtt(i18n.tr("settings.mqtt.ca_saved"), True)
+
+
+@settings_bp.route("/ui/settings/mqtt/ca/delete", methods=["POST"])
+@csrf_protect
+def ui_delete_mqtt_ca():
+    try:
+        os.remove(mqtt_bridge.CA_FILE)
+    except FileNotFoundError:
+        pass
+    mqtt_bridge.reload()
+    return _render_mqtt(i18n.tr("settings.mqtt.ca_deleted"), True)
+
+
 @settings_bp.route("/ui/settings/github_watch/add", methods=["POST"])
 @csrf_protect
 def ui_add_github_repo():
@@ -883,7 +1036,17 @@ def ui_delete_logo():
 @settings_bp.route("/settings/api", methods=["GET"])
 @require_api_token
 def get_all_settings():
-    return jsonify(settings_store.get_settings()), 200
+    """Every settings section as stored, except that encrypted secrets
+    are replaced by yes/no flags - the same has_password flag as
+    /settings/system_report, and has_token as on the recipes settings
+    page, and has_password for the MQTT broker password. These sections
+    are swapped for redacted copies; get_settings() already returns a
+    deep copy, so the cached settings stay intact."""
+    settings = settings_store.get_settings()
+    settings["recipes"] = _redact_recipes(settings["recipes"])
+    settings["system_report"] = _redact_system_report(settings["system_report"])
+    settings["mqtt"] = _redact_mqtt(settings["mqtt"])
+    return jsonify(settings), 200
 
 
 @settings_bp.route("/settings/print_rules", methods=["POST"])
@@ -1050,6 +1213,26 @@ def _redact_system_report(system_report):
          "has_password": bool(h.get("password_encrypted"))}
         for h in system_report.get("hosts", [])
     ]
+    return redacted
+
+
+def _redact_recipes(recipes):
+    """Counterpart to _redact_system_report() for the recipes section:
+    the Mealie API token's ciphertext becomes a plain "has_token" flag."""
+    redacted = dict(recipes)
+    mealie = recipes.get("mealie", {})
+    redacted["mealie"] = {
+        **{k: v for k, v in mealie.items() if k != "token_encrypted"},
+        "has_token": bool(mealie.get("token_encrypted")),
+    }
+    return redacted
+
+
+def _redact_mqtt(mqtt):
+    """Same treatment for the MQTT broker password: "has_password"
+    instead of the ciphertext."""
+    redacted = {k: v for k, v in mqtt.items() if k != "password_encrypted"}
+    redacted["has_password"] = bool(mqtt.get("password_encrypted"))
     return redacted
 
 

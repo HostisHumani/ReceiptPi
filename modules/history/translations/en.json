@@ -18,5 +18,6 @@
   "history.job_type.other": "Other",
   "history.empty": "No print jobs recorded yet.",
   "history.pagination.prev": "Previous",
-  "history.pagination.next": "Next"
+  "history.pagination.next": "Next",
+  "history.source.mqtt": "MQTT"
 }
