@@ -65,8 +65,9 @@ GitHub-Repos, SSH-Ziele für den Systembericht, Logos je Druckart,
 UI-Sprache) werden komplett über die Settings-Seite der Web-UI verwaltet –
 dafür muss `config.py` nicht angefasst werden. Nur Bootstrap-Werte
 (Secret Key, API-Token, Drucker-USB-IDs, echte Zugangsdaten wie
-HA-Token oder Fritz!Box-Passwort) bleiben in `config.py`, da ReceiptPi
-aktuell keinen Login/Auth-Schutz für die Web-UI selbst hat.
+HA-Token oder Fritz!Box-Passwort) bleiben in `config.py`. Bis ein
+Admin-Konto eingerichtet ist, ist die Web-UI im Netzwerk offen, siehe
+[Anmeldung und Konten](#anmeldung-und-konten).
 
 ## Struktur
 
@@ -79,7 +80,8 @@ receiptpi/
 ├── printer.py             Drucker-Hardware-Zugriff (USB)
 ├── printer_status.py      Druckerstatus ohne Druck (USB-Präsenz + Port-Status der Druckerklasse), genutzt von /health und MQTT
 ├── mqtt_bridge.py         optionale MQTT-Bridge: Druckbefehle rein, Druckerstatus raus, Home Assistant Discovery
-├── security.py            CSRF-Schutz, API-Token-Schutz, JSON-Parsing
+├── security.py            CSRF-Schutz, API-Token-Schutz, JSON-Parsing, Zugriffsmarkierungen für die Login-Prüfung
+├── auth_store.py          Konten und Anmeldungen der Web-UI (SQLite STATE_DIR/auth.db, 0600)
 ├── secrets_crypto.py      Fernet-Verschlüsselung für System-Report-SSH-Passwörter, den API-Token des Rezeptmanagers und das MQTT-Passwort (Schlüssel in STATE_DIR, nicht im Git)
 ├── settings_store.py      zentrale Settings (JSON in STATE_DIR, nicht im Projektordner)
 ├── history_store.py       SQLite-Druckhistorie (STATE_DIR), Auto-Pruning nach 180 Tagen
@@ -107,6 +109,7 @@ receiptpi/
 │   ├── history/                Druckhistorie-Dashboard
 │   ├── pending/                 Ausstehende Druckaufträge ansehen/nachdrucken/verwerfen
 │   ├── backup/                  Sicherung und Wiederherstellung der Einstellungen (.zip)
+│   ├── auth/                    Anmeldung, Ersteinrichtung, eigenes Konto, Login-Prüfung für jeden Request
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── watchers/
 │   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
@@ -114,6 +117,8 @@ receiptpi/
 │   ├── storm_warning_watch.py    Cron: druckt bei neuer aktiver Unwetterwarnung
 │   ├── update_check_watch.py     Cron (alle 12h): cached, ob ein neueres GitHub-Release existiert (für den Footer)
 │   └── crontab.example           fertige Cron-Vorlage für alle vier Watcher oben
+├── scripts/
+│   └── manage_users.py         Kontenverwaltung auf der Konsole (create-admin, reset-password, list, revoke-sessions)
 ├── assets/example-logos/    mitgelieferter Logo-Startsatz (Strichzeichnungen)
 ├── static/
 │   ├── style.css             Design-System (Spacing/Farben/Themes, Card-/Tile-/Icon-Stile)
@@ -137,6 +142,7 @@ receiptpi/
     ├── history.html
     ├── games_*.html            Spiele-Übersicht + eine Seite je Spiel
     ├── recipes*.html           Rezeptsuche/Zufallsrezept + Rezept-Vorschau
+    ├── auth_*.html             Anmeldung, Ersteinrichtung, eigenes Konto
     └── settings_*.html        Settings-Übersicht + eine Unterseite je Bereich
 ```
 
@@ -154,7 +160,8 @@ Formulare umgesetzt:
   Verlaufs-Store), gefolgt von einem Kachel-Grid mit Links zu jedem
   aktuell aktivierten Modul.
 - **Navigation** – ein Topbar-Wordmark, ein kleiner Drucker-Status-Punkt
-  und ein Burger-Menü (Verlauf, Einstellungen).
+  und ein Burger-Menü (Verlauf, Ausstehende Aufträge, Einstellungen; nach
+  der Anmeldung zusätzlich Konto und Abmelden).
 - **Themes** – 6 wählbare Farbschemata (Warm [Standard], Forrest, Dark
   Lime, Frost, Butter Bean, White Purple), einstellbar unter
   `/settings/design`, angewendet über ein `data-theme`-Attribut plus
@@ -199,6 +206,97 @@ die UI braucht weiterhin den erreichbaren Pi. Die Icons unter
 `static/icons/` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
 `apple-touch-icon.png`) sind eine **Interimslösung** aus dem bestehenden
 Logo – ein echtes Icon-Set folgt.
+
+## Anmeldung und Konten
+
+Solange kein Admin-Konto existiert, verhält sich die Web-UI wie bisher: Jede
+Seite ist für alle im Netzwerk offen, und ein Hinweis oben auf den Seiten
+führt zur Ersteinrichtung. Nach der Einrichtung verlangt jede Seite der Web-UI eine
+Anmeldung. Ohne Anmeldung erreichbar sind nur `/health`, `/static/*`,
+`/sw.js`, `/login`, `/logout` und die per `X-Api-Token` geschützten JSON-API-Endpunkte
+(siehe [Endpunkte](#endpunkte)). Welche Routen offen sind, entscheiden die
+Decorators an der jeweiligen Route, nicht die URL; eine Route ohne einen
+davon verlangt eine Anmeldung. Eine ohne Anmeldung aufgerufene Seite leitet
+auf `/login` weiter. Ein Formular, das von einer Seite mit abgelaufener
+Anmeldung abgeschickt wird, leitet ebenfalls dorthin weiter (`303`); nach der
+Anmeldung landet der Browser wieder auf der Seite, auf der das Formular war
+(aus dem `Referer`, wenn er auf diesen Host zeigt, sonst auf der Startseite).
+Das Formular selbst wird nicht erneut gesendet, es wird also nichts doppelt
+gedruckt. Jede andere Anfrage (`fetch()`, JSON oder jede Anfrage mit
+`X-Api-Token`-Header) bekommt `401` mit
+`{"status": "error", "error": "login_required", "detail": "..."}`.
+
+**Ersteinrichtung** (`/setup`, antwortet mit `404`, sobald ein Admin
+existiert): Benutzername (3–32 Zeichen aus `a-z 0-9 . _ -`, gespeichert in
+Kleinbuchstaben), Passwort (10–128 Zeichen, sonst keine Vorgaben) und ein
+Einrichtungscode:
+- Ist `API_TOKEN` in `config.py` gesetzt, ist der Code dieses Token.
+- Ohne Token druckt ein Knopf „Code drucken“ einen Einmalcode auf dem
+  Bondrucker. Er gilt 15 Minuten, nur der zuletzt gedruckte Code zählt, er
+  liegt nur im Arbeitsspeicher des Serverprozesses und taucht weder im
+  Druckverlauf noch in den ausstehenden Aufträgen oder in einem Log auf.
+  Schlägt der Druck fehl, ist der Code ungültig. Dann einen neuen anfordern
+  oder den Admin mit dem Konsolenskript unten anlegen.
+
+**Anmeldung** (`/login`): Benutzername und Passwort; ein falscher Name und
+ein falsches Passwort bekommen dieselbe Antwort. Ohne „Eingeloggt bleiben“
+endet die Anmeldung beim Schließen des Browsers oder nach 24 Stunden ohne
+Nutzung, mit Haken gilt sie 90 Tage und verlängert sich bei Nutzung. Unter
+`/account` lässt sich das eigene Passwort ändern (beendet alle anderen
+Anmeldungen des Kontos), und „Auf allen Geräten abmelden“ beendet alle
+Anmeldungen außer der aktuellen. Abmelden steht im Menü.
+
+**Schutz gegen Durchprobieren**: Fehlversuche werden auf `/login` pro
+Benutzername und pro Client-IP gezählt (ebenso für das aktuelle Passwort
+auf `/account`), auf `/setup` pro Client-IP und insgesamt. Ab dem 5.
+Fehlversuch werden weitere Versuche 30 s lang abgewiesen, mit jedem
+weiteren Fehlversuch doppelt so lange, höchstens 15 Minuten, mit derselben
+Antwort für jeden Benutzernamen. Die Zähler liegen nur im Arbeitsspeicher
+des Servers und werden durch einen Neustart des Dienstes zurückgesetzt.
+
+**Konsolenskript** – der Notweg (Passwort vergessen, kein Drucker für den
+Einrichtungscode). Als Dienst-Nutzer im Projektverzeichnis mit dem venv des
+Projekts ausführen:
+
+```bash
+cd ~/receiptpi
+~/receiptpi-env/bin/python scripts/manage_users.py create-admin <name>
+~/receiptpi-env/bin/python scripts/manage_users.py reset-password <name>   # beendet auch alle seine Anmeldungen
+~/receiptpi-env/bin/python scripts/manage_users.py list
+~/receiptpi-env/bin/python scripts/manage_users.py revoke-sessions <name>
+```
+
+Passwörter werden nur im Terminal abgefragt, nie als Argument übernommen.
+Das Skript verweigert den Start unter einem anderen Nutzer als dem
+Eigentümer von `STATE_DIR` (z. B. als root per `sudo`), weil der Dienst eine
+als root geschriebene `auth.db` nicht mehr lesen könnte.
+
+**Speicherung**: Konten und Anmeldungen liegen in `STATE_DIR/auth.db`
+(SQLite, Dateirechte 0600). Passwörter werden als scrypt-Hash gespeichert
+(Standard von Werkzeug), Anmeldungen nur als SHA-256-Hash des Cookie-Werts.
+`auth.db` gehört nicht zur Sicherung der Einstellungen. Dienst stoppen,
+`auth.db` löschen und Dienst wieder starten stellt den Zustand ohne Admin
+wieder her (Web-UI offen).
+
+**Konfiguration** (`config.py`, siehe `config.example.py`):
+- `LOGIN_COOKIE_SECURE` (Standard `False`) – markiert das Login-Cookie
+  `receiptpi_session` als `Secure`. Ausgeschaltet lassen, solange die Web-UI
+  über einfaches HTTP genutzt wird (`http://<pi>:5000`): Browser schicken ein
+  Secure-Cookie nicht über HTTP, dann könnte niemand angemeldet bleiben. Nur
+  einschalten, wenn die UI ausschließlich über HTTPS erreichbar ist. Das
+  Cookie ist immer `HttpOnly` und `SameSite=Lax`. Über einfaches HTTP gehen
+  Passwörter und Login-Cookie unverschlüsselt durch das lokale Netzwerk.
+- `TRUSTED_PROXY_COUNT` (Standard `0`) – Anzahl der Reverse-Proxys vor dem
+  Server. Nur bei einem Wert über 0 werden `X-Forwarded-For/-Proto/-Host/
+  -Port` ausgewertet (für genau so viele Stufen), z. B. für den Schutz pro
+  Client-IP; bei 0 werden sie ignoriert.
+
+**Wirkung auf API und Watcher**: Endpunkte mit `X-Api-Token` funktionieren
+genau wie bisher und akzeptieren nie das Login-Cookie, nur den Header – die
+Watcher und Automationen brauchen keine Anmeldung. Mit leerem `API_TOKEN`
+und vorhandenem Admin bleibt `/print/*` offen, die JSON-Settings-API unter
+`/settings/` antwortet aber mit `403`; die Settings-Seite zeigt dazu einen
+Warnhinweis.
 
 ## Settings-Seiten
 
@@ -246,6 +344,10 @@ Dateien hinterlassen – der letzte Schnappschuss ist dann der Rückweg.
 
 Alle `/print/*`- und `/settings/*`-Endpunkte verlangen den Header
 `X-Api-Token: <wert>`, sobald `API_TOKEN` in `config.py` gesetzt ist (leer = kein Schutz).
+Das Login-Cookie der Web-UI akzeptieren sie nie. Mit leerem `API_TOKEN`
+antworten die Settings-API-Endpunkte mit `403`, sobald ein Admin-Konto
+existiert, während `/print/*` offen bleibt (siehe
+[Anmeldung und Konten](#anmeldung-und-konten)).
 Vor jedem Druckauftrag greifen zusätzlich die zentralen Druckregeln: Ruhezeiten, Rate-Limit und Duplikat-Sperre.
 Ein blockierter Auftrag antwortet mit `429`.
 
@@ -277,7 +379,8 @@ Ein blockierter Auftrag antwortet mit `429`.
 **Rezepte (Web-UI-Routen)**
 
 Das Rezepte-Modul hat keine `/print/*`-JSON-API und keine Settings-API –
-seine Routen bedienen die Web-UI und brauchen kein `X-Api-Token`. Alle
+seine Routen bedienen die Web-UI und brauchen kein `X-Api-Token`, aber eine
+Anmeldung, sobald ein Admin-Konto existiert. Alle
 antworten mit `404`, solange das Modul inaktiv ist (siehe
 [Modul-Schalter](#modul-schalter)).
 - `GET /recipes?q=<Begriff>` – Suchseite mit Treffern

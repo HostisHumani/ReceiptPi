@@ -63,8 +63,8 @@ SSH targets for the system report, per-module logos, UI language) are
 configured entirely through the web UI's Settings page - no need to touch
 `config.py` for those. Only bootstrap-level values (secret key, API token,
 printer USB IDs, real credentials such as the Home Assistant token or
-Fritz!Box password) stay in `config.py`, since ReceiptPi currently has no
-login/auth for the web UI itself.
+Fritz!Box password) stay in `config.py`. The web UI is open on the network
+until an admin account is set up, see [Login and accounts](#login-and-accounts).
 
 ## Structure
 
@@ -77,7 +77,8 @@ receiptpi/
 ├── printer.py             printer hardware access (USB)
 ├── printer_status.py      printer status without printing (USB presence + printer-class port status), used by /health and MQTT
 ├── mqtt_bridge.py         optional MQTT bridge: print commands in, printer status out, Home Assistant discovery
-├── security.py            CSRF protection, API token protection, JSON parsing
+├── security.py            CSRF protection, API token protection, JSON parsing, access markers for the login check
+├── auth_store.py          web UI accounts and login sessions (SQLite STATE_DIR/auth.db, 0600)
 ├── secrets_crypto.py      Fernet encryption for system-report SSH passwords, the recipe manager API token and the MQTT password (key in STATE_DIR, not in git)
 ├── settings_store.py      central settings (JSON in STATE_DIR, not in the project folder)
 ├── history_store.py       SQLite print history (STATE_DIR), auto-pruned after 180 days
@@ -105,6 +106,7 @@ receiptpi/
 │   ├── history/                print history dashboard
 │   ├── pending/                 review/reprint/discard blocked or failed print jobs
 │   ├── backup/                  settings backup and restore (.zip)
+│   ├── auth/                    login, first-time setup, own account page, login check for every request
 │   └── settings/                settings pages (web UI) + settings API
 ├── watchers/
 │   ├── github_star_watch.py     cron: prints on a new GitHub star
@@ -112,6 +114,8 @@ receiptpi/
 │   ├── storm_warning_watch.py    cron: prints on a new active storm warning
 │   ├── update_check_watch.py     cron (every 12h): caches whether a newer GitHub release exists, for the footer
 │   └── crontab.example           ready-to-adjust cron template for all four watchers above
+├── scripts/
+│   └── manage_users.py         console account management (create-admin, reset-password, list, revoke-sessions)
 ├── assets/example-logos/    bundled starter logo set (outline icons)
 ├── static/
 │   ├── style.css             design system (spacing/colors/themes, card/tile/icon styles)
@@ -135,6 +139,7 @@ receiptpi/
     ├── history.html
     ├── games_*.html            games overview + one page per game
     ├── recipes*.html           recipe search/random picker + recipe preview
+    ├── auth_*.html             login, first-time setup, own account page
     └── settings_*.html        settings overview + one sub-page per area
 ```
 
@@ -151,7 +156,8 @@ plain forms:
   are currently active; total print count from the history store),
   followed by a tile grid linking to every currently enabled module.
 - **Navigation** - a topbar wordmark, a small printer-status dot, and a
-  hamburger menu (History, Settings).
+  hamburger menu (History, Pending, Settings; once logged in also Account
+  and Log out).
 - **Themes** - 6 selectable color themes (Warm [default], Forrest, Dark
   Lime, Frost, Butter Bean, White Purple), picked under `/settings/design`
   and applied via a `data-theme` attribute plus CSS custom properties.
@@ -192,6 +198,90 @@ offline mode - the UI still needs the Pi to be reachable. The icons under
 `static/icons/` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
 `apple-touch-icon.png`) are an **interim solution** derived from the
 existing logo - a proper icon set will follow.
+
+## Login and accounts
+
+Until an admin account exists, the web UI behaves as before: every page is
+open to everyone on the network, and a banner at the top of the pages links
+to the first-time setup. After the setup, every web UI page needs a login. Open
+without a login are only `/health`, `/static/*`, `/sw.js`, `/login`, `/logout` and the
+JSON API endpoints protected by `X-Api-Token` (see
+[Endpoints](#endpoints)). Which routes are open is decided by the
+decorators on each route, not by the URL; a route without one needs a login.
+A page opened without a login redirects to `/login`. A form sent from a page
+whose login has ended redirects there too (`303`); after the login the
+browser goes back to the page the form was on (taken from the `Referer` if
+it is this host, otherwise the home page). The form itself is not sent
+again, so nothing is printed twice. Any other request (`fetch()`, JSON, or
+any request with an `X-Api-Token` header) gets `401` with
+`{"status": "error", "error": "login_required", "detail": "..."}`.
+
+**First-time setup** (`/setup`, answers `404` once an admin exists): user
+name (3-32 characters from `a-z 0-9 . _ -`, stored in lower case),
+password (10-128 characters, no other rules) and a setup code:
+- with `API_TOKEN` set in `config.py`, the code is that token;
+- without one, a "Print code" button prints a one-time code on the receipt
+  printer. It is valid for 15 minutes, only the most recently printed code
+  counts, it exists only in the server process's memory and never appears in
+  the print history, the pending jobs or a log. If printing fails, the code
+  is void and a new one has to be requested, or the admin is created with
+  the console script below.
+
+**Login** (`/login`): user name and password; a wrong name and a wrong
+password get the same answer. Without "Stay logged in" the login ends when
+the browser is closed or after 24 hours without use; with it, it lasts 90
+days and is extended on use. `/account` changes the own password (ends all
+other logins of the account) and has "Log out on all devices" (ends all
+logins except the current one). Log out is in the menu.
+
+**Brute-force protection**: failed attempts are counted per user name and
+per client IP on `/login` (and for the current password on `/account`), per
+client IP and in total on `/setup`. From the 5th failure, further attempts
+are refused for 30 s, doubling with each further failure up to 15 minutes,
+with the same answer for every user name. The counters live in the server's
+memory only and are reset by a service restart.
+
+**Console script** - the way back in (forgotten password, no printer for the
+setup code). Run it as the service user, from the project directory, with
+the project's venv:
+
+```bash
+cd ~/receiptpi
+~/receiptpi-env/bin/python scripts/manage_users.py create-admin <name>
+~/receiptpi-env/bin/python scripts/manage_users.py reset-password <name>   # also ends all its logins
+~/receiptpi-env/bin/python scripts/manage_users.py list
+~/receiptpi-env/bin/python scripts/manage_users.py revoke-sessions <name>
+```
+
+Passwords are only ever asked for at the terminal, never taken as an
+argument. The script refuses to run as a different user than the owner of
+`STATE_DIR` (e.g. as root via `sudo`), since `auth.db` written as root
+could no longer be read by the service.
+
+**Storage**: accounts and logins are in `STATE_DIR/auth.db` (SQLite, file
+mode 0600). Passwords are stored as scrypt hashes (Werkzeug's default),
+logins only as SHA-256 hashes of the cookie value. `auth.db` is not part of
+the settings backup. Stopping the service, deleting `auth.db` and starting
+it again restores the state without an admin (web UI open).
+
+**Configuration** (`config.py`, see `config.example.py`):
+- `LOGIN_COOKIE_SECURE` (default `False`) - marks the login cookie
+  `receiptpi_session` as `Secure`. Leave it off while the web UI is used
+  over plain HTTP (`http://<pi>:5000`): browsers don't send a Secure cookie
+  over HTTP, so nobody could stay logged in. Only turn it on when the UI is
+  reached exclusively over HTTPS. The cookie is always `HttpOnly` and
+  `SameSite=Lax`. Over plain HTTP, passwords and the login cookie travel
+  unencrypted through the local network.
+- `TRUSTED_PROXY_COUNT` (default `0`) - number of reverse proxies in front
+  of the server. Only with a value above 0 are `X-Forwarded-For/-Proto/
+  -Host/-Port` used (for exactly that many hops), e.g. for the per-IP
+  brute-force protection; with 0 they are ignored.
+
+**Effect on the API and the watchers**: endpoints with `X-Api-Token` work
+exactly as before and never accept the login cookie, only the header - the
+watchers and automations need no login. With an empty `API_TOKEN` and an
+existing admin, `/print/*` stays open, but the JSON settings API under
+`/settings/` answers `403`; the settings page shows a warning about it.
 
 ## Settings pages
 
@@ -234,7 +324,10 @@ snapshot is the way back then.
 ## Endpoints
 
 All `/print/*` and `/settings/*` endpoints require the `X-Api-Token: <value>`
-header once `API_TOKEN` is set in `config.py` (empty = no protection).
+header once `API_TOKEN` is set in `config.py` (empty = no protection). They
+never accept the web UI's login cookie. With an empty `API_TOKEN`, once an
+admin account exists, the settings API endpoints answer `403`, while
+`/print/*` stays open (see [Login and accounts](#login-and-accounts)).
 Every print job also passes through the central print rules: quiet hours, rate limiting and duplicate suppression.
 A blocked job responds with `429`.
 
@@ -266,7 +359,8 @@ A blocked job responds with `429`.
 **Recipes (web UI routes)**
 
 The recipes module has no `/print/*` JSON API and no settings API - its
-routes serve the web UI and need no `X-Api-Token`. All of them answer
+routes serve the web UI and need no `X-Api-Token`, but a login once an admin
+account exists. All of them answer
 `404` while the module is inactive (see [Module toggles](#module-toggles)).
 - `GET /recipes?q=<term>` - search page with results
 - `GET /recipes/view/<slug>` - recipe preview
