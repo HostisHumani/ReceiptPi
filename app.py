@@ -20,9 +20,9 @@ Modular structure:
 app.py itself stays deliberately thin: create the Flask app, register
 blueprints, health check and home page.
 
-The boot greeting does NOT run here at module level - it runs via
-gunicorn.conf.py (on_starting hook), which is guaranteed to fire exactly
-once in the master process, regardless of worker count. For a direct
+The boot greeting does NOT run here at module level - gunicorn.conf.py
+(on_starting hook) starts it as a separate process (boot_greeting.py),
+exactly once per service start, regardless of worker count. For a direct
 `python3 app.py` run (dev mode) the __main__ block below handles it,
 since that's a single, non-forking process anyway.
 """
@@ -35,12 +35,15 @@ from flask import Flask, abort, render_template, request
 import history_store
 import i18n
 import module_catalog
+import mqtt_bridge
 import pending_store
+import printer_status
 import settings_store
 import themes
 import version
 from logos import ensure_default_logo_seeded
 from modules.automation.routes import automation_bp
+from modules.backup.routes import backup_bp
 from modules.games.routes import games_bp
 from modules.history.routes import history_bp
 from modules.images.routes import images_bp
@@ -52,8 +55,7 @@ from modules.settings.routes import settings_bp
 from modules.system.routes import system_bp
 from modules.weather.routes import weather_bp
 from modules.wifi.routes import wifi_bp
-from print_queue import enqueue_print, start_worker
-from printer import _raw_health_check
+from print_queue import start_worker
 from static_versioning import static_url, versioned_style_css
 
 app = Flask(__name__)
@@ -109,9 +111,14 @@ ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see
 
 for blueprint in (
     lists_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp,
-    history_bp, pending_bp, games_bp, recipes_bp,
+    history_bp, pending_bp, games_bp, recipes_bp, backup_bp,
 ):
     app.register_blueprint(blueprint)
+
+# Same place and reason as start_worker() above: app.py is imported in the
+# worker after Gunicorn forks, so the MQTT threads live in the one process
+# that also owns the print queue. Does nothing unless MQTT is enabled.
+mqtt_bridge.start()
 
 
 @app.before_request
@@ -225,10 +232,19 @@ def service_worker():
 
 @app.route("/health", methods=["GET"])
 def health():
-    ok, detail, status_code = enqueue_print(_raw_health_check, timeout=10, bypass_rules=True, log_history=False)
-    if ok:
-        return {"status": "ok", "printer": "reachable"}, 200
-    return {"status": "error", "detail": detail}, status_code
+    """Printer reachability without a print job and without opening the
+    printer (see printer_status.health_snapshot()). "Reachable" means
+    attached and switched on, so paper out, an open cover or an
+    unreadable status still answer 200 - "state"/"problem" carry those
+    details (same meaning as in the MQTT state). Only a printer that is
+    not on the USB bus at all is an error (500)."""
+    snapshot = printer_status.health_snapshot()
+    state = snapshot["state"]
+    problem = state in printer_status.PROBLEM_STATES
+    if snapshot["present"]:
+        return {"status": "ok", "printer": "reachable", "state": state, "problem": problem}, 200
+    return {"status": "error", "detail": i18n.tr("health.printer_offline"), "state": state,
+            "problem": problem}, 500
 
 
 @app.route("/", methods=["GET"])

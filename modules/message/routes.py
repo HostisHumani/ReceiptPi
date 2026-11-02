@@ -36,7 +36,7 @@ def _raw_print_message(title, text, module="message", use_text_scale=True):
 
     use_text_scale=False keeps heading/body at their normal (1x2/1x1)
     size regardless of the print_rules.text_size setting - used by the
-    boot greeting (gunicorn.conf.py/app.py), which is a technical status
+    boot greeting (boot_greeting.py/app.py), which is a technical status
     notice, not user content, and shouldn't grow just because Easy-Read
     is turned on for actual receipts."""
     scale = get_text_scale() if use_text_scale else SCALES["normal"]

@@ -35,10 +35,13 @@ jobs:
           python -m compileall \
             app.py \
             gunicorn.conf.py \
+            boot_greeting.py \
             config.example.py \
             modules \
             watchers \
+            mqtt_bridge.py \
             print_queue.py \
             printer.py \
+            printer_status.py \
             security.py \
             settings_store.py
