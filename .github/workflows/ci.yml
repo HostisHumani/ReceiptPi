@@ -34,6 +34,7 @@ jobs:
         run: |
           python -m compileall \
             app.py \
+            auth_store.py \
             gunicorn.conf.py \
             boot_greeting.py \
             config.example.py \
@@ -43,5 +44,6 @@ jobs:
             print_queue.py \
             printer.py \
             printer_status.py \
+            scripts/manage_users.py \
             security.py \
             settings_store.py
