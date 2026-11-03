@@ -30,6 +30,10 @@ demoting one) checks the remaining active admins inside the same write
 transaction as the change itself, so two such requests at the same time
 can't both pass the check.
 
+Personal settings: users.prefs holds a JSON object per account (see
+user_prefs.py for its keys and their validation). This module only
+stores and parses it; a value that isn't a JSON object reads as {}.
+
 The clock is the module-level _now(), so tests can replace it.
 """
 import hashlib
@@ -262,6 +266,17 @@ def _user_dict(row):
         "must_change_password": bool(row["must_change_password"]), "disabled": bool(row["disabled"]),
         "last_login": row["last_login"],
     }
+
+
+def _parse_prefs(raw):
+    """users.prefs as a dict. Anything else in the column (broken JSON, a
+    list, NULL from a row written by hand) reads as no personal settings,
+    so a damaged value can never keep an account from loading a page."""
+    try:
+        value = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 def admin_exists():
@@ -516,6 +531,45 @@ def delete_user(user_id):
     _change_user_locked(user_id, change)
 
 
+def get_prefs(user_id, created=None):
+    """The stored personal settings of an account as a dict, or None if
+    no account has this id - or, with created given, none with this id
+    and this creation time (an owner pair from the print history or the
+    pending list, see history_store.py)."""
+    if not os.path.exists(DB_FILE):
+        return None
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT prefs, created FROM users WHERE id = ?", (user_id,)).fetchone()
+    finally:
+        conn.close()
+    if row is None or (created is not None and row["created"] != created):
+        return None
+    return _parse_prefs(row["prefs"])
+
+
+def update_prefs(user_id, change):
+    """Replaces an account's personal settings with change(current) in
+    one write transaction and returns the new dict. Nothing is written if
+    the result equals what is stored: every write changes auth.db's mtime
+    and with it admin_exists()'s cache key. Raises
+    AuthError("user_not_found") for an unknown id."""
+    result = {}
+
+    def apply(conn, row):
+        current = _parse_prefs(row["prefs"])
+        updated = change(dict(current))
+        if not isinstance(updated, dict):
+            raise TypeError("prefs must be a dict")
+        result["prefs"] = updated
+        if updated != current:
+            conn.execute("UPDATE users SET prefs = ? WHERE id = ?",
+                         (json.dumps(updated, sort_keys=True, separators=(",", ":")), user_id))
+
+    _change_user_locked(user_id, apply)
+    return result["prefs"]
+
+
 def hash_token(token):
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -561,7 +615,8 @@ def create_session(user_id, remember):
 
 def validate_session(token):
     """Returns {"user": ..., "token_hash", "remember", "expires",
-    "refreshed"} for a valid token, else None. refreshed is True when
+    "refreshed"} for a valid token, else None. "user" also carries the
+    account's personal settings ("prefs"), read in the same query. refreshed is True when
     this call wrote a new last_seen/expires - the caller then re-sends a
     persistent cookie with the new lifetime. An expired session found
     here is deleted.
@@ -580,7 +635,7 @@ def validate_session(token):
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT s.*, u.name, u.role, u.must_change_password, u.disabled "
+            "SELECT s.*, u.name, u.role, u.must_change_password, u.disabled, u.prefs "
             "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
             (token_hash,),
         ).fetchone()
@@ -609,7 +664,8 @@ def validate_session(token):
                 _purge_expired_locked(conn, now)
         return {
             "user": {"id": row["user_id"], "name": row["name"], "role": row["role"],
-                     "must_change_password": bool(row["must_change_password"])},
+                     "must_change_password": bool(row["must_change_password"]),
+                     "prefs": _parse_prefs(row["prefs"])},
             "token_hash": token_hash,
             "remember": remember,
             "expires": expires,

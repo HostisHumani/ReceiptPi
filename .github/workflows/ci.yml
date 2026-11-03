@@ -48,4 +48,5 @@ jobs:
             printer_status.py \
             scripts/manage_users.py \
             security.py \
-            settings_store.py
+            settings_store.py \
+            user_prefs.py
