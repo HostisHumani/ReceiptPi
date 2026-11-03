@@ -13,11 +13,12 @@ each re-implementing their own - see the shared section below.
 import textwrap
 from datetime import date, datetime
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, has_request_context, jsonify, render_template, request
 
 import i18n
 import lists_store
 from logos import print_logo
+from modules.history import owners
 from modules.recipes import mealie
 from print_queue import enqueue_print
 from printer import get_printer
@@ -108,6 +109,15 @@ def _raw_print_list(title, items, with_logo):
         p.close()
 
 
+def _draft_owner():
+    """Whose drafts this request works on: the logged-in account's, or
+    System (None) without one - while no admin account exists, on the
+    API-token routes, and outside a request (MQTT)."""
+    if not has_request_context():
+        return None
+    return owners.current_viewer()["owner"]
+
+
 def _parse_draft_loaded_at():
     """Parses the hidden draft_loaded_at field a draft-save request
     carries (see templates/{shopping,lists_todo,lists_task}.html and
@@ -147,7 +157,9 @@ def do_print_list(title, items, job_type="shopping", source="ui"):
     exact same strings) - a successful print clears the matching
     draft, whether it came from the UI form or a direct /print/list
     /print/todo API call, so a list that just got printed some other
-    way doesn't linger pre-filled in the browser."""
+    way doesn't linger pre-filled in the browser. Only the draft of the
+    account that printed is cleared; a print via the API or MQTT clears
+    the System draft."""
     summary = f"{title} ({len(items)})"
     ok, detail, status_code = enqueue_print(
         _raw_print_list, title, items, job_type == "shopping",
@@ -156,7 +168,7 @@ def do_print_list(title, items, job_type="shopping", source="ui"):
     )
     if ok:
         detail = f"{len(items)} items printed"
-        lists_store.clear_draft(job_type)
+        lists_store.clear_draft(job_type, owner=_draft_owner())
     return ok, detail, status_code
 
 
@@ -273,7 +285,7 @@ def do_print_task(fields, source="ui"):
     )
     if ok:
         detail = "task card printed"
-        lists_store.clear_draft("task")
+        lists_store.clear_draft("task", owner=_draft_owner())
     return ok, detail, status_code
 
 
@@ -293,7 +305,7 @@ def lists_index():
 @any_user
 def shopping_page():
     default_title = i18n.tr("shopping.title_default")
-    draft = lists_store.get_draft("shopping")
+    draft = lists_store.get_draft("shopping", owner=_draft_owner())
     return render_template(
         "shopping.html", message=None, success=None, csrf_token=get_csrf_token(),
         default_title=default_title,
@@ -361,7 +373,7 @@ def save_list_draft():
     lists_store.save_draft("shopping", {
         "title": request.form.get("title", ""),
         "items": request.form.get("items", ""),
-    }, loaded_at=_parse_draft_loaded_at())
+    }, loaded_at=_parse_draft_loaded_at(), owner=_draft_owner())
     return ("", 204)
 
 
@@ -369,7 +381,7 @@ def save_list_draft():
 @any_user
 def todo_page():
     default_title = i18n.tr("lists.todo.title_default")
-    draft = lists_store.get_draft("todo")
+    draft = lists_store.get_draft("todo", owner=_draft_owner())
     return render_template(
         "lists_todo.html", message=None, success=None, csrf_token=get_csrf_token(),
         default_title=default_title,
@@ -422,14 +434,14 @@ def save_todo_draft():
     lists_store.save_draft("todo", {
         "title": request.form.get("title", ""),
         "items": request.form.get("items", ""),
-    }, loaded_at=_parse_draft_loaded_at())
+    }, loaded_at=_parse_draft_loaded_at(), owner=_draft_owner())
     return ("", 204)
 
 
 @lists_bp.route("/lists/task", methods=["GET"])
 @any_user
 def task_page():
-    draft = lists_store.get_draft("task")
+    draft = lists_store.get_draft("task", owner=_draft_owner())
     return render_template(
         "lists_task.html", message=None, success=None, csrf_token=get_csrf_token(),
         draft_title=draft.get("title", ""),
@@ -516,5 +528,5 @@ def save_task_draft():
         "items": request.form.get("items", ""),
         "priority": request.form.get("priority", ""),
         "due_date": request.form.get("due_date", ""),
-    }, loaded_at=_parse_draft_loaded_at())
+    }, loaded_at=_parse_draft_loaded_at(), owner=_draft_owner())
     return ("", 204)

@@ -40,6 +40,7 @@ jobs:
             config.example.py \
             history_store.py \
             i18n.py \
+            lists_store.py \
             module_catalog.py \
             modules \
             watchers \

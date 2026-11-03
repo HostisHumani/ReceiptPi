@@ -24,6 +24,7 @@ from flask import Blueprint, abort, g, make_response, render_template, request
 
 import auth_store
 import i18n
+import lists_store
 from security import csrf_protect, get_csrf_token
 
 users_bp = Blueprint("users", __name__)
@@ -170,4 +171,7 @@ def ui_delete_user(user_id):
         if e.code == "user_not_found":
             abort(404)
         return _error(e.code, 409)
+    # The personal settings went with the users row; the drafts live in
+    # their own file and are removed here.
+    lists_store.delete_owner((user["id"], user["created"]))
     return _render(message=i18n.tr("auth.users.deleted", name=user["name"]), success=True)
