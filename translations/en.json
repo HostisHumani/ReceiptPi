@@ -164,6 +164,7 @@
   "backup.conflict.host_kept": "Server “{name}”: not in the backup, but kept because a password for it is stored here.",
   "backup.error.restore_locked": "Restoring is locked as long as no API_TOKEN is set in config.py.",
   "backup.error.token_invalid": "The API token is wrong.",
+  "backup.error.admin_required": "Backup and restore require an admin account.",
   "backup.error.too_large": "The backup is too large (max. {max_mb} MB).",
   "backup.error.not_zip": "The file is not a valid ZIP file.",
   "backup.error.not_backup": "The file is not a ReceiptPi backup or is damaged.",

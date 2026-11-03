@@ -14,7 +14,7 @@ import secrets as secrets_module
 from functools import wraps
 
 import config
-from flask import abort, jsonify, request, session
+from flask import abort, g, jsonify, request, session
 
 import auth_store
 import i18n
@@ -123,23 +123,45 @@ def require_api_token(view_func):
     return wrapper
 
 
+def backup_token_required():
+    """Whether the backup forms ask for the API token: only while no admin
+    account exists and an API_TOKEN is set (see backup_access_error)."""
+    return not auth_store.admin_exists() and bool(getattr(config, "API_TOKEN", None))
+
+
+def backup_restore_locked():
+    """Whether restoring is refused outright: no admin account and no
+    API_TOKEN, so nothing tells an administrator apart from anyone else."""
+    return not auth_store.admin_exists() and not getattr(config, "API_TOKEN", None)
+
+
 def backup_access_error(action, submitted_token):
     """The one access gate for the settings backup (see
     modules/backup/routes.py). action is "download" or "restore";
     submitted_token is the API token typed into the form. Returns None
     if allowed, otherwise a translation key for the refusal.
 
-    The web UI has no user accounts, so the API token stands in for
-    "administrator" here: with API_TOKEN set, both actions require it.
-    Without one, downloading stays allowed like every other page on the
-    LAN, but restoring is refused - it rewrites settings, and nothing
-    would tell an administrator apart from anyone else on the network.
-    A later login with admin roles only has to change this function; the
-    endpoints and the archive format stay the same.
+    Once an admin account exists, the request's own login decides: an
+    admin session may download and restore, the token field is not
+    used, and anything else is refused. The login check already keeps
+    every other account and anonymous requests away from these routes;
+    this is the second line behind it.
+
+    While no admin account exists there is no login, so the API token
+    stands in for "administrator": with API_TOKEN set, both actions
+    require it. Without one, downloading stays allowed like every other
+    page on the LAN, but restoring is refused - it rewrites settings, and
+    nothing would tell an administrator apart from anyone else on the
+    network.
 
     Compared as bytes: compare_digest() raises TypeError for str
     arguments containing non-ASCII characters, which a form field can
     carry."""
+    if auth_store.admin_exists():
+        user = g.get("auth_user")
+        if user and user.get("role") == "admin" and not user.get("must_change_password"):
+            return None
+        return "backup.error.admin_required"
     token = getattr(config, "API_TOKEN", None)
     if not token:
         return "backup.error.restore_locked" if action == "restore" else None

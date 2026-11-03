@@ -22,7 +22,13 @@ from flask import Blueprint, Response, render_template, request, stream_with_con
 
 import i18n
 import print_queue
-from security import backup_access_error, csrf_protect, get_csrf_token
+from security import (
+    backup_access_error,
+    backup_restore_locked,
+    backup_token_required,
+    csrf_protect,
+    get_csrf_token,
+)
 
 from . import archive
 
@@ -54,8 +60,8 @@ def _render(mode="start", message=None, success=None, **context):
         message=message,
         success=success,
         csrf_token=get_csrf_token(),
-        token_required=bool(getattr(config, "API_TOKEN", "")),
-        restore_locked=not getattr(config, "API_TOKEN", ""),
+        token_required=backup_token_required(),
+        restore_locked=backup_restore_locked(),
         max_archive_mb=archive.MAX_ARCHIVE_BYTES // (1024 * 1024),
         too_large_to_restore=archive.estimated_size() > archive.MAX_ARCHIVE_BYTES,
         **context,
