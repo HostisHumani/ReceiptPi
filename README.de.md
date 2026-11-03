@@ -120,7 +120,8 @@ receiptpi/
 │   ├── generate_config.py      erzeugt beim ersten Start /etc/receiptpi/config.py mit eigenem SECRET_KEY pro Gerät
 │   ├── requirements.lock       Python-Pakete mit Hashes festgelegt, genutzt von install.sh
 │   ├── systemd/                Units für Server, Erststart und Watcher, Watcher-Timer
-│   └── udev/                   Regel für den Druckerzugriff des Dienst-Benutzers
+│   ├── udev/                   Regel für den Druckerzugriff des Dienst-Benutzers
+│   └── image/                  Image-Bau aus Raspberry Pi OS Lite (.github/workflows/image.yml, nur von Hand gestartet)
 ├── modules/
 │   ├── lists/                 Einkaufslisten, To-Do-Listen, Task-/Kanban-Karten
 │   ├── message/               Statusmeldungen (freier Titel + Text)
