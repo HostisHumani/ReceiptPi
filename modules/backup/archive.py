@@ -419,13 +419,27 @@ def stage_upload(file_storage):
     return staging_id
 
 
+def _staging_file(staging_id):
+    """Path of the staging file for staging_id, or None if the id is not
+    exactly 32 lowercase hex characters. fullmatch, because "$" with
+    match() would also accept a trailing newline. The id comes from a
+    form, so the normalized path is checked to lie inside STAGING_DIR as
+    well: two independent checks, either of which keeps the id from
+    naming a file anywhere else."""
+    if not isinstance(staging_id, str) or not _STAGING_ID_RE.fullmatch(staging_id):
+        return None
+    base = os.path.normpath(STAGING_DIR)
+    path = os.path.normpath(os.path.join(base, f"{staging_id}.zip"))
+    if not path.startswith(base + os.sep):
+        return None
+    return path
+
+
 def staged_path(staging_id):
     """Path of a staged archive, or None if the id is malformed,
     unknown or older than STAGING_MAX_AGE_S (then it's deleted)."""
-    if not isinstance(staging_id, str) or not _STAGING_ID_RE.match(staging_id):
-        return None
-    path = os.path.join(STAGING_DIR, f"{staging_id}.zip")
-    if not os.path.isfile(path):
+    path = _staging_file(staging_id)
+    if path is None or not os.path.isfile(path):
         return None
     if time.time() - os.path.getmtime(path) > STAGING_MAX_AGE_S:
         discard_staged(staging_id)
@@ -434,9 +448,10 @@ def staged_path(staging_id):
 
 
 def discard_staged(staging_id):
-    if isinstance(staging_id, str) and _STAGING_ID_RE.match(staging_id):
+    path = _staging_file(staging_id)
+    if path is not None:
         try:
-            os.remove(os.path.join(STAGING_DIR, f"{staging_id}.zip"))
+            os.remove(path)
         except OSError:
             pass
 
