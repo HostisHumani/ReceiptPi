@@ -4,6 +4,11 @@ name: Build image
 # Lite image (deploy/image/). Started by hand only.
 on:
   workflow_dispatch:
+    inputs:
+      upload_image:
+        description: "Upload the image (img.xz) as an artifact, kept for 1 day"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -20,8 +25,6 @@ jobs:
     timeout-minutes: 120
     env:
       WORK: ${{ github.workspace }}/image-build
-      # Larger images are only described in the log and the annotations.
-      MAX_ARTIFACT_BYTES: "500000000"
 
     steps:
       - name: Checkout repository
@@ -49,20 +52,20 @@ jobs:
       - name: Shrink, check partitions and compress
         run: sudo --preserve-env=WORK deploy/image/build.sh finish
 
-      - name: Decide on the image artifact
-        id: size
+      - name: Record the artifact choice
+        env:
+          UPLOAD_IMAGE: ${{ inputs.upload_image }}
         run: |
-          size=$(stat -c %s "$WORK"/out/*.img.xz)
-          if [ "$size" -lt "$MAX_ARTIFACT_BYTES" ]; then
-            echo "upload=true" >> "$GITHUB_OUTPUT"
-            echo "image artifact: yes ($size bytes)" | sudo tee -a "$WORK/summary.txt"
+          if [ "$UPLOAD_IMAGE" = "true" ]; then
+            echo "image artifact: yes (upload_image=true)" | sudo tee -a "$WORK/summary.txt"
           else
-            echo "upload=false" >> "$GITHUB_OUTPUT"
-            echo "image artifact: no, $size bytes is over the limit of $MAX_ARTIFACT_BYTES" | sudo tee -a "$WORK/summary.txt"
+            echo "image artifact: no (upload_image=false)" | sudo tee -a "$WORK/summary.txt"
           fi
 
+      # Only on request: the image is larger than the artifact storage
+      # included in the smaller plans.
       - name: Upload the image
-        if: steps.size.outputs.upload == 'true'
+        if: inputs.upload_image
         uses: actions/upload-artifact@v7
         with:
           name: receiptpi-image
