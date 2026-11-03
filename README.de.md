@@ -40,6 +40,24 @@ Unwetterwarnungen).
 
 ## Schnellstart
 
+Auf einem Raspberry Pi mit Raspberry Pi OS Lite (64 Bit, trixie):
+
+```bash
+sudo apt install git
+git clone https://github.com/HostisHumani/ReceiptPi.git
+cd ReceiptPi
+sudo ./deploy/install.sh
+```
+
+Das Skript legt den Code nach `/opt/receiptpi`, lässt den Server als
+System-Benutzer `receiptpi` laufen und erzeugt beim ersten Start
+`/etc/receiptpi/config.py` mit einem zufälligen `SECRET_KEY`. Danach unter
+`http://<hostname>:5000/setup` das Admin-Konto anlegen. Details,
+Druckereinrichtung und Fehlersuche:
+[docs/installation.de.md](docs/installation.de.md).
+
+Für die Entwicklung ohne Installationsskript:
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -97,6 +115,12 @@ receiptpi/
 ├── version.py               liest VERSION, minimaler Vergleich für ReceiptPis eigenes Versionsschema
 ├── VERSION                  einzige Versionsquelle (z.B. "1.2.3")
 ├── config.example.py       Vorlage für config.py (lokal ausfüllen)
+├── deploy/
+│   ├── install.sh              Installationsskript für Raspberry Pi OS Lite; ohne laufendes systemd aktiviert es die Units nur
+│   ├── generate_config.py      erzeugt beim ersten Start /etc/receiptpi/config.py mit eigenem SECRET_KEY pro Gerät
+│   ├── requirements.lock       Python-Pakete mit Hashes festgelegt, genutzt von install.sh
+│   ├── systemd/                Units für Server, Erststart und Watcher, Watcher-Timer
+│   └── udev/                   Regel für den Druckerzugriff des Dienst-Benutzers
 ├── modules/
 │   ├── lists/                 Einkaufslisten, To-Do-Listen, Task-/Kanban-Karten
 │   ├── message/               Statusmeldungen (freier Titel + Text)
@@ -113,11 +137,11 @@ receiptpi/
 │   ├── auth/                    Anmeldung, Ersteinrichtung, eigenes Konto, persönliche Einstellungen, Nutzerverwaltung, Login- und Rollenprüfung für jeden Request
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── watchers/
-│   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
-│   ├── fritzbox_wifi_watch.py    Cron: druckt WLAN-Zettel bei aktiviertem Gästenetz
-│   ├── storm_warning_watch.py    Cron: druckt bei neuer aktiver Unwetterwarnung
-│   ├── update_check_watch.py     Cron (alle 12h): cached, ob ein neueres GitHub-Release existiert (für den Footer)
-│   └── crontab.example           fertige Cron-Vorlage für alle vier Watcher oben
+│   ├── github_star_watch.py     Timer/Cron: druckt bei neuem GitHub-Star
+│   ├── fritzbox_wifi_watch.py    Timer/Cron: druckt WLAN-Zettel bei aktiviertem Gästenetz
+│   ├── storm_warning_watch.py    Timer/Cron: druckt bei neuer aktiver Unwetterwarnung
+│   ├── update_check_watch.py     Timer/Cron (alle 12h): cached, ob ein neueres GitHub-Release existiert (für den Footer)
+│   └── crontab.example           Cron-Vorlage für alle vier Watcher, für Installationen ohne deploy/install.sh
 ├── scripts/
 │   └── manage_users.py         Kontenverwaltung auf der Konsole (create-admin, reset-password, list, revoke-sessions)
 ├── assets/example-logos/    mitgelieferter Logo-Startsatz (Strichzeichnungen)
@@ -570,21 +594,21 @@ topic write receiptpi/cmd/#
 
 ## Nach der Installation
 
-```bash
-pip freeze > requirements.lock.txt
-```
-Friert die tatsächlich installierten Versionen ein – `requirements.txt`
-selbst enthält bewusst keine Versionsnummern (kein `==x.y.z`),
-`requirements.lock.txt` dient nur als Referenz, falls ein Update mal
-etwas kaputt macht.
+`requirements.txt` enthält bewusst keine Versionsnummern. `install.sh`
+installiert die Versionen aus `deploy/requirements.lock`, festgelegt mit
+den Hashes der PyPI-Dateien, damit jedes Gerät dieselben getesteten Pakete
+bekommt.
 
-### Watcher aktivieren (Cron)
+### Watcher
 
 Die vier Scripts unter `watchers/` (GitHub-Star-Benachrichtigung,
 Gäste-WLAN-Zettel, Unwetterwarnung, Update-Check) laufen nur, wenn sie
 irgendwo eingeplant sind – `app.py`/Gunicorn startet sie nie selbst.
-`watchers/crontab.example` enthält eine fertige Vorlage für alle vier,
-mit dem jeweils im Docstring des Scripts empfohlenen Intervall;
+`install.sh` richtet sie als systemd-Timer unter dem Dienst-Benutzer ein,
+mit dem jeweils im Docstring des Scripts empfohlenen Intervall; der Timer
+für das Gäste-WLAN wird installiert, aber nicht aktiviert, siehe
+[docs/installation.de.md](docs/installation.de.md#watcher). Ohne das
+Installationsskript ist `watchers/crontab.example` eine Vorlage für Cron:
 installieren mit `crontab watchers/crontab.example` (nach Anpassen der
 Platzhalter `PYTHON`/`PROJECT_DIR`), oder einzelne Zeilen in eine
 bestehende Crontab übernehmen (`crontab -e`).
