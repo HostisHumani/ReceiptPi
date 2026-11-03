@@ -109,7 +109,7 @@ receiptpi/
 │   ├── history/                Druckhistorie-Dashboard
 │   ├── pending/                 Ausstehende Druckaufträge ansehen/nachdrucken/verwerfen
 │   ├── backup/                  Sicherung und Wiederherstellung der Einstellungen (.zip)
-│   ├── auth/                    Anmeldung, Ersteinrichtung, eigenes Konto, Login-Prüfung für jeden Request
+│   ├── auth/                    Anmeldung, Ersteinrichtung, eigenes Konto, Nutzerverwaltung, Login- und Rollenprüfung für jeden Request
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── watchers/
 │   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
@@ -142,7 +142,7 @@ receiptpi/
     ├── history.html
     ├── games_*.html            Spiele-Übersicht + eine Seite je Spiel
     ├── recipes*.html           Rezeptsuche/Zufallsrezept + Rezept-Vorschau
-    ├── auth_*.html             Anmeldung, Ersteinrichtung, eigenes Konto
+    ├── auth_*.html             Anmeldung, Ersteinrichtung, eigenes Konto, 403-Seite
     └── settings_*.html        Settings-Übersicht + eine Unterseite je Bereich
 ```
 
@@ -160,8 +160,10 @@ Formulare umgesetzt:
   Verlaufs-Store), gefolgt von einem Kachel-Grid mit Links zu jedem
   aktuell aktivierten Modul.
 - **Navigation** – ein Topbar-Wordmark, ein kleiner Drucker-Status-Punkt
-  und ein Burger-Menü (Verlauf, Ausstehende Aufträge, Einstellungen; nach
-  der Anmeldung zusätzlich Konto und Abmelden).
+  und ein Burger-Menü (Verlauf, Ausstehende Aufträge, Einstellungen und nach
+  der Anmeldung Nutzer – nur für Admins, siehe
+  [Anmeldung und Konten](#anmeldung-und-konten); nach der Anmeldung
+  zusätzlich Konto und Abmelden).
 - **Themes** – 6 wählbare Farbschemata (Warm [Standard], Forrest, Dark
   Lime, Frost, Butter Bean, White Purple), einstellbar unter
   `/settings/design`, angewendet über ein `data-theme`-Attribut plus
@@ -216,7 +218,7 @@ Anmeldung. Ohne Anmeldung erreichbar sind nur `/health`, `/static/*`,
 `/sw.js`, `/login`, `/logout` und die per `X-Api-Token` geschützten JSON-API-Endpunkte
 (siehe [Endpunkte](#endpunkte)). Welche Routen offen sind, entscheiden die
 Decorators an der jeweiligen Route, nicht die URL; eine Route ohne einen
-davon verlangt eine Anmeldung. Eine ohne Anmeldung aufgerufene Seite leitet
+davon verlangt eine Admin-Anmeldung (siehe Rollen unten). Eine ohne Anmeldung aufgerufene Seite leitet
 auf `/login` weiter. Ein Formular, das von einer Seite mit abgelaufener
 Anmeldung abgeschickt wird, leitet ebenfalls dorthin weiter (`303`); nach der
 Anmeldung landet der Browser wieder auf der Seite, auf der das Formular war
@@ -246,6 +248,48 @@ Nutzung, mit Haken gilt sie 90 Tage und verlängert sich bei Nutzung. Unter
 Anmeldungen des Kontos), und „Auf allen Geräten abmelden“ beendet alle
 Anmeldungen außer der aktuellen. Abmelden steht im Menü.
 
+**Rollen**: Jedes Konto ist entweder `admin` oder `user` (Nutzer). Admins
+dürfen alles. Nutzer dürfen Startseite, Nachricht, Listen (einschließlich
+Entwürfen und `/shopping`), Wetter, Gast-WLAN, Rezepte, Spiele und Bilder
+verwenden sowie ihr eigenes Konto und Abmelden – einschließlich der
+Formular-Posts dieser Seiten. Alles andere ist nur für Admins: alle
+Einstellungsseiten und `/ui/settings/*`-Routen, der Systembericht
+(`/system`, `/ui/system`), die Sicherung, die Nutzerverwaltung, Sprache und
+Design sowie vorerst auch der Druckverlauf (`/history`) und die
+ausstehenden Aufträge (`/pending`, `/pending/print`, `/pending/discard`):
+Ausstehende Aufträge können Geheimnisse wie ein Gast-WLAN-Passwort
+enthalten, und Verlauf und ausstehende Aufträge sind noch nicht pro Konto
+getrennt. Routen sind nur für Admins, sofern sie nicht anders markiert
+sind; eine später ergänzte Route ohne Markierung ist für Nutzer also
+gesperrt. Das Menü zeigt Verlauf, Ausstehende Aufträge, Einstellungen und
+Nutzer nur Admins, und die Startseite zeigt Nutzern keine Kachel für eine
+Seite, die sie nicht öffnen dürfen. Öffnet ein Nutzer eine Admin-Seite im
+Browser, kommt eine übersetzte `403`-Seite mit Link zur Startseite; eine
+`fetch()`- oder JSON-Anfrage bekommt `403` mit
+`{"status": "error", "error": "forbidden", "detail": "..."}`. Die Rolle wird
+bei jeder Anfrage aus `auth.db` gelesen; eine Rollenänderung, Sperre oder
+Löschung wirkt also mit der nächsten Anfrage des Kontos.
+
+**Nutzerverwaltung** (`/settings/users`, nur Admins, auch im Menü und auf
+der Einstellungsseite): listet alle Konten mit Rolle, Status (aktiv,
+gesperrt, Startpasswort) und letzter Anmeldung. Ein Admin kann ein Konto
+anlegen (Name und Rolle), seine Rolle ändern, es sperren und entsperren,
+sein Passwort zurücksetzen und es löschen (nach einer Bestätigung). Beim
+Anlegen und beim Zurücksetzen zeigt die Seite ein vom Server erzeugtes
+Startpasswort (16 Zeichen aus `a-z` und `2-9` ohne verwechselbare Zeichen,
+in Vierergruppen mit `-` getrennt; die Striche gehören zum Passwort) genau
+einmal an: Es wird nicht gespeichert (nur sein Hash), nicht geloggt, und
+die Seite wird mit `Cache-Control: no-store` ausgeliefert. Ein Konto mit
+Startpasswort kann nur seine Kontoseite öffnen, um ein eigenes Passwort
+festzulegen; jede andere Seite leitet dorthin um, und `fetch()` bekommt
+`403` mit `"error": "password_change_required"`. Zurücksetzen und Sperren
+beenden sofort alle Anmeldungen des Kontos. Ein gesperrtes Konto kann sich
+nicht anmelden und bekommt dieselbe Antwort wie bei einem falschen
+Passwort. Der letzte aktive Admin kann nicht gelöscht, gesperrt oder zum
+Nutzer gemacht werden, auch nicht durch zwei gleichzeitige Anfragen. Das
+eigene Konto lässt sich auf dieser Seite nicht ändern (das eigene Passwort
+steht unter Konto).
+
 **Schutz gegen Durchprobieren**: Fehlversuche werden auf `/login` pro
 Benutzername und pro Client-IP gezählt (ebenso für das aktuelle Passwort
 auf `/account`), auf `/setup` pro Client-IP und insgesamt. Ab dem 5.
@@ -261,7 +305,7 @@ Projekts ausführen:
 ```bash
 cd ~/receiptpi
 ~/receiptpi-env/bin/python scripts/manage_users.py create-admin <name>
-~/receiptpi-env/bin/python scripts/manage_users.py reset-password <name>   # beendet auch alle seine Anmeldungen
+~/receiptpi-env/bin/python scripts/manage_users.py reset-password <name>   # jedes Konto; beendet alle seine Anmeldungen, kein Startpasswort
 ~/receiptpi-env/bin/python scripts/manage_users.py list
 ~/receiptpi-env/bin/python scripts/manage_users.py revoke-sessions <name>
 ```
@@ -315,6 +359,7 @@ Unterseite pro Bereich verlinkt – statt eines langen Formulars:
 - `/settings/recipes` – Rezeptmanager (Aus / Mealie), Mealie-Base-URL, verschlüsselter API-Token, Verbindungstest, siehe [Rezepte](#rezepte) unten
 - `/settings/mqtt` – Verbindung zum MQTT-Broker, Themen-Präfix und Home Assistant Discovery, siehe [MQTT](#mqtt) unten
 - `/settings/backup` – Sicherung der Einstellungen und Logos herunterladen oder einspielen (siehe unten)
+- `/settings/users` – Nutzerverwaltung, siehe [Anmeldung und Konten](#anmeldung-und-konten)
 
 **Sicherung und Wiederherstellung** (`/settings/backup`): Die Sicherung ist
 eine `.zip` mit einer Allowlist-Kopie der Einstellungen, allen Logo-Dateien
@@ -330,9 +375,11 @@ Beim Einspielen wird das Archiv zuerst geprüft und eine Zusammenfassung
 angezeigt; geändert wird erst nach Bestätigung. Geheimnisse auf dem Gerät
 bleiben unverändert, alles, was nicht in der Sicherung ist, muss danach neu
 eingegeben werden (die Ergebnisseite listet es auf), und Werte aus
-`config.py` müssen auf einem neuen Gerät von Hand gesetzt werden. Ist
-`API_TOKEN` gesetzt, fragen Download und Wiederherstellung danach; ohne
-Token ist die Wiederherstellung gesperrt. Eingespielt wird nur bei leerer
+`config.py` müssen auf einem neuen Gerät von Hand gesetzt werden. Sobald
+ein Admin-Konto existiert, brauchen Download und Wiederherstellung eine
+Admin-Anmeldung und kein Token. Ohne Admin-Konto gilt: Ist `API_TOKEN`
+gesetzt, fragen Download und Wiederherstellung danach; ohne Token ist die
+Wiederherstellung gesperrt. Eingespielt wird nur bei leerer
 Druck-Queue, vorher wird der aktuelle Stand gesichert (die letzten 5 liegen
 in `STATE_DIR/restore_snapshots/`), ein Neustart ist nicht nötig. Ein Archiv
 darf höchstens 8 MB groß sein; ein hochgeladenes, nicht bestätigtes Archiv
@@ -671,7 +718,8 @@ Ein durch Ruhezeiten/Rate-Limit blockierter Druckauftrag – oder einer,
 der an einem echten Druckerfehler (Gerät nicht erreichbar, USB-Fehler,
 …) scheitert – verschwindet nicht einfach: der Inhalt wird gespeichert,
 damit er später überprüft und manuell nachgedruckt oder verworfen
-werden kann, erreichbar über das Burger-Menü. Gilt gleichermaßen für
+werden kann, erreichbar über das Burger-Menü (nur für Admins, sobald ein
+Admin-Konto existiert, siehe [Anmeldung und Konten](#anmeldung-und-konten)). Gilt gleichermaßen für
 jede Quelle (Web-UI, JSON-API, Automation-Webhook, Watcher), da zentral
 an `enqueue_print()` angeknüpft wird statt einzeln pro Modul.
 Duplikat-Sperren-Blockaden sind bewusst ausgeschlossen – die spiegeln
