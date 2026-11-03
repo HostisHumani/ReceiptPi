@@ -904,9 +904,8 @@ und JavaScript (`.github/workflows/codeql.yml`, zusätzlich wöchentlich).
 
 ## Trademark Notice
 
-Raspberry Pi is a trademark of the Raspberry Pi Foundation. This project is
-not affiliated with, endorsed by, or sponsored by the Raspberry Pi
-Foundation.
+Raspberry Pi is a trademark of Raspberry Pi Ltd. This project is
+not affiliated with, endorsed by, or sponsored by Raspberry Pi Ltd.
 
 Epson and TM-T88V are trademarks of Seiko Epson Corporation. This project is
 not affiliated with, endorsed by, or sponsored by Epson.
