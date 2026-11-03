@@ -1,0 +1,43 @@
+[Unit]
+Description=ReceiptPi print server
+Documentation=https://github.com/HostisHumani/ReceiptPi
+# The configuration with the device's secret key is created on the first
+# start; without it the server refuses to start.
+Wants=network-online.target receiptpi-firstboot.service
+After=network-online.target receiptpi-firstboot.service
+
+[Service]
+User=receiptpi
+Group=receiptpi
+# Access to the printer's USB device node, see 99-receiptpi-printer.rules.
+SupplementaryGroups=lp
+WorkingDirectory=/opt/receiptpi
+# Exactly one worker: the print queue lives in the worker process.
+ExecStart=/opt/receiptpi/venv/bin/gunicorn -c gunicorn.conf.py --no-control-socket --workers 1 --threads 4 --bind 0.0.0.0:5000 app:app
+Restart=on-failure
+RestartSec=5
+
+# Settings, history, accounts and watcher state. Created and owned by
+# the service user, and writable despite ProtectSystem=strict.
+StateDirectory=receiptpi
+StateDirectoryMode=0750
+
+# python-escpos caches its parsed capabilities database as a pickle.
+# Without a fixed directory it uses a fresh mkdtemp() directory on every
+# import, so the cache is never reused.
+CacheDirectory=receiptpi
+Environment=ESCPOS_CAPABILITIES_PICKLE_DIR=/var/cache/receiptpi
+
+# Dumps the Python traceback of every thread to the journal when the
+# interpreter receives SIGSEGV, SIGBUS, SIGFPE, SIGABRT or SIGILL.
+Environment=PYTHONFAULTHANDLER=1
+
+NoNewPrivileges=true
+# Also cleans up the empty mkdtemp() directories python-escpos still
+# creates on each start.
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

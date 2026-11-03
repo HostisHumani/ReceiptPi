@@ -1,7 +1,9 @@
 # ReceiptPi watchers - crontab template.
 #
-# There is currently no automated installer for this - install by
-# adjusting PYTHON/PROJECT_DIR below to your actual setup, then either
+# deploy/install.sh runs the watchers as systemd timers instead
+# (deploy/systemd/receiptpi-*.timer); this template is for setups without
+# it. Install by adjusting PYTHON/PROJECT_DIR below to your actual setup,
+# then either
 # `crontab watchers/crontab.example` (replaces your whole crontab - only
 # safe if ReceiptPi's watchers are the only cron entries you have) or
 # copy the lines you need into your existing crontab (`crontab -e`).

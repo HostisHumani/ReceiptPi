@@ -38,6 +38,7 @@ jobs:
             gunicorn.conf.py \
             boot_greeting.py \
             config.example.py \
+            deploy/generate_config.py \
             history_store.py \
             i18n.py \
             lists_store.py \

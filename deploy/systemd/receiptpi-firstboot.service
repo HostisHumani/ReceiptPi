@@ -1,0 +1,12 @@
+[Unit]
+Description=Create the ReceiptPi configuration with a per-device secret key
+Documentation=https://github.com/HostisHumani/ReceiptPi
+# Only on the first start: an existing configuration is never touched.
+ConditionPathExists=!/etc/receiptpi/config.py
+Before=receiptpi.service
+
+[Service]
+Type=oneshot
+# The system Python on purpose: the script needs only the standard
+# library and must not depend on the application's environment.
+ExecStart=/usr/bin/python3 /opt/receiptpi/deploy/generate_config.py

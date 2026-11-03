@@ -1,0 +1,10 @@
+[Unit]
+Description=ReceiptPi: check for new storm warnings every 15 minutes
+Documentation=https://github.com/HostisHumani/ReceiptPi
+
+[Timer]
+OnCalendar=*:0/15
+Unit=receiptpi-watcher@storm_warning_watch.service
+
+[Install]
+WantedBy=timers.target

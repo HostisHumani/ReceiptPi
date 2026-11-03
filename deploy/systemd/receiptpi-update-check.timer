@@ -1,0 +1,12 @@
+[Unit]
+Description=ReceiptPi: check for a new release every 12 hours
+Documentation=https://github.com/HostisHumani/ReceiptPi
+
+[Timer]
+OnCalendar=*-*-* 00/12:00:00
+Unit=receiptpi-watcher@update_check_watch.service
+# Catches up on a run missed while the device was off.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

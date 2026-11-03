@@ -1,0 +1,10 @@
+[Unit]
+Description=ReceiptPi: check watched GitHub repos for new stars every 5 minutes
+Documentation=https://github.com/HostisHumani/ReceiptPi
+
+[Timer]
+OnCalendar=*:0/5
+Unit=receiptpi-watcher@github_star_watch.service
+
+[Install]
+WantedBy=timers.target

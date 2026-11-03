@@ -1,0 +1,25 @@
+[Unit]
+Description=ReceiptPi watcher %i
+Documentation=https://github.com/HostisHumani/ReceiptPi
+# The watchers report through the server's HTTP API on localhost:5000
+# and read the same configuration, including API_TOKEN.
+Wants=network-online.target receiptpi-firstboot.service
+After=network-online.target receiptpi-firstboot.service receiptpi.service
+
+[Service]
+Type=oneshot
+User=receiptpi
+Group=receiptpi
+WorkingDirectory=/opt/receiptpi
+ExecStart=/opt/receiptpi/venv/bin/python3 /opt/receiptpi/watchers/%i.py
+# A run that hangs on the network is ended here; the timer does not
+# start the next run while one is still active.
+TimeoutStartSec=5min
+
+StateDirectory=receiptpi
+StateDirectoryMode=0750
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only

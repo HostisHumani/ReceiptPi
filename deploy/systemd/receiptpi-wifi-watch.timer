@@ -1,0 +1,10 @@
+[Unit]
+Description=ReceiptPi: check the Fritz!Box guest network every minute
+Documentation=https://github.com/HostisHumani/ReceiptPi
+
+[Timer]
+OnCalendar=*:*
+Unit=receiptpi-watcher@fritzbox_wifi_watch.service
+
+[Install]
+WantedBy=timers.target

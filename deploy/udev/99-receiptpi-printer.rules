@@ -1,0 +1,5 @@
+# Epson TM-T88V (USB ID 04b8:0e02): read/write access for the lp group,
+# so the service talks to the printer without running as root. Another
+# printer needs its own line with the IDs shown by lsusb, matching
+# VENDOR_ID/PRODUCT_ID in /etc/receiptpi/config.py.
+SUBSYSTEM=="usb", ATTR{idVendor}=="04b8", ATTR{idProduct}=="0e02", GROUP="lp", MODE="0660"
