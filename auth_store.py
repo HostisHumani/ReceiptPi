@@ -23,6 +23,13 @@ request and only stats the file (see there), which relies on every
 committed write changing the main file's mtime. In WAL mode commits go
 to the -wal file and reach the main file only at a checkpoint.
 
+Roles: "admin" may do everything; "user" may only use the pages marked
+for all logged-in users (see modules/auth/guard.py). Every change that
+could leave the device without an active admin (deleting, disabling or
+demoting one) checks the remaining active admins inside the same write
+transaction as the change itself, so two such requests at the same time
+can't both pass the check.
+
 The clock is the module-level _now(), so tests can replace it.
 """
 import hashlib
@@ -41,7 +48,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 STATE_DIR = getattr(config, "STATE_DIR", os.path.dirname(os.path.abspath(__file__)))
 DB_FILE = os.path.join(STATE_DIR, "auth.db")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 ROLES = ("admin", "user")
 
@@ -52,6 +59,14 @@ ROLES = ("admin", "user")
 NAME_RE = re.compile(r"[a-z0-9._-]{3,32}")
 PASSWORD_MIN_LEN = 10
 PASSWORD_MAX_LEN = 128
+
+# Start passwords that an admin hands over by hand: no 0/O, 1/l/I, and
+# lowercase only, so a password read off a screen or a note can't be
+# mistyped between look-alikes. 16 characters of 32 = 80 bits, in groups
+# of four separated by "-" (the dashes are part of the password).
+INITIAL_PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"
+INITIAL_PASSWORD_GROUPS = 4
+INITIAL_PASSWORD_GROUP_LEN = 4
 
 REMEMBER_LIFETIME_S = 90 * 24 * 3600
 IDLE_TIMEOUT_S = 24 * 3600
@@ -149,9 +164,22 @@ def _connect():
 
 
 def _ensure_schema(conn):
-    """PRAGMA user_version is the schema version. A future schema change
-    adds a step for version 1 -> 2 here, so an existing auth.db is
-    migrated in place on the first connection."""
+    """PRAGMA user_version is the schema version. Each step migrates one
+    version up, in place and inside one write transaction, on the first
+    connection; a new database runs through the same steps, so a new and
+    a migrated auth.db end up with the same schema.
+
+    Version 2 adds three columns to users:
+      - must_change_password: set for a start password made by an admin
+        (new account or reset); the guard then lets the account do
+        nothing but change it.
+      - disabled: a locked account can't log in and has no sessions.
+      - last_login: when the account last logged in (NULL = never), for
+        the user list. Written together with the new session row, so a
+        login costs no extra write.
+    ALTER TABLE ... ADD COLUMN only extends the table definition: existing
+    rows, password hashes and sessions stay as they are and read the new
+    columns' defaults."""
     if conn.execute("PRAGMA user_version").fetchone()[0] >= SCHEMA_VERSION:
         return
     conn.execute("BEGIN IMMEDIATE")
@@ -184,6 +212,11 @@ def _ensure_schema(conn):
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires)")
             conn.execute("PRAGMA user_version = 1")
+        if conn.execute("PRAGMA user_version").fetchone()[0] < 2:
+            conn.execute("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0")
+            conn.execute("ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0")
+            conn.execute("ALTER TABLE users ADD COLUMN last_login INTEGER")
+            conn.execute("PRAGMA user_version = 2")
         conn.execute("COMMIT")
     except BaseException:
         conn.execute("ROLLBACK")
@@ -213,10 +246,22 @@ def _get_dummy_hash():
     return _dummy_hash
 
 
+def generate_initial_password():
+    groups = (
+        "".join(secrets.choice(INITIAL_PASSWORD_ALPHABET) for _ in range(INITIAL_PASSWORD_GROUP_LEN))
+        for _ in range(INITIAL_PASSWORD_GROUPS)
+    )
+    return "-".join(groups)
+
+
 def _user_dict(row):
     if row is None:
         return None
-    return {"id": row["id"], "name": row["name"], "role": row["role"], "created": row["created"]}
+    return {
+        "id": row["id"], "name": row["name"], "role": row["role"], "created": row["created"],
+        "must_change_password": bool(row["must_change_password"]), "disabled": bool(row["disabled"]),
+        "last_login": row["last_login"],
+    }
 
 
 def admin_exists():
@@ -240,7 +285,7 @@ def admin_exists():
     return result
 
 
-def create_user(name, password, role="user", only_if_no_admin=False):
+def create_user(name, password, role="user", only_if_no_admin=False, must_change_password=False):
     """Creates an account and returns it as a dict. only_if_no_admin
     makes the first-admin setup race-free: the admin check and the
     insert run in one write transaction, so of two concurrent setups
@@ -262,8 +307,9 @@ def create_user(name, password, role="user", only_if_no_admin=False):
                 if conn.execute("SELECT 1 FROM users WHERE name = ?", (normalized,)).fetchone():
                     raise AuthError("name_taken")
                 cur = conn.execute(
-                    "INSERT INTO users (name, role, pw_hash, prefs, created) VALUES (?, ?, ?, ?, ?)",
-                    (normalized, role, pw_hash, json.dumps({}), int(_now())),
+                    "INSERT INTO users (name, role, pw_hash, prefs, created, must_change_password) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (normalized, role, pw_hash, json.dumps({}), int(_now()), 1 if must_change_password else 0),
                 )
                 user_id = cur.lastrowid
                 conn.execute("COMMIT")
@@ -273,6 +319,15 @@ def create_user(name, password, role="user", only_if_no_admin=False):
             return _user_dict(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
         finally:
             conn.close()
+
+
+def create_user_with_initial_password(name, role):
+    """An account created by an admin: returns (user, password) with a
+    generated start password that has to be changed at the first login.
+    The password is returned once and stored only as a hash."""
+    password = generate_initial_password()
+    user = create_user(name, password, role=role, must_change_password=True)
+    return user, password
 
 
 def get_user(user_id):
@@ -314,7 +369,8 @@ def verify_login(name, password):
     """Returns the user dict if name and password match, else None. An
     unknown or malformed name is checked against the dummy hash, so the
     answer takes as long as for a wrong password. Passwords outside the
-    allowed length never reach scrypt, but still cost the same time."""
+    allowed length never reach scrypt, but still cost the same time. A
+    locked account gets None like a wrong password."""
     row = None
     normalized = normalize_name(name)
     if NAME_RE.fullmatch(normalized) and os.path.exists(DB_FILE):
@@ -327,7 +383,9 @@ def verify_login(name, password):
     candidate = password if plausible else ""
     pw_hash = row["pw_hash"] if row is not None else _get_dummy_hash()
     ok = _check_hash(pw_hash, candidate)
-    if row is None or not plausible or not ok:
+    # A locked account is refused only after the full hash check, so its
+    # answer takes as long as (and looks the same as) a wrong password.
+    if row is None or not plausible or not ok or row["disabled"]:
         return None
     return _user_dict(row)
 
@@ -346,17 +404,22 @@ def verify_password(user_id, password):
     return row is not None and plausible and ok
 
 
-def set_password(user_id, password, revoke_sessions=True, keep_token_hash=None):
+def set_password(user_id, password, revoke_sessions=True, keep_token_hash=None, must_change_password=False):
     """Replaces the password hash. With revoke_sessions, every session of
     the account ends, except keep_token_hash (the session that changed
-    its own password stays logged in)."""
+    its own password stays logged in). must_change_password is stored
+    with it: False for a password the account holder chose (own change,
+    console script), True for a start password made by an admin."""
     pw_hash = hash_password(password)
     with _lock:
         conn = _connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             try:
-                cur = conn.execute("UPDATE users SET pw_hash = ? WHERE id = ?", (pw_hash, user_id))
+                cur = conn.execute(
+                    "UPDATE users SET pw_hash = ?, must_change_password = ? WHERE id = ?",
+                    (pw_hash, 1 if must_change_password else 0, user_id),
+                )
                 if cur.rowcount != 1:
                     raise AuthError("user_not_found")
                 if revoke_sessions:
@@ -370,6 +433,87 @@ def set_password(user_id, password, revoke_sessions=True, keep_token_hash=None):
                 raise
         finally:
             conn.close()
+
+
+def reset_to_initial_password(user_id):
+    """An admin's password reset: a new start password that has to be
+    changed at the next login; every session of the account ends.
+    Returns the password (once; only its hash is stored)."""
+    password = generate_initial_password()
+    set_password(user_id, password, revoke_sessions=True, must_change_password=True)
+    return password
+
+
+def _other_active_admins(conn, user_id):
+    return conn.execute(
+        "SELECT COUNT(*) FROM users WHERE role = 'admin' AND disabled = 0 AND id != ?", (user_id,)
+    ).fetchone()[0]
+
+
+def _change_user_locked(user_id, change):
+    """Runs change(conn, row) for an existing account inside one write
+    transaction. Raises AuthError("user_not_found") for an unknown id."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+                if row is None:
+                    raise AuthError("user_not_found")
+                change(conn, row)
+                conn.execute("COMMIT")
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+        finally:
+            conn.close()
+
+
+def _refuse_if_last_admin(conn, row):
+    """The account in row is about to stop being an active admin."""
+    if row["role"] == "admin" and not row["disabled"] and _other_active_admins(conn, row["id"]) == 0:
+        raise AuthError("last_admin")
+
+
+def set_role(user_id, role):
+    if role not in ROLES:
+        raise AuthError("role_invalid")
+
+    def change(conn, row):
+        if row["role"] == role:
+            return
+        if role != "admin":
+            _refuse_if_last_admin(conn, row)
+        conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+
+    _change_user_locked(user_id, change)
+
+
+def set_disabled(user_id, disabled):
+    """Locks or unlocks an account. Locking ends all of its sessions in
+    the same transaction."""
+    def change(conn, row):
+        if disabled:
+            _refuse_if_last_admin(conn, row)
+            conn.execute("UPDATE users SET disabled = 1 WHERE id = ?", (user_id,))
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        else:
+            conn.execute("UPDATE users SET disabled = 0 WHERE id = ?", (user_id,))
+
+    _change_user_locked(user_id, change)
+
+
+def delete_user(user_id):
+    """Deletes an account together with all of its sessions."""
+    def change(conn, row):
+        _refuse_if_last_admin(conn, row)
+        # Explicit, although the foreign key cascades too: the cascade
+        # only works on connections with PRAGMA foreign_keys = ON.
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+    _change_user_locked(user_id, change)
 
 
 def hash_token(token):
@@ -389,19 +533,27 @@ def _purge_expired_locked(conn, now):
 
 def create_session(user_id, remember):
     """Creates a session and returns (token, expires). The token goes
-    into the cookie and is not stored anywhere on this side."""
+    into the cookie and is not stored anywhere on this side. Also records
+    the login time of the account, in the same transaction."""
     token = secrets.token_urlsafe(32)
     now = int(_now())
     expires = _expiry(now, remember)
     with _lock:
         conn = _connect()
         try:
-            _purge_expired_locked(conn, now)
-            conn.execute(
-                "INSERT INTO sessions (token_hash, user_id, created, last_seen, expires, remember) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (hash_token(token), user_id, now, now, expires, 1 if remember else 0),
-            )
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                _purge_expired_locked(conn, now)
+                conn.execute(
+                    "INSERT INTO sessions (token_hash, user_id, created, last_seen, expires, remember) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (hash_token(token), user_id, now, now, expires, 1 if remember else 0),
+                )
+                conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (now, user_id))
+                conn.execute("COMMIT")
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
         finally:
             conn.close()
     return token, expires
@@ -412,7 +564,13 @@ def validate_session(token):
     "refreshed"} for a valid token, else None. refreshed is True when
     this call wrote a new last_seen/expires - the caller then re-sends a
     persistent cookie with the new lifetime. An expired session found
-    here is deleted."""
+    here is deleted.
+
+    The account's role and flags are read from users on every call, never
+    from the cookie, so a role change, a lock or a deletion takes effect
+    with the next request. A locked account's sessions are deleted when
+    it is locked; the disabled check here only covers a row written by
+    something else."""
     if not token or not isinstance(token, str) or len(token) > 128:
         return None
     if not os.path.exists(DB_FILE):
@@ -422,11 +580,11 @@ def validate_session(token):
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT s.*, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id "
-            "WHERE s.token_hash = ?",
+            "SELECT s.*, u.name, u.role, u.must_change_password, u.disabled "
+            "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
             (token_hash,),
         ).fetchone()
-        if row is None:
+        if row is None or row["disabled"]:
             return None
         remember = bool(row["remember"])
         if row["expires"] <= now:
@@ -450,7 +608,8 @@ def validate_session(token):
             with _lock:
                 _purge_expired_locked(conn, now)
         return {
-            "user": {"id": row["user_id"], "name": row["name"], "role": row["role"]},
+            "user": {"id": row["user_id"], "name": row["name"], "role": row["role"],
+                     "must_change_password": bool(row["must_change_password"])},
             "token_hash": token_hash,
             "remember": remember,
             "expires": expires,
