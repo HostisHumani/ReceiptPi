@@ -38,9 +38,11 @@ jobs:
             gunicorn.conf.py \
             boot_greeting.py \
             config.example.py \
+            history_store.py \
             modules \
             watchers \
             mqtt_bridge.py \
+            pending_store.py \
             print_queue.py \
             printer.py \
             printer_status.py \
