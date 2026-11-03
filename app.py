@@ -52,6 +52,7 @@ from modules.auth.users import users_bp
 from modules.automation.routes import automation_bp
 from modules.backup.routes import backup_bp
 from modules.games.routes import games_bp
+from modules.history import owners as history_owners
 from modules.history.routes import history_bp
 from modules.images.routes import images_bp
 from modules.lists.routes import lists_bp
@@ -203,11 +204,22 @@ def inject_i18n():
         # managed entries at most), so reading it on every request for
         # the burger-menu badge is not a concern the way the settings
         # read above already isn't.
-        "pending_count": len(pending_store.get_all()),
+        "pending_count": _pending_count(),
         # Cache-busting query param for /static/* URLs this app owns
         # and edits - see static_versioning.py for why.
         "static_url": static_url,
     }
+
+
+def _pending_count():
+    """Badge count for the menu: an admin (and everyone while no admin
+    account exists) counts every pending entry, any other account only
+    its own, and a visitor without a login none."""
+    viewer = history_owners.current_viewer()
+    if viewer["admin"]:
+        return len(pending_store.get_all())
+    scope = history_owners.own_scope(viewer)
+    return pending_store.count(scope) if scope else 0
 
 
 @app.route("/static/style.css")
@@ -281,12 +293,17 @@ def health():
 def index():
     active = module_catalog.active_modules(settings_store.get_settings())
     active_count = sum(1 for m in module_catalog.MODULES if active[m["key"]])
-    total_prints = history_store.get_stats()["total"]
+    # Every account sees its own count, admins included; the device
+    # total is on /history. Without accounts it is the device total.
+    viewer = history_owners.current_viewer()
+    scope = history_owners.own_scope(viewer)
+    total_prints = history_store.count_for(scope) if scope else 0
     return render_template(
         "home.html",
         active_module_count=active_count,
         total_module_count=len(module_catalog.MODULES),
         total_prints=total_prints,
+        own_prints=viewer["accounts"],
     )
 
 

@@ -371,6 +371,7 @@
   "home.status.printer": "Drucker",
   "home.status.modules": "Module aktiv",
   "home.status.prints": "Drucke gesamt",
+  "home.status.prints_own": "Eigene Drucke",
   "home.group.extras": "Extras",
   "home.hero.sub_checking": "Automatische Prüfung alle 60s",
   "home.hero.sub_online": "Bereit zum Drucken",

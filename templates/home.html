@@ -11,7 +11,7 @@
   </div>
   <div class="hero-pills">
     <div class="pill"><div class="label">{{ t('home.status.modules') }}</div><div class="value mono">{{ active_module_count }}/{{ total_module_count }}</div></div>
-    <div class="pill"><div class="label">{{ t('home.status.prints') }}</div><div class="value mono">{{ total_prints }}</div></div>
+    <div class="pill"><div class="label">{{ t('home.status.prints_own') if own_prints else t('home.status.prints') }}</div><div class="value mono">{{ total_prints }}</div></div>
     <div class="pill"><div class="label">{{ t('home.hero.version_label') }}</div><div class="value mono">{{ current_version }}</div></div>
   </div>
 </div>

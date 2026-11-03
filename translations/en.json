@@ -371,6 +371,7 @@
   "home.status.printer": "Printer",
   "home.status.modules": "Modules active",
   "home.status.prints": "Total prints",
+  "home.status.prints_own": "Your prints",
   "home.group.extras": "Extras",
   "home.hero.sub_checking": "Checked automatically every 60s",
   "home.hero.sub_online": "Ready to print",
