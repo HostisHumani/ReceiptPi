@@ -13,6 +13,13 @@ responses for a BLOCKED job (429) follow the language setting too,
 unlike other JSON error messages elsewhere which stay English - a
 deliberate, small inconsistency rather than threading translation keys
 through every single module's route handlers for this narrow case.
+
+Owner: enqueue_print() reads the account behind the current request
+once, when the job is enqueued (see _request_owner()), and the job
+carries it in its meta through the queue, the worker, the history and
+the pending list. The worker thread never looks at request state
+itself. The print rules (quiet hours, rate limit, duplicates) stay the
+same for every account - there is one physical printer.
 """
 import hashlib
 import queue
@@ -21,6 +28,9 @@ import time
 from datetime import datetime
 from datetime import time as dtime
 
+from flask import g, has_request_context
+
+import auth_store
 import history_store
 import i18n
 import pending_store
@@ -46,6 +56,26 @@ _rules_lock = threading.Lock()
 # Callbacks notified after every job outcome (printed, failed, blocked) -
 # see add_job_listener().
 _job_listeners = []
+
+# Default for enqueue_print(owner=...): take the owner from the request.
+_FROM_REQUEST = object()
+
+
+def _request_owner():
+    """(account id, account created) of the logged-in account behind the
+    current request, or None (System): outside a request (MQTT thread),
+    on API-token routes (the login check never loads a session there),
+    and while no admin account exists. created comes from auth.db,
+    since the session only carries the id."""
+    if not has_request_context():
+        return None
+    user = g.get("auth_user")
+    if not user:
+        return None
+    account = auth_store.get_user(user["id"])
+    if account is None:
+        return None
+    return account["id"], account["created"]
 
 
 def _job_fingerprint(func, args, dedupe_key=None):
@@ -186,7 +216,7 @@ def _print_worker():
         if meta.get("log_history", True):
             history_store.log_job(
                 meta.get("job_type", "other"), meta.get("summary", ""), meta.get("source", "system"),
-                "ok" if result["ok"] else "error", result.get("detail", ""),
+                "ok" if result["ok"] else "error", result.get("detail", ""), owner=meta.get("owner"),
             )
         # A real print failure (printer unreachable, USB error, ...) -
         # as opposed to a rules block, which is handled in
@@ -198,7 +228,7 @@ def _print_worker():
         if not result["ok"] and meta.get("retry_payload") is not None:
             pending_store.add(
                 meta.get("job_type", "other"), meta.get("summary", ""), meta.get("source", "system"),
-                "error", result.get("detail", ""), meta["retry_payload"],
+                "error", result.get("detail", ""), meta["retry_payload"], owner=meta.get("owner"),
             )
         _notify_job_listeners(meta, "ok" if result["ok"] else "error")
         event.set()
@@ -242,7 +272,7 @@ def start_worker():
 
 def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hours=False,
                    bypass_duplicate=False, dedupe_key=None, job_type="other", summary="", source="ui",
-                   log_history=True, retry_payload=None):
+                   log_history=True, retry_payload=None, owner=_FROM_REQUEST):
     """Enqueues a print job and waits for it to finish. Returns
     (ok: bool, detail: str, http_status: int).
 
@@ -293,6 +323,11 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     content, or a persistently-failing job would pile up duplicates
     indefinitely.
 
+    owner: the (account id, account created) pair the job belongs to in
+    the history and the pending list, None for System. By default it is
+    taken from the current request (see _request_owner()); a reprint
+    from the pending list passes the owner of the pending entry instead.
+
     Status codes: 429 quiet hours/rate limit/duplicate, 503 queue full,
     504 timeout, 500 print error, 200 success.
 
@@ -300,17 +335,19 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     the worker once its turn comes - the timeout only ends the waiting
     on the HTTP side, not the job itself. Clients shouldn't automatically
     retry on a 504, or the same receipt could end up printed twice."""
+    if owner is _FROM_REQUEST:
+        owner = _request_owner()
     if not bypass_rules:
         allowed, reason, block_kind = check_print_rules(func, args, dedupe_key, bypass_quiet_hours, bypass_duplicate)
         if not allowed:
             if log_history:
-                history_store.log_job(job_type, summary, source, "blocked", reason)
+                history_store.log_job(job_type, summary, source, "blocked", reason, owner=owner)
             # Only quiet-hours/rate-limit blocks are genuinely deferred
             # content - a duplicate block means this exact content was
             # already accepted moments ago under the original
             # submission, so there's nothing here worth recovering.
             if retry_payload is not None and block_kind in ("quiet_hours", "rate_limit"):
-                pending_store.add(job_type, summary, source, "blocked", reason, retry_payload)
+                pending_store.add(job_type, summary, source, "blocked", reason, retry_payload, owner=owner)
             _notify_job_listeners({"job_type": job_type, "log_history": log_history}, "blocked")
             return False, reason, 429
 
@@ -318,7 +355,7 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     event = threading.Event()
     meta = {
         "job_type": job_type, "summary": summary, "source": source, "log_history": log_history,
-        "retry_payload": retry_payload,
+        "retry_payload": retry_payload, "owner": owner,
     }
     try:
         PRINT_QUEUE.put((func, args, result, event, meta), timeout=5)

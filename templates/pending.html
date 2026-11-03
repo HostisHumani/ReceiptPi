@@ -2,11 +2,16 @@
 {% block header_icon %}<span class="mark"><span class="icon icon-clipboard-list" aria-hidden="true"></span></span>{% endblock %}
 {% block header_title %}{{ t('pending.header') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>{% if show_filter %}
+<form method="get" action="/pending" class="card">
+  <label for="owner">{{ t('history.filter.label') }}</label>
+  <select id="owner" name="owner">{% for value, label in owner_options %}<option value="{{ value }}"{% if value == owner_selected %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <button type="submit" class="btn btn-secondary">{{ t('history.filter.apply') }}</button>
+</form>{% endif %}
 
 {% if entries %}
 <form method="post" id="pending-form" class="card">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% if show_filter %}<input type="hidden" name="owner" value="{{ owner_selected }}">{% endif %}
   {% for entry in entries %}
     <div class="list-row list-row-top">
       <input type="checkbox" name="ids" value="{{ entry.id }}" aria-label="{{ entry.type_label }}">
@@ -20,7 +25,7 @@
             {{ t('history.status.' + entry.status) }}
           </span>
           {% if entry.reason %}<span>&middot; {{ entry.reason }}</span>{% endif %}
-          <span>&middot; {{ t('history.source.' + entry.source) }}</span>
+          <span>&middot; {{ t('history.source.' + entry.source) }}</span>{% if show_owner %}<span>&middot; {{ entry.owner_label }}</span>{% endif %}
         </div>
       </div>
       <span class="mono list-row-meta list-row-timestamp">{{ entry.created_at_display }}</span>
@@ -36,12 +41,12 @@
 
 <div class="form-actions">
   <form method="post" action="/pending/print" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% if show_filter %}<input type="hidden" name="owner" value="{{ owner_selected }}">{% endif %}
     <input type="hidden" name="scope" value="all">
     <button type="submit" class="btn btn-secondary">{{ t('pending.print_all') }}</button>
   </form>
   <form method="post" action="/pending/discard" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% if show_filter %}<input type="hidden" name="owner" value="{{ owner_selected }}">{% endif %}
     <input type="hidden" name="scope" value="all">
     <button type="submit" class="btn btn-danger">{{ t('pending.discard_all') }}</button>
   </form>

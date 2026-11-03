@@ -25,9 +25,18 @@ documents for history_store - e.g. wifi's summary is the SSID, never
 the password). `payload` itself must never be rendered in
 templates/pending.html or included in any log/print statement -
 it exists purely for replay.
+
+OWNER: every entry carries the account that triggered the job as
+{"id": ..., "created": ...} (same pair and reasoning as in
+history_store.py), or None for System. An entry without the field
+belongs to System. The web UI only ever reads entries through a viewer
+scope (get_for/get_by_ids/count), so an id from a form can never reach
+an entry outside the requester's scope; get_all() stays unfiltered for
+device-wide status (MQTT).
 """
 import json
 import os
+import re
 import threading
 import time
 import uuid
@@ -42,6 +51,10 @@ PENDING_FILE = os.path.join(STATE_DIR, "pending_jobs.json")
 IMAGES_DIR = os.path.join(STATE_DIR, "pending_images")
 
 _lock = threading.Lock()
+
+# Entry ids are uuid4().hex[:12] (see add()); anything else from a form is
+# ignored before it is looked up.
+_ID_RE = re.compile(r"[0-9a-f]{12}")
 
 # mtime-based cache, same pattern as settings_store.py - get_all() is
 # called on EVERY page load (burger-menu badge count via app.py's
@@ -187,8 +200,44 @@ def get_all():
         return list(reversed(pruned))
 
 
-def add(job_type, summary, source, status, reason, payload):
-    """Adds a new pending entry, returns its id.
+def _owner_value(owner):
+    if owner is None:
+        return None
+    owner_id, owner_created = owner
+    return {"id": int(owner_id), "created": int(owner_created)}
+
+
+def entry_owner(entry):
+    """The owner pair (id, created) of an entry, or None for System."""
+    owner = entry.get("owner")
+    if not isinstance(owner, dict):
+        return None
+    try:
+        return int(owner["id"]), int(owner["created"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _in_scope(entry, viewer):
+    """Same scopes as history_store._scope_sql(); anything else raises
+    ValueError, so a malformed scope never matches everything."""
+    kind = viewer[0] if isinstance(viewer, tuple) and viewer else None
+    owner = entry_owner(entry)
+    if kind == "all" and len(viewer) == 1:
+        return True
+    if kind == "system" and len(viewer) == 1:
+        return owner is None
+    if kind == "owner" and len(viewer) == 3:
+        return owner == (int(viewer[1]), int(viewer[2]))
+    if kind == "owner_id" and len(viewer) == 2:
+        return owner is not None and owner[0] == int(viewer[1])
+    raise ValueError("invalid viewer scope")
+
+
+def add(job_type, summary, source, status, reason, payload, *, owner):
+    """Adds a new pending entry, returns its id. owner is the (id,
+    created) pair of the account that triggered the job, or None for
+    System - deliberately without a default.
 
     `payload` is normally a plain JSON-serializable dict. EXCEPTION:
     for job_type "images", pass {"image": <PIL Image>} instead - the
@@ -211,6 +260,7 @@ def add(job_type, summary, source, status, reason, payload):
         "status": status,
         "reason": reason,
         "created_at": time.time(),
+        "owner": _owner_value(owner),
         "payload": payload,
     }
     with _lock:
@@ -220,13 +270,34 @@ def add(job_type, summary, source, status, reason, payload):
     return entry_id
 
 
-def get_by_ids(ids):
-    """Returns entries matching the given ids, in the same order as
-    `ids` (not storage order) and with duplicates removed - callers
-    iterate this to replay/discard in the order the user selected."""
+def _check_scope(viewer):
+    """Raises ValueError for a malformed scope even when there are no
+    entries to compare it with."""
+    _in_scope({}, viewer)
+
+
+def get_for(viewer):
+    """The entries in viewer's scope, newest first (pruned like
+    get_all())."""
+    _check_scope(viewer)
+    return [e for e in get_all() if _in_scope(e, viewer)]
+
+
+def count(viewer):
+    return len(get_for(viewer))
+
+
+def get_by_ids(ids, viewer):
+    """Returns the entries with the given ids that are in viewer's scope,
+    in the same order as `ids` (not storage order) and with duplicates
+    removed - callers iterate this to replay/discard in the order the
+    user selected. Malformed ids, unknown ids and ids outside the scope
+    are all left out the same way."""
+    _check_scope(viewer)
+    wanted = [i for i in dict.fromkeys(ids) if isinstance(i, str) and _ID_RE.fullmatch(i)]
     with _lock:
         by_id = {e["id"]: e for e in _read()}
-    return [by_id[i] for i in dict.fromkeys(ids) if i in by_id]
+    return [by_id[i] for i in wanted if i in by_id and _in_scope(by_id[i], viewer)]
 
 
 def remove(ids):
