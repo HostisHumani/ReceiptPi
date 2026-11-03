@@ -20,6 +20,8 @@ The settings live in auth.db and not in settings.json: they belong to
 an account and disappear with it, and they are not part of a settings
 backup archive (modules/backup/archive.py exports settings.json only).
 """
+from flask import g, has_request_context
+
 import auth_store
 import i18n
 import themes
@@ -46,6 +48,19 @@ def sanitize(prefs):
         if isinstance(value, str) and value in choices:
             clean[key] = value
     return clean
+
+
+def current():
+    """The sanitized settings of the account behind the current request,
+    {} without one. The account comes from g.auth_user, which the login
+    check fills only on pages that need a session; outside a request
+    (print worker, MQTT, watchers) there is none."""
+    if not has_request_context():
+        return {}
+    user = g.get("auth_user")
+    if not user:
+        return {}
+    return sanitize(user.get("prefs"))
 
 
 def valid_choice(key, value):

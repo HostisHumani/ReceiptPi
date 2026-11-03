@@ -10,7 +10,7 @@
   {% for key, name in supported_themes.items() %}
   <label class="theme-option">
     <input type="radio" name="theme" value="{{ key }}"
-           {% if current_theme == key %}checked{% endif %}>
+           {% if device_theme == key %}checked{% endif %}>
     <span class="theme-swatch" style="background:{{ {
       'warm': '#c2410c',
       'forrest': '#2fae66',

@@ -5,9 +5,9 @@ in the UI. The actual colors live in static/style.css as
 keys and their display names, same split as i18n.py (translation
 lookup vs. SUPPORTED_LANGUAGES).
 
-Theme is a single, shared setting (settings_store["theme"]), not
-per-session - this is a single-user home appliance, same reasoning as
-the language setting.
+The theme of a page is the logged-in account's own choice if it made
+one (user_prefs.py), otherwise the device default settings["theme"] -
+see current_theme().
 """
 
 # key -> display name shown in the settings dropdown. Dict instead of a
@@ -31,3 +31,15 @@ SUPPORTED_THEMES = {
 # settings_store.DEFAULT_SETTINGS, which has its own literal copy of
 # this default for the same reason its other defaults are literals).
 DEFAULT_THEME = "warm"
+
+
+def current_theme():
+    """The theme for the current request: the account's own choice,
+    else the device default. Same resolution and the same lazy imports
+    as i18n.current_language()."""
+    import user_prefs
+    theme = user_prefs.current().get(user_prefs.THEME)
+    if theme is not None:
+        return theme
+    import settings_store
+    return settings_store.get_settings().get("theme", DEFAULT_THEME)

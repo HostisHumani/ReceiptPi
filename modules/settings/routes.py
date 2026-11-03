@@ -246,10 +246,13 @@ def _render_index(message=None, success=None):
 
 
 def _render_language(message=None, success=None):
+    # The selected radio button is the device default, not the language
+    # the page is shown in: an admin's own UI language can differ.
     return render_template(
         "settings_language.html",
         message=message, success=success,
         csrf_token=get_csrf_token(),
+        device_language=settings_store.get_settings().get("language", i18n.DEFAULT_LANGUAGE),
     )
 
 
@@ -258,6 +261,7 @@ def _render_design(message=None, success=None):
         "settings_design.html",
         message=message, success=success,
         csrf_token=get_csrf_token(),
+        device_theme=settings_store.get_settings().get("theme", themes.DEFAULT_THEME),
     )
 
 
@@ -617,8 +621,9 @@ def ui_set_default_weather_location():
 @settings_bp.route("/ui/settings/language", methods=["POST"])
 @csrf_protect
 def ui_set_language():
-    """Sets the UI language. A single, shared setting (not per-session) -
-    this is a single-user home appliance, not a multi-user app."""
+    """Sets the device default language: the UI language for everyone
+    without an own choice (including the login page) and the receipt
+    language for jobs without an own one."""
     lang = request.form.get("language", "")
     if lang not in i18n.SUPPORTED_LANGUAGES:
         # Deliberately not translated via the (about to be rejected) new
@@ -629,8 +634,10 @@ def ui_set_language():
             settings["language"] = lang
 
         settings_store.update_settings_transaction(_mutate)
-        # Render in the NEW language, since the change already applied.
-        message, success = i18n.t("settings.language.updated", lang), True
+        # Looked up after the change, so the message is in the language
+        # the page is now rendered in: the new device default, or the
+        # admin's own UI language if one is set.
+        message, success = i18n.tr("settings.language.updated"), True
 
     return _render_language(message, success)
 
@@ -638,8 +645,8 @@ def ui_set_language():
 @settings_bp.route("/ui/settings/design", methods=["POST"])
 @csrf_protect
 def ui_set_design():
-    """Sets the UI theme. Same single-shared-setting pattern as the
-    language switcher above - see themes.py for the valid keys."""
+    """Sets the device default theme, for everyone without an own
+    choice - see themes.py for the valid keys."""
     theme = request.form.get("theme", "")
     if theme not in themes.SUPPORTED_THEMES:
         message, success = i18n.tr("settings.design.unsupported", theme=theme), False

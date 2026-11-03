@@ -39,6 +39,7 @@ jobs:
             boot_greeting.py \
             config.example.py \
             history_store.py \
+            i18n.py \
             modules \
             watchers \
             mqtt_bridge.py \
@@ -49,4 +50,5 @@ jobs:
             scripts/manage_users.py \
             security.py \
             settings_store.py \
+            themes.py \
             user_prefs.py

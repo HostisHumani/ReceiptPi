@@ -2,9 +2,12 @@
 Minimal i18n layer: loads translation strings from JSON files and looks
 them up by key. Deliberately NOT using Flask-Babel/gettext (too heavy a
 toolchain - .po/.mo compilation, pybabel CLI - for a handful of UI
-strings in two languages). Language is a single, shared setting (this is
-a single-user home appliance, not a multi-user app with per-session
-locales), stored in settings_store as settings["language"].
+strings in two languages).
+
+The language of a lookup without an explicit lang comes from
+current_language(): the logged-in account's own UI language if it chose
+one (user_prefs.py), otherwise the device default settings["language"]
+from settings_store.
 
 Translation files: translations/<lang>.json in the project root for
 shared/chrome strings (navigation, settings page). Individual modules
@@ -77,10 +80,17 @@ def t(key, lang=None, **kwargs):
 
 
 def current_language():
-    """Reads the current UI language from settings_store. Imported
-    lazily (inside the function) to avoid a hard/circular dependency at
-    module load time - i18n.py itself has no reason to require
-    settings_store to exist yet when it's first imported."""
+    """The language for the current context: the UI language chosen by
+    the account behind the current request, else the device default
+    from settings_store. Without a request (the print worker, the MQTT
+    thread, watchers) and on pages that load no session (login, API
+    token routes, no admin account yet) that is always the device
+    default. settings_store and user_prefs are imported here rather
+    than at module level: both import i18n themselves."""
+    import user_prefs
+    lang = user_prefs.current().get(user_prefs.UI_LANG)
+    if lang is not None:
+        return lang
     import settings_store
     return settings_store.get_settings().get("language", DEFAULT_LANGUAGE)
 

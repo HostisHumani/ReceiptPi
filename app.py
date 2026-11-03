@@ -169,13 +169,12 @@ def _enforce_enabled_modules():
 @app.context_processor
 def inject_i18n():
     """Makes t() and the current language/theme available in every
-    template without each route having to pass them explicitly.
-    Language and theme are single, shared settings (see settings_store)
-    rather than per-session, since this is a single-user home
-    appliance."""
+    template without each route having to pass them explicitly. Both
+    follow the logged-in account's own choice if it made one, else the
+    device default (see i18n.current_language(), themes.current_theme())."""
     settings = settings_store.get_settings()
-    lang = settings.get("language", i18n.DEFAULT_LANGUAGE)
-    theme = settings.get("theme", themes.DEFAULT_THEME)
+    lang = i18n.current_language()
+    theme = themes.current_theme()
     # UI text scale follows the same Easy-Read setting used for print
     # jobs (settings.print_rules.text_size) - one switch for both,
     # rather than a separate UI-only preference.

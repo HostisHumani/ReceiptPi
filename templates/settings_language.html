@@ -10,7 +10,7 @@
   {% for code, name in supported_languages.items() %}
   <label class="checkbox-row">
     <input type="radio" name="language" value="{{ code }}"
-           {% if current_language == code %}checked{% endif %}>
+           {% if device_language == code %}checked{% endif %}>
     {{ name }}
   </label>
   {% endfor %}
