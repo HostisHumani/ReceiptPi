@@ -1,0 +1,40 @@
+// Automatic upgrades for the ReceiptPi image.
+//
+// Only Debian's own origins: release, point-release updates and security.
+// Kernel, firmware and Raspberry Pi packages come from the Raspberry Pi
+// archive, which is not listed, so they are only upgraded by hand.
+Unattended-Upgrade::Origins-Pattern {
+        "origin=Debian,codename=${distro_codename}-updates";
+        "origin=Debian,codename=${distro_codename},label=Debian";
+        "origin=Debian,codename=${distro_codename},label=Debian-Security";
+        "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+};
+
+// Never upgraded automatically. The network packages decide whether the
+// device stays reachable after an upgrade. Kernel, firmware and Raspberry
+// Pi packages are listed as well, so they stay excluded even if a Debian
+// origin ever offers them.
+Unattended-Upgrade::Package-Blacklist {
+    "wpasupplicant";
+    "network-manager.*";
+    "libnm.*";
+    "dhcpcd-base";
+    "dhcpcd5";
+    "linux-image-.*";
+    "firmware-.*";
+    "raspi-firmware";
+    "raspberrypi-.*";
+    "rpi-.*";
+};
+
+// No automatic removal of packages after an upgrade.
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "false";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "false";
+Unattended-Upgrade::Remove-Unused-Dependencies "false";
+
+// Reboot at night when an upgrade requires it, so security fixes in
+// running services take effect.
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+
+Unattended-Upgrade::SyslogEnable "true";

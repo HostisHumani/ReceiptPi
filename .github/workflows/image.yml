@@ -1,0 +1,94 @@
+name: Build image
+
+# Builds receiptpi-<version>-arm64.img.xz from the official Raspberry Pi OS
+# Lite image (deploy/image/). Started by hand only.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Native arm64, so the chroot runs the image's own binaries without
+    # emulation.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    env:
+      WORK: ${{ github.workspace }}/image-build
+      # Larger images are only described in the log and the annotations.
+      MAX_ARTIFACT_BYTES: "500000000"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends fdisk e2fsprogs xz-utils
+
+      - name: Fetch and verify the base image
+        run: sudo --preserve-env=WORK deploy/image/build.sh fetch
+
+      - name: Grow and mount the image
+        run: sudo --preserve-env=WORK deploy/image/build.sh prepare
+
+      - name: Install ReceiptPi in a chroot
+        run: sudo --preserve-env=WORK deploy/image/build.sh customize
+
+      - name: Check the root file system
+        run: sudo --preserve-env=WORK deploy/image/build.sh check
+
+      - name: Shrink, check partitions and compress
+        run: sudo --preserve-env=WORK deploy/image/build.sh finish
+
+      - name: Decide on the image artifact
+        id: size
+        run: |
+          size=$(stat -c %s "$WORK"/out/*.img.xz)
+          if [ "$size" -lt "$MAX_ARTIFACT_BYTES" ]; then
+            echo "upload=true" >> "$GITHUB_OUTPUT"
+            echo "image artifact: yes ($size bytes)" | sudo tee -a "$WORK/summary.txt"
+          else
+            echo "upload=false" >> "$GITHUB_OUTPUT"
+            echo "image artifact: no, $size bytes is over the limit of $MAX_ARTIFACT_BYTES" | sudo tee -a "$WORK/summary.txt"
+          fi
+
+      - name: Upload the image
+        if: steps.size.outputs.upload == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: receiptpi-image
+          path: ${{ env.WORK }}/out/*.img.xz
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Release mounts after a failure
+        if: failure()
+        run: sudo --preserve-env=WORK deploy/image/build.sh unmount
+
+      - name: Summary
+        if: always()
+        run: sudo --preserve-env=WORK deploy/image/build.sh summary
+
+      - name: Upload checksums, manifest and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: receiptpi-image-files
+          path: |
+            ${{ env.WORK }}/out/SHA256SUMS
+            ${{ env.WORK }}/out/*.manifest.txt
+            ${{ env.WORK }}/out/check-*.txt
+            ${{ env.WORK }}/summary.txt
+            ${{ env.WORK }}/logs/
+          retention-days: 1
+          if-no-files-found: ignore

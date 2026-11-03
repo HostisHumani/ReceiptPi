@@ -39,6 +39,7 @@ jobs:
             boot_greeting.py \
             config.example.py \
             deploy/generate_config.py \
+            deploy/image/check_image.py \
             history_store.py \
             i18n.py \
             lists_store.py \
