@@ -257,11 +257,15 @@ def _render_language(message=None, success=None):
 
 
 def _render_design(message=None, success=None):
+    settings = settings_store.get_settings()
+    glass = settings.get("glass", {})
     return render_template(
         "settings_design.html",
         message=message, success=success,
         csrf_token=get_csrf_token(),
-        device_theme=settings_store.get_settings().get("theme", themes.DEFAULT_THEME),
+        device_theme=settings.get("theme", themes.DEFAULT_THEME),
+        device_glass=bool(glass.get("enabled", True)),
+        device_glass_blur=bool(glass.get("blur", True)),
         theme_swatches=themes.SWATCHES,
     )
 
@@ -646,14 +650,22 @@ def ui_set_language():
 @settings_bp.route("/ui/settings/design", methods=["POST"])
 @csrf_protect
 def ui_set_design():
-    """Sets the device default theme, for everyone without an own
-    choice - see themes.py for the valid keys."""
+    """Sets the device default theme and glass look, for everyone
+    without an own choice - see themes.py for the valid keys. The two
+    glass switches are checkboxes: an unchecked one is missing from the
+    form data, so absence means off (same as ui_set_modules). Blur is
+    stored as submitted even while glass is off, so switching glass back
+    on restores the previous blur choice."""
     theme = request.form.get("theme", "")
     if theme not in themes.SUPPORTED_THEMES:
         message, success = i18n.tr("settings.design.unsupported", theme=theme), False
     else:
+        glass = request.form.get("glass") == "on"
+        blur = request.form.get("glass_blur") == "on"
+
         def _mutate(settings):
             settings["theme"] = theme
+            settings["glass"] = {"enabled": glass, "blur": blur}
 
         settings_store.update_settings_transaction(_mutate)
         message, success = i18n.tr("settings.design.updated"), True

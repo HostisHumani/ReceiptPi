@@ -40,6 +40,37 @@
     {% endfor %}
   </div>
 
+  {#- "on"/"off" instead of a toggle: an account needs a third choice,
+      "device default", which a two-state switch can't offer. #}
+  <h2 class="section-title">{{ t('auth.prefs.glass_heading') }}</h2>
+  <div class="card">
+    <label class="checkbox-row">
+      <input type="radio" name="glass" value="" {% if not prefs.glass %}checked{% endif %}>
+      {{ t('auth.prefs.device_default', value=t('auth.prefs.on') if device_glass else t('auth.prefs.off')) }}
+    </label>
+    {% for value in ('on', 'off') %}
+    <label class="checkbox-row">
+      <input type="radio" name="glass" value="{{ value }}" {% if prefs.glass == value %}checked{% endif %}>
+      {{ t('auth.prefs.' ~ value) }}
+    </label>
+    {% endfor %}
+  </div>
+
+  <h2 class="section-title">{{ t('auth.prefs.blur_heading') }}</h2>
+  <div class="card">
+    <label class="checkbox-row">
+      <input type="radio" name="glass_blur" value="" {% if not prefs.glass_blur %}checked{% endif %}>
+      {{ t('auth.prefs.device_default', value=t('auth.prefs.on') if device_glass_blur else t('auth.prefs.off')) }}
+    </label>
+    {% for value in ('on', 'off') %}
+    <label class="checkbox-row">
+      <input type="radio" name="glass_blur" value="{{ value }}" {% if prefs.glass_blur == value %}checked{% endif %}>
+      {{ t('auth.prefs.' ~ value) }}
+    </label>
+    {% endfor %}
+    <div class="hint">{{ t('auth.prefs.blur_hint') }}</div>
+  </div>
+
   <h2 class="section-title">{{ t('auth.prefs.receipt_lang_heading') }}</h2>
   <div class="card">
     <label class="checkbox-row">

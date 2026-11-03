@@ -511,9 +511,16 @@ nav .icon-btn .icon { width: 18px; height: 18px; }
   padding: var(--space-3);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 4px;
 }
-.status-card .hint { margin-top: 0; }
+/* .hint's own top/side padding is meant for a hint under a form field;
+   as the label of a centered stat it would push the label off center. */
+.status-card .hint { margin-top: 0; padding: 0; }
+/* The owner filter card (history.html, pending.html) sits directly
+   above the stat strip / the job list. */
+.card + .status-strip { margin-top: var(--space-4); }
 .status-card .status-icon-row {
   display: flex;
   align-items: center;
@@ -609,10 +616,14 @@ nav .icon-btn .icon { width: 18px; height: 18px; }
 
 /* ---------------------------------------------------------------------
    hero - 1:1 from the mockup, except svg -> .icon (mask icons, see
-   above) and dropping .hero-toggle (the mockup's own status-swap demo
+   above), dropping .hero-toggle (the mockup's own status-swap demo
    button - this app's hero already reflects the real, live /health
    status via base.html's polling script, so there's nothing for a
-   manual toggle to do).
+   manual toggle to do), and dropping the mockup's light circle in the
+   top right corner (.hero::before): it read as a stray spot rather
+   than a highlight, so it was removed in the glass redesign - with
+   and without glass. ::after is the glass light edge (see the glass
+   block at the end of this file).
    --------------------------------------------------------------------- */
 .hero {
   position: relative;
@@ -631,16 +642,6 @@ nav .icon-btn .icon { width: 18px; height: 18px; }
   background:
     radial-gradient(120% 140% at 8% 0%, rgba(255, 255, 255, 0.1), transparent 55%),
     linear-gradient(135deg, var(--hero-a-good), var(--hero-b-good));
-}
-.hero::before {
-  content: "";
-  position: absolute;
-  right: -24px;
-  top: -24px;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.09);
 }
 .hero-top { display: flex; align-items: center; gap: 11px; position: relative; }
 .hero-glyph {
@@ -1019,6 +1020,13 @@ button { width: 100%; margin-top: var(--space-5); }
 .btn-block { width: 100%; margin-top: var(--space-5); }
 
 .form-actions { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-5); }
+/* Owner filter (history.html, pending.html): .btn-secondary drops the
+   top margin of a bare submit button (see above), which left the apply
+   button glued to the select above it. */
+.filter-form .btn { margin-top: var(--space-3); }
+/* A list section after a form (preferences.html: "Customize home page"
+   under the save button) - the button has no bottom margin of its own. */
+form + .section { margin-top: var(--space-6); }
 .form-actions button[type="submit"] { flex: 1; margin-top: 0; }
 .form-actions .btn-secondary { margin-top: 0; }
 
@@ -1128,6 +1136,11 @@ footer a { color: var(--accent); text-decoration: none; }
 .theme-option { display: flex; align-items: center; gap: 10px; margin: var(--space-4) 0 6px; }
 .theme-option:first-child { margin-top: 0; }
 .theme-swatch { display: inline-flex; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); flex-shrink: 0; }
+/* Glass switches on the same page: blur only has an effect while glass
+   is on, so its row fades out while the glass switch is off. Only
+   dimmed, not disabled - see the comment in settings_design.html. */
+.glass-switches .glass-blur-row { transition: opacity 0.15s ease; }
+.glass-switches:has(input[name="glass"]:not(:checked)) .glass-blur-row { opacity: 0.5; }
 
 /* ---------------------------------------------------------------------
    Icons: CSS mask-image with currentColor instead of inline SVG or a
@@ -1192,3 +1205,262 @@ footer a { color: var(--accent); text-decoration: none; }
 .icon-info { -webkit-mask-image: url("/static/icons/info.svg"); mask-image: url("/static/icons/info.svg"); }
 .icon-lock { -webkit-mask-image: url("/static/icons/lock.svg"); mask-image: url("/static/icons/lock.svg"); }
 .icon-log-out { -webkit-mask-image: url("/static/icons/log-out.svg"); mask-image: url("/static/icons/log-out.svg"); }
+
+/* ==========================================================================
+   Glass - optional layer on top of every theme, after the kitchen tablet
+   dashboard (Home Assistant, kueche2-card v2.12): translucent surfaces
+   with a light edge, inner glow and stacked shadows over a static "room
+   light" background. Switched by data-glass/data-blur on <html> (see
+   themes.current_glass(); device default in settings["glass"], each
+   account can override it). Everything below is scoped to
+   [data-glass="on"], so with glass off the UI is exactly the plain
+   theme above.
+
+   Cost: only the client renders this - the Pi serves the same templates
+   and this one cached stylesheet. The background is plain CSS gradients
+   (no image, nothing to download). The noticeable GPU cost is the
+   backdrop blur, which is why it has its own switch (data-blur, only
+   ever "on" while glass is on) instead of being part of the look.
+
+   Every value is derived from the theme's own tokens (--bg, --surface,
+   --accent, --amber, --text); each theme only overrides a few --g-*
+   values where the derived ones don't sit right. Two base sets: light
+   glass (white light edge) and dark glass (faint edge, deeper shadow).
+   ========================================================================== */
+[data-glass="on"] {
+  --g-ground-a: var(--bg);
+  --g-ground-b: color-mix(in srgb, var(--bg) 86%, var(--accent));
+  --g-glow-1: color-mix(in srgb, var(--accent) 24%, transparent);
+  --g-glow-2: color-mix(in srgb, var(--amber) 22%, transparent);
+  --g-streak: rgba(255, 255, 255, 0.7);
+  --g-fill: color-mix(in srgb, var(--surface) 46%, transparent);
+  --g-sheen: rgba(255, 255, 255, 0.55);
+  --g-edge: rgba(255, 255, 255, 1);
+  --g-edge-2: rgba(255, 255, 255, 0.55);
+  --g-ring: rgba(255, 255, 255, 0.35);
+  --g-top: rgba(255, 255, 255, 0.95);
+  --g-inner: rgba(255, 255, 255, 0.28);
+  --g-shadow: 0 1px 1px rgba(80, 55, 30, 0.04), 0 6px 14px rgba(80, 55, 30, 0.06), 0 22px 48px rgba(80, 55, 30, 0.12);
+  --g-inset-bg: rgba(255, 255, 255, 0.32);
+  --g-inset-shadow: inset 0 1px 3px rgba(80, 55, 30, 0.12), inset 0 -1px 0 rgba(255, 255, 255, 0.75);
+  --g-btn: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.45));
+  --g-btn-border: rgba(255, 255, 255, 0.9);
+  --g-btn-shadow: inset 0 1px 0 #fff, inset 0 -1px 2px rgba(160, 110, 60, 0.1), 0 2px 8px rgba(80, 55, 30, 0.12);
+  --g-sep: color-mix(in srgb, var(--text) 9%, transparent);
+  --g-nav: color-mix(in srgb, var(--g-ground-a) 86%, transparent);
+  background-color: var(--g-ground-b);
+}
+
+/* Dark glass for the dark themes. :where() keeps this at the same
+   specificity as the light set, so the per-theme rules further down
+   still win. Warm is dark only under prefers-color-scheme: dark (see
+   its token block), hence the same set a second time in that media
+   query - CSS can't put a media condition into a selector list. */
+[data-glass="on"]:where([data-theme="forrest"], [data-theme="dark-lime"], [data-theme="frost"]) {
+  --g-ground-b: color-mix(in srgb, var(--bg) 80%, #000);
+  --g-glow-1: color-mix(in srgb, var(--accent) 18%, transparent);
+  --g-glow-2: color-mix(in srgb, var(--amber) 12%, transparent);
+  --g-streak: rgba(255, 220, 180, 0.05);
+  --g-sheen: rgba(255, 255, 255, 0.1);
+  --g-edge: rgba(255, 255, 255, 0.32);
+  --g-edge-2: rgba(255, 255, 255, 0.14);
+  --g-ring: rgba(255, 255, 255, 0.05);
+  --g-top: rgba(255, 255, 255, 0.14);
+  --g-inner: rgba(255, 255, 255, 0.03);
+  --g-shadow: 0 6px 14px rgba(0, 0, 0, 0.25), 0 22px 48px rgba(0, 0, 0, 0.45);
+  --g-inset-bg: rgba(0, 0, 0, 0.22);
+  --g-inset-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  --g-btn: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+  --g-btn-border: rgba(255, 255, 255, 0.12);
+  --g-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --g-sep: rgba(255, 255, 255, 0.07);
+}
+@media (prefers-color-scheme: dark) {
+  [data-glass="on"]:where([data-theme="warm"]) {
+    --g-ground-b: color-mix(in srgb, var(--bg) 80%, #000);
+    --g-glow-1: color-mix(in srgb, var(--accent) 18%, transparent);
+    --g-glow-2: color-mix(in srgb, var(--amber) 12%, transparent);
+    --g-streak: rgba(255, 220, 180, 0.05);
+    --g-sheen: rgba(255, 255, 255, 0.1);
+    --g-edge: rgba(255, 255, 255, 0.32);
+    --g-edge-2: rgba(255, 255, 255, 0.14);
+    --g-ring: rgba(255, 255, 255, 0.05);
+    --g-top: rgba(255, 255, 255, 0.14);
+    --g-inner: rgba(255, 255, 255, 0.03);
+    --g-shadow: 0 6px 14px rgba(0, 0, 0, 0.25), 0 22px 48px rgba(0, 0, 0, 0.45);
+    --g-inset-bg: rgba(0, 0, 0, 0.22);
+    --g-inset-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+    --g-btn: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+    --g-btn-border: rgba(255, 255, 255, 0.12);
+    --g-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --g-sep: rgba(255, 255, 255, 0.07);
+  }
+}
+
+/* Per-theme tuning. --text-dim is darkened on the light themes: on the
+   translucent surface the original value drops below 4.5:1 (Warm
+   #78725f ~3.9:1, White Purple #7a6b82 ~4.2:1 at the lightest spot). */
+[data-glass="on"][data-theme="warm"] {
+  /* 1:1 from the kitchen dashboard */
+  --g-ground-a: #f1e9de; --g-ground-b: #e3d3bf;
+  --g-glow-1: rgba(176, 92, 36, 0.3); --g-glow-2: rgba(214, 170, 120, 0.35);
+  --g-streak: rgba(255, 251, 244, 0.85);
+  --g-fill: rgba(255, 252, 247, 0.42);
+  --text-dim: #645e4d;
+}
+@media (prefers-color-scheme: dark) {
+  [data-glass="on"][data-theme="warm"] {
+    --g-ground-a: #18181b; --g-ground-b: #1b160f;
+    --g-glow-1: rgba(232, 163, 92, 0.22); --g-glow-2: rgba(150, 100, 60, 0.18);
+    --g-streak: rgba(255, 200, 140, 0.06);
+    --g-fill: rgba(34, 35, 40, 0.42);
+    --text-dim: #8f9298;
+  }
+}
+[data-glass="on"][data-theme="white-purple"] {
+  --g-ground-a: #f7f2fa; --g-ground-b: #e6d8ef;
+  --g-glow-1: rgba(139, 92, 246, 0.2); --g-glow-2: rgba(232, 146, 122, 0.24);
+  --g-streak: rgba(255, 255, 255, 0.8);
+  --g-fill: rgba(255, 251, 255, 0.45);
+  --g-shadow: 0 1px 1px rgba(70, 11, 106, 0.04), 0 6px 14px rgba(70, 11, 106, 0.06), 0 22px 48px rgba(70, 11, 106, 0.12);
+  --g-btn-shadow: inset 0 1px 0 #fff, inset 0 -1px 2px rgba(70, 11, 106, 0.08), 0 2px 8px rgba(70, 11, 106, 0.12);
+  --g-inset-shadow: inset 0 1px 3px rgba(70, 11, 106, 0.1), inset 0 -1px 0 rgba(255, 255, 255, 0.75);
+  --text-dim: #66586e;
+}
+/* Frost's own background is only mid-dark: the ground goes darker and
+   the glass lighter than it, otherwise the glass barely stands out.
+   Light in Nord frost cyan and purple (nord8/nord15). */
+[data-glass="on"][data-theme="frost"] {
+  --g-ground-a: #2b303b; --g-ground-b: #20242c;
+  --g-glow-1: rgba(136, 192, 208, 0.26); --g-glow-2: rgba(180, 142, 173, 0.2);
+  --g-streak: rgba(216, 222, 233, 0.07);
+  --g-fill: rgba(67, 76, 94, 0.42);
+  --g-sheen: rgba(236, 239, 244, 0.13);
+  --g-edge: rgba(236, 239, 244, 0.42);
+  --g-top: rgba(236, 239, 244, 0.2);
+  --g-sep: rgba(236, 239, 244, 0.08);
+}
+/* Neon lime as a large glow turns garish quickly - kept faint. */
+[data-glass="on"][data-theme="dark-lime"] {
+  --g-glow-1: color-mix(in srgb, var(--accent) 9%, transparent);
+  --g-glow-2: color-mix(in srgb, var(--teal) 10%, transparent);
+}
+
+/* Background: a fixed layer behind the page instead of body's own
+   background, so the light stays put while scrolling (background-
+   attachment: fixed is ignored on iOS) and a long page doesn't stretch
+   the gradient. Sized relative to the viewport. */
+[data-glass="on"] body { background: transparent; }
+[data-glass="on"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(118deg, transparent 14%, var(--g-streak) 27%, transparent 41%, transparent 55%, color-mix(in srgb, var(--g-streak) 80%, transparent) 64%, transparent 76%),
+    radial-gradient(140% 65% at 100% 100%, var(--g-glow-1), transparent 62%),
+    radial-gradient(120% 55% at 0% 95%, var(--g-glow-2), transparent 65%),
+    linear-gradient(165deg, var(--g-ground-a) 0%, var(--g-ground-b) 100%);
+}
+
+/* The sticky nav scrolls over content, so it can't be fully
+   transparent: a tint of the ground, lighter with blur behind it. */
+[data-glass="on"] nav { background: var(--g-nav); }
+[data-blur="on"] nav {
+  --g-nav: color-mix(in srgb, var(--g-ground-a) 60%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+}
+
+/* Glass surfaces */
+[data-glass="on"] :is(.list, .card, .game-card, .status-card) {
+  position: relative;
+  border-color: transparent;
+  background-color: var(--g-fill);
+  background-image: linear-gradient(160deg, var(--g-sheen) 0%, color-mix(in srgb, var(--g-sheen) 22%, transparent) 38%, transparent 60%, color-mix(in srgb, var(--g-sheen) 30%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px var(--g-ring), inset 0 1px 0 var(--g-top), inset 0 0 24px var(--g-inner), var(--g-shadow);
+}
+/* Light edge: a 1.2px gradient ring, brightest top left, cut out of a
+   full-size layer with a mask (a border can't take a gradient while
+   keeping the radius). */
+[data-glass="on"] :is(.list, .card, .game-card, .status-card)::before,
+[data-glass="on"] .hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1.2px;
+  pointer-events: none;
+  background: linear-gradient(135deg, var(--g-edge) 0%, color-mix(in srgb, var(--g-edge) 35%, transparent) 22%, transparent 45%, transparent 62%, var(--g-edge-2) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+[data-blur="on"] :is(.list, .card, .game-card, .status-card) {
+  -webkit-backdrop-filter: blur(10px) saturate(1.5);
+  backdrop-filter: blur(10px) saturate(1.5);
+}
+/* The dropdown lies over content, so it stays nearly opaque. */
+[data-glass="on"] .burger-dropdown {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--g-ring), inset 0 1px 0 var(--g-top), var(--g-shadow);
+}
+[data-blur="on"] .burger-dropdown {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+}
+
+/* Quieter separators and hover, small light edge on chips and tiles */
+[data-glass="on"] .row + .row { border-top-color: var(--g-sep); }
+[data-glass="on"] .row:hover { background: color-mix(in srgb, var(--surface) 30%, transparent); }
+[data-glass="on"] :is(.list-row, .card .checkbox-row, .card .theme-option) { border-bottom-color: var(--g-sep); }
+[data-glass="on"] :is(.icon-chip, .game-stack .tile) { box-shadow: inset 0 1px 0 var(--g-top), var(--shadow-sm); }
+[data-glass="on"] .game-stack .tile { border-color: color-mix(in srgb, var(--surface) 70%, transparent); }
+
+/* The hero keeps its status colors and becomes colored glass. */
+[data-glass="on"] .hero {
+  --g-edge: rgba(255, 255, 255, 0.75);
+  --g-edge-2: rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 0 28px rgba(255, 255, 255, 0.12), var(--shadow-hero);
+}
+
+/* Controls: glass buttons, sunken fields, switches with a light edge */
+[data-glass="on"] nav .icon-btn,
+[data-glass="on"] :is(.btn-secondary, .btn-icon):not(.btn-danger) {
+  background: var(--g-btn);
+  border-color: var(--g-btn-border);
+  box-shadow: var(--g-btn-shadow);
+  color: var(--text);
+}
+[data-glass="on"] nav .icon-btn { border: 1px solid var(--g-btn-border); }
+/* :where() keeps the specificity low, so the burger menu's own logout
+   button (.burger-form button) keeps its plain look. */
+[data-glass="on"] :where(button, .btn-primary):not(:where(.btn-secondary, .btn-ghost, .btn-danger, .btn-icon)) {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 60%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 16px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+[data-glass="on"] :is(input[type="text"], input[type="password"], input[type="number"], input[type="time"], input[type="date"], input[type="file"], textarea, select) {
+  background-color: var(--g-inset-bg);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  box-shadow: var(--g-inset-shadow);
+}
+[data-glass="on"] :is(input, textarea, select):hover { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+[data-glass="on"] :is(input[type="checkbox"], input[type="radio"]):not(:checked) {
+  background: var(--g-inset-bg);
+  border-color: color-mix(in srgb, var(--text) 18%, transparent);
+  box-shadow: var(--g-inset-shadow);
+}
+[data-glass="on"] input[type="radio"]:checked { background: var(--g-inset-bg); }
+[data-glass="on"] .toggle .track { background: var(--g-inset-bg); border-color: transparent; box-shadow: var(--g-inset-shadow); }
+[data-glass="on"] .toggle input:checked ~ .track {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 60%), var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+[data-glass="on"] .toggle .thumb { background: linear-gradient(180deg, #fff, #f1ede6); box-shadow: inset 0 1px 0 #fff, 0 1px 3px rgba(0, 0, 0, 0.3); }
+[data-glass="on"] .printer-status.online .dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent), 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
+}

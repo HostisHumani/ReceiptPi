@@ -3,7 +3,7 @@
 {% block header_title %}{{ t('history.header') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>{% if show_filter %}
-<form method="get" action="/history" class="card">
+<form method="get" action="/history" class="card filter-form">
   <label for="owner">{{ t('history.filter.label') }}</label>
   <select id="owner" name="owner">{% for value, label in owner_options %}<option value="{{ value }}"{% if value == owner_selected %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
   <button type="submit" class="btn btn-secondary">{{ t('history.filter.apply') }}</button>

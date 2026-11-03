@@ -195,6 +195,14 @@ plain forms:
   plus CSS custom properties.
   Warm is the only theme that also follows the system/browser light-dark
   preference automatically.
+- **Glass effect** - an optional glass look on top of every theme:
+  translucent cards with a light edge over a static light gradient, plus
+  an optional blur behind the glass (the one part that costs the phone's
+  GPU noticeably, so it has its own switch for older phones). Both are on
+  by default and set next to the theme under `/settings/design`; every
+  account can override them under My settings. With the glass effect off
+  the UI is the plain theme. It is pure CSS rendered by the browser - the
+  Pi serves the same pages and one cached stylesheet either way.
 - **Icons** - a local set of Lucide SVG icons under `static/icons/` (no
   external icon font or CDN), rendered via CSS `mask-image` so every icon
   automatically follows the active theme's accent color instead of being
@@ -391,7 +399,7 @@ Printing / Integrations / System) linking to a dedicated sub-page per
 area, instead of one long form:
 
 - `/settings/language` - device default language (German/English): the UI language for the login page and for every account without its own choice, and the receipt language for every job without its own
-- `/settings/design` - device default web UI color theme
+- `/settings/design` - device default web UI color theme, glass effect and blur
 - `/settings/modules` - enable/disable individual home-page modules, see [Module toggles](#module-toggles)
 - `/settings/print-rules` - quiet-hour rules (multiple independent rules, each with its own weekdays and time window) + rate limiting + duplicate suppression + the Easy-Read text-size switch
 - `/settings/logos` - global logo toggle, default logo, and a per-print-type toggle/upload/preview (falls back to the default logo if no custom one is set)
@@ -595,7 +603,7 @@ existing crontab (`crontab -e`).
 - Optional per-print-type logos with a global default fallback
 - Individually toggleable home-page modules, see [Module toggles](#module-toggles) below
 - Web-based settings, split into per-area sub-pages and grouped by topic
-- 6 selectable web UI color themes
+- 6 selectable web UI color themes, with an optional glass look on top
 - Easy-Read: one switch for larger text on both the receipt and the web UI, see [Easy-Read](#easy-read-large-text) below
 - German/English UI, including receipt content itself (not just the UI chrome)
 - USB-connected ESC/POS printer (python-escpos + pyusb, Epson TM-T88V profile)
@@ -797,6 +805,7 @@ Once an admin account exists, "My settings" in the menu (`/preferences`)
 lets every account pick its own
 - **interface language** (German/English),
 - **design** (one of the 6 themes),
+- **glass effect** and **blur** (on/off each),
 - **receipt language** - the language of everything the account prints
   (labels and fixed texts on the receipt, not the content typed in).
 

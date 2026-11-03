@@ -39,6 +39,8 @@ preferences_bp = Blueprint("preferences", __name__)
 _FIELDS = {
     "ui_lang": user_prefs.UI_LANG,
     "theme": user_prefs.THEME,
+    "glass": user_prefs.GLASS,
+    "glass_blur": user_prefs.GLASS_BLUR,
     "receipt_lang": user_prefs.RECEIPT_LANG,
 }
 
@@ -50,11 +52,14 @@ def _require_account():
 
 def _render(status=200, message=None, success=None):
     settings = settings_store.get_settings()
+    glass = settings.get("glass", {})
     response = make_response(render_template(
         "preferences.html",
         prefs=user_prefs.current(),
         device_language=settings.get("language", i18n.DEFAULT_LANGUAGE),
         device_theme=settings.get("theme", themes.DEFAULT_THEME),
+        device_glass=bool(glass.get("enabled", True)),
+        device_glass_blur=bool(glass.get("blur", True)),
         theme_swatches=themes.SWATCHES,
         csrf_token=get_csrf_token(),
         message=message, success=success,

@@ -170,13 +170,15 @@ def _enforce_enabled_modules():
 
 @app.context_processor
 def inject_i18n():
-    """Makes t() and the current language/theme available in every
-    template without each route having to pass them explicitly. Both
-    follow the logged-in account's own choice if it made one, else the
-    device default (see i18n.current_language(), themes.current_theme())."""
+    """Makes t() and the current language/theme/glass look available in
+    every template without each route having to pass them explicitly.
+    All follow the logged-in account's own choice if it made one, else
+    the device default (see i18n.current_language(),
+    themes.current_theme(), themes.current_glass())."""
     settings = settings_store.get_settings()
     lang = i18n.current_language()
     theme = themes.current_theme()
+    glass, glass_blur = themes.current_glass()
     # UI text scale follows the same Easy-Read setting used for print
     # jobs (settings.print_rules.text_size) - one switch for both,
     # rather than a separate UI-only preference.
@@ -188,6 +190,8 @@ def inject_i18n():
         "current_language": lang,
         "supported_languages": i18n.SUPPORTED_LANGUAGES,
         "current_theme": theme,
+        "current_glass": glass,
+        "current_glass_blur": glass_blur,
         "supported_themes": themes.SUPPORTED_THEMES,
         "current_text_scale": text_scale,
         "all_modules": module_catalog.MODULES,

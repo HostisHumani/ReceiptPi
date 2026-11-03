@@ -145,6 +145,7 @@ SETTINGS_SCHEMA = {
     },
     "language": str,
     "theme": str,
+    "glass": {"enabled": bool, "blur": bool},
     "enabled_modules": _Map(bool),
     "recipes": {
         "provider": str,
@@ -743,6 +744,13 @@ def _plan_simple(section_name, value, allowed, device, report, errors):
     report["sections"].append(section_name)
 
 
+def _plan_glass(section, device, report, errors):
+    # Both fields are plain booleans, already type-checked by _filter();
+    # a field missing from an older archive keeps the device's value.
+    device.setdefault("glass", {}).update(section)
+    report["sections"].append("glass")
+
+
 def _plan_enabled_modules(section, device, report, errors):
     enabled = device.setdefault("enabled_modules", {})
     for key, value in section.items():
@@ -969,6 +977,8 @@ def plan_restore(backup_settings, device_settings):
         _plan_simple("language", filtered["language"], i18n.SUPPORTED_LANGUAGES, device, report, errors)
     if "theme" in filtered:
         _plan_simple("theme", filtered["theme"], themes.SUPPORTED_THEMES, device, report, errors)
+    if "glass" in filtered:
+        _plan_glass(filtered["glass"], device, report, errors)
     if "enabled_modules" in filtered:
         _plan_enabled_modules(filtered["enabled_modules"], device, report, errors)
     if "recipes" in filtered:

@@ -4,6 +4,9 @@ users.prefs column of auth.db (auth_store.get_prefs/update_prefs):
 
   ui_lang       language of the web UI (a key of i18n.SUPPORTED_LANGUAGES)
   theme         UI theme (a key of themes.SUPPORTED_THEMES)
+  glass         glass look of the web UI, "on" or "off"
+  glass_blur    blur behind the glass, "on" or "off" (only has an
+                effect while glass is on, see themes.current_glass())
   receipt_lang  language of the receipts the account prints
   tiles         order and visibility of the home page tiles
                 (module_catalog.sanitize_tiles() describes the format)
@@ -31,12 +34,16 @@ import themes
 
 UI_LANG = "ui_lang"
 THEME = "theme"
+GLASS = "glass"
+GLASS_BLUR = "glass_blur"
 RECEIPT_LANG = "receipt_lang"
 TILES = "tiles"
 
 _CHOICES = {
     UI_LANG: i18n.SUPPORTED_LANGUAGES,
     THEME: themes.SUPPORTED_THEMES,
+    GLASS: ("on", "off"),
+    GLASS_BLUR: ("on", "off"),
     RECEIPT_LANG: i18n.SUPPORTED_LANGUAGES,
 }
 

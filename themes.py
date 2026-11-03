@@ -54,3 +54,26 @@ def current_theme():
         return theme
     import settings_store
     return settings_store.get_settings().get("theme", DEFAULT_THEME)
+
+
+def current_glass():
+    """(glass, blur) for the current request, each "on" or "off" - the
+    values base.html puts into data-glass/data-blur. Resolved per switch
+    like current_theme(): the account's own choice, else the device
+    default (settings["glass"]). Blur is reported as "off" while glass
+    is off, so the stylesheet never has to check both attributes for a
+    blurred surface that isn't glass."""
+    import settings_store
+    import user_prefs
+    prefs = user_prefs.current()
+    device = settings_store.get_settings().get("glass", {})
+
+    def _resolve(pref_key, device_key):
+        value = prefs.get(pref_key)
+        if value is not None:
+            return value == "on"
+        return bool(device.get(device_key, True))
+
+    glass = _resolve(user_prefs.GLASS, "enabled")
+    blur = glass and _resolve(user_prefs.GLASS_BLUR, "blur")
+    return ("on" if glass else "off"), ("on" if blur else "off")

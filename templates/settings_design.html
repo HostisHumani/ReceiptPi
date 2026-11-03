@@ -15,6 +15,33 @@
     {{ name }}
   </label>
   {% endfor %}
+
+  {#- Same form as the theme, one save button for both. The blur row is
+      only dimmed (not disabled) while glass is off: a disabled checkbox
+      isn't submitted, which would silently turn blur off. #}
+  <h3 class="section-subtitle">{{ t('settings.design.look_heading') }}</h3>
+  <div class="glass-switches">
+    <div class="list-row">
+      <div class="list-row-main">
+        <div class="list-row-title">{{ t('settings.design.glass') }}</div>
+        <div class="list-row-meta">{{ t('settings.design.glass_desc') }}</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" name="glass" aria-label="{{ t('settings.design.glass') }}" {% if device_glass %}checked{% endif %}>
+        <span class="track"><span class="thumb"></span></span>
+      </label>
+    </div>
+    <div class="list-row glass-blur-row">
+      <div class="list-row-main">
+        <div class="list-row-title">{{ t('settings.design.blur') }}</div>
+        <div class="list-row-meta">{{ t('settings.design.blur_desc') }}</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" name="glass_blur" aria-label="{{ t('settings.design.blur') }}" {% if device_glass_blur %}checked{% endif %}>
+        <span class="track"><span class="thumb"></span></span>
+      </label>
+    </div>
+  </div>
   <div class="hint">{{ t('settings.design.hint_device') if auth_admin_exists else t('settings.design.hint') }}</div>
 
   <button type="submit">{{ t('settings.save') }}</button>

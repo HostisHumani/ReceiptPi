@@ -87,6 +87,18 @@ DEFAULT_SETTINGS = {
     },
     "language": "de",
     "theme": "warm",
+    # Glass look on top of every theme (see the glass block at the end
+    # of static/style.css and themes.current_glass()). Both on by
+    # default, also for installations that already have a settings.json:
+    # the deep merge below adds this section on the next read, so an
+    # upgrade shows the new look without a migration. "blur" only has
+    # an effect while "enabled" is on - it's the one part that costs the
+    # client's GPU noticeably, so it can be switched off separately for
+    # older phones.
+    "glass": {
+        "enabled": True,
+        "blur": True,
+    },
     # Which home-page/tile modules are switched on - see module_catalog.py
     # for the full key list and app.py's before_request hook for how a
     # disabled module's routes (UI + /print/*) get blocked with a 404,
