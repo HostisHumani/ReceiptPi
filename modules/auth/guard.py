@@ -31,7 +31,7 @@ session cookie, which keeps holding only the CSRF token. It carries a
 random token whose hash identifies the row in auth.db (auth_store.py),
 so ending a session server-side takes effect immediately.
 """
-from urllib.parse import urlsplit
+from urllib.parse import urlparse, urlsplit
 
 import config
 from flask import (
@@ -93,19 +93,27 @@ def load_session():
 
 
 def safe_next(value):
-    """The redirect target after a login: only a path on this site.
-    Anything else - an absolute URL, a scheme-relative "//host", a
-    backslash (browsers treat "/\\host" like "//host"), control
-    characters (stripped by browsers, so "/\\t/host" becomes "//host") -
-    falls back to "/". The auth pages themselves are no useful target."""
+    """The redirect target after a login: only a path on this site,
+    anything else falls back to "/". Browsers read a backslash in a URL
+    like a slash, so every backslash is turned into a slash first, and
+    that form is what gets checked and returned: "/\\host" becomes
+    "//host" and is refused like any scheme-relative URL, "\\history"
+    becomes "/history". This applies to the whole value, query string
+    included, so a target is only ever returned in the form it was
+    checked in. Also refused: an absolute URL, control characters
+    (stripped by browsers, so "/\\t/host" would become "//host") and the
+    auth pages themselves, which are no useful target."""
     if not isinstance(value, str) or not value or len(value) > _MAX_NEXT_LEN:
-        return "/"
-    if not value.startswith("/") or value.startswith("//") or "\\" in value:
         return "/"
     if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
         return "/"
-    parts = urlsplit(value)
-    if parts.scheme or parts.netloc:
+    value = value.replace("\\", "/")
+    if not value.startswith("/") or value.startswith("//"):
+        return "/"
+    parts = urlparse(value)
+    if parts.scheme:
+        return "/"
+    if parts.netloc:
         return "/"
     if parts.path in ("/login", "/logout", "/setup"):
         return "/"
