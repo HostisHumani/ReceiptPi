@@ -636,7 +636,7 @@ def ui_set_language():
 
         settings_store.update_settings_transaction(_mutate)
         # Looked up after the change, so the message is in the language
-        # the page is now rendered in: the new device default, or the
+        # this response is rendered in: the new device default, or the
         # admin's own UI language if one is set.
         message, success = i18n.tr("settings.language.updated"), True
 

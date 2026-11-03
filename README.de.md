@@ -82,14 +82,15 @@ receiptpi/
 ├── mqtt_bridge.py         optionale MQTT-Bridge: Druckbefehle rein, Druckerstatus raus, Home Assistant Discovery
 ├── security.py            CSRF-Schutz, API-Token-Schutz, JSON-Parsing, Zugriffsmarkierungen für die Login-Prüfung
 ├── auth_store.py          Konten und Anmeldungen der Web-UI (SQLite STATE_DIR/auth.db, 0600)
+├── user_prefs.py          persönliche Einstellungen pro Konto (Oberflächensprache, Design, Bon-Sprache, Kacheln; gespeichert in auth.db)
 ├── secrets_crypto.py      Fernet-Verschlüsselung für System-Report-SSH-Passwörter, den API-Token des Rezeptmanagers und das MQTT-Passwort (Schlüssel in STATE_DIR, nicht im Git)
 ├── settings_store.py      zentrale Settings (JSON in STATE_DIR, nicht im Projektordner)
 ├── history_store.py       SQLite-Druckhistorie (STATE_DIR), Auto-Pruning nach 180 Tagen
-├── lists_store.py          angefangene Listen-/Task-Karten-Entwürfe (STATE_DIR), gelöscht nach Druck
+├── lists_store.py          angefangene Listen-/Task-Karten-Entwürfe pro Konto (STATE_DIR, 0600), gelöscht nach Druck
 ├── pending_store.py        blockierte/fehlgeschlagene Druckaufträge (STATE_DIR, 0600), siehe "Ausstehende Aufträge" unten
 ├── logos.py                Logo-Auflösung je Druckart, Upload-Validierung, Seeding
 ├── i18n.py                 minimales Übersetzungs-Lookup (JSON-Dateien, kein Flask-Babel)
-├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL) + deren tatsächlicher Aktiv-Zustand
+├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL, Gruppe auf der Startseite) + deren tatsächlicher Aktiv-Zustand
 ├── text_style.py           Easy-Read-Textgrößen-Skalierung, gemeinsam für Druck und Web-UI
 ├── themes.py                Registry der wählbaren Web-UI-Farbschemata
 ├── static_versioning.py     Inhalts-Hash-URLs (`?v=`) für statische Dateien (Cache-Busting)
@@ -109,7 +110,7 @@ receiptpi/
 │   ├── history/                Druckhistorie-Dashboard
 │   ├── pending/                 Ausstehende Druckaufträge ansehen/nachdrucken/verwerfen
 │   ├── backup/                  Sicherung und Wiederherstellung der Einstellungen (.zip)
-│   ├── auth/                    Anmeldung, Ersteinrichtung, eigenes Konto, Nutzerverwaltung, Login- und Rollenprüfung für jeden Request
+│   ├── auth/                    Anmeldung, Ersteinrichtung, eigenes Konto, persönliche Einstellungen, Nutzerverwaltung, Login- und Rollenprüfung für jeden Request
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── watchers/
 │   ├── github_star_watch.py     Cron: druckt bei neuem GitHub-Star
@@ -143,6 +144,7 @@ receiptpi/
     ├── games_*.html            Spiele-Übersicht + eine Seite je Spiel
     ├── recipes*.html           Rezeptsuche/Zufallsrezept + Rezept-Vorschau
     ├── auth_*.html             Anmeldung, Ersteinrichtung, eigenes Konto, 403-Seite
+    ├── preferences*.html       persönliche Einstellungen und Startseiten-Kacheln eines Kontos
     └── settings_*.html        Settings-Übersicht + eine Unterseite je Bereich
 ```
 
@@ -158,16 +160,19 @@ Formulare umgesetzt:
   live per `/health`-Poll alle 60 Sekunden geprüft; wie viele der
   schaltbaren Module aktuell aktiv sind; Druckanzahl aus dem
   Verlaufs-Store – mit Konten die eigenen Drucke), gefolgt von einem Kachel-Grid mit Links zu jedem
-  aktuell aktivierten Modul.
+  aktuell aktivierten Modul. Jedes Konto kann Kacheln ausblenden und
+  innerhalb ihrer Gruppe umsortieren, siehe
+  [Persönliche Einstellungen](#persönliche-einstellungen).
 - **Navigation** – ein Topbar-Wordmark, ein kleiner Drucker-Status-Punkt
   und ein Burger-Menü (Verlauf und Ausstehende Aufträge; Einstellungen und
   nach der Anmeldung Nutzer – nur für Admins, siehe
   [Anmeldung und Konten](#anmeldung-und-konten); nach der Anmeldung
-  zusätzlich Konto und Abmelden).
+  zusätzlich Meine Einstellungen, Konto und Abmelden).
 - **Themes** – 6 wählbare Farbschemata (Warm [Standard], Forrest, Dark
-  Lime, Frost, Butter Bean, White Purple), einstellbar unter
-  `/settings/design`, angewendet über ein `data-theme`-Attribut plus
-  CSS Custom Properties. Warm ist das einzige Theme, das zusätzlich
+  Lime, Frost, Butter Bean, White Purple). Den Gerätestandard legt
+  `/settings/design` fest; mit Konten kann jedes Konto unter Meine
+  Einstellungen ein eigenes wählen. Angewendet über ein
+  `data-theme`-Attribut plus CSS Custom Properties. Warm ist das einzige Theme, das zusätzlich
   automatisch der Hell-/Dunkel-Einstellung von System/Browser folgt.
 - **Icons** – ein lokaler Satz von Lucide-SVG-Icons unter `static/icons/`
   (keine externe Icon-Schriftart oder CDN), gerendert per CSS
@@ -251,13 +256,16 @@ Anmeldungen außer der aktuellen. Abmelden steht im Menü.
 **Rollen**: Jedes Konto ist entweder `admin` oder `user` (Nutzer). Admins
 dürfen alles. Nutzer dürfen Startseite, Nachricht, Listen (einschließlich
 Entwürfen und `/shopping`), Wetter, Gast-WLAN, Rezepte, Spiele und Bilder
-verwenden sowie ihr eigenes Konto, ihren eigenen Druckverlauf (`/history`)
+verwenden sowie ihr eigenes Konto, ihre eigenen persönlichen Einstellungen
+(`/preferences`, `/preferences/home`, siehe
+[Persönliche Einstellungen](#persönliche-einstellungen)), ihren eigenen
+Druckverlauf (`/history`)
 und ihre eigenen ausstehenden Aufträge (`/pending`, `/pending/print`,
 `/pending/discard`, siehe unten) und Abmelden – einschließlich der
 Formular-Posts dieser Seiten. Alles andere ist nur für Admins: alle
 Einstellungsseiten und `/ui/settings/*`-Routen, der Systembericht
-(`/system`, `/ui/system`), die Sicherung, die Nutzerverwaltung, Sprache und
-Design. Routen sind nur für Admins, sofern sie nicht anders markiert
+(`/system`, `/ui/system`), die Sicherung, die Nutzerverwaltung sowie
+Sprache und Design als Gerätestandard. Routen sind nur für Admins, sofern sie nicht anders markiert
 sind; eine später ergänzte Route ohne Markierung ist für Nutzer also
 gesperrt. Das Menü zeigt Einstellungen und Nutzer nur Admins, und die
 Startseite zeigt Nutzern keine Kachel für eine
@@ -292,6 +300,11 @@ der MQTT-Status (letzter Auftrag, Anzahl ausstehender Aufträge) umfasst
 weiter das ganze Gerät. Beim ersten Start gehen vorhandene
 Verlaufseinträge aus der Web-UI (Quelle „ui“ und deren Nachdrucke) an
 den Admin mit der kleinsten ID; alles andere bleibt System.
+
+**Persönliche Einstellungen**: Jedes Konto kann eigene Oberflächensprache,
+eigenes Design, eigene Bon-Sprache und eigene Startseiten-Kacheln wählen
+und hat eigene Listen-Entwürfe, siehe
+[Persönliche Einstellungen](#persönliche-einstellungen).
 
 **Nutzerverwaltung** (`/settings/users`, nur Admins, auch im Menü und auf
 der Einstellungsseite): listet alle Konten mit Rolle, Status (aktiv,
@@ -338,10 +351,14 @@ Das Skript verweigert den Start unter einem anderen Nutzer als dem
 Eigentümer von `STATE_DIR` (z. B. als root per `sudo`), weil der Dienst eine
 als root geschriebene `auth.db` nicht mehr lesen könnte.
 
-**Speicherung**: Konten und Anmeldungen liegen in `STATE_DIR/auth.db`
-(SQLite, Dateirechte 0600). Passwörter werden als scrypt-Hash gespeichert
+**Speicherung**: Konten, Anmeldungen und persönliche Einstellungen liegen in
+`STATE_DIR/auth.db` (SQLite, Dateirechte 0600; die persönlichen
+Einstellungen als JSON-Objekt pro Konto, ein ungültiger Wert gilt als
+„Gerätestandard“). Passwörter werden als scrypt-Hash gespeichert
 (Standard von Werkzeug), Anmeldungen nur als SHA-256-Hash des Cookie-Werts.
-`auth.db` gehört nicht zur Sicherung der Einstellungen. Dienst stoppen,
+`auth.db` gehört nicht zur Sicherung der Einstellungen, die persönlichen
+Einstellungen also auch nicht. Listen-Entwürfe liegen in
+`STATE_DIR/lists_drafts.json` (0600), ein Bereich pro Konto plus System. Dienst stoppen,
 `auth.db` löschen und Dienst wieder starten stellt den Zustand ohne Admin
 wieder her (Web-UI offen).
 
@@ -371,8 +388,8 @@ Warnhinweis.
 Allgemein / Drucken / Integrationen / System), die auf eine eigene
 Unterseite pro Bereich verlinkt – statt eines langen Formulars:
 
-- `/settings/language` – UI-Sprache (Deutsch/Englisch)
-- `/settings/design` – Farbschema der Web-UI
+- `/settings/language` – Sprache als Gerätestandard (Deutsch/Englisch): Oberflächensprache der Anmeldeseite und aller Konten ohne eigene Wahl sowie Bon-Sprache aller Aufträge ohne eigene
+- `/settings/design` – Farbschema der Web-UI als Gerätestandard
 - `/settings/modules` – einzelne Home-Module ein-/ausblenden, siehe [Modul-Schalter](#modul-schalter)
 - `/settings/print-rules` – Ruhezeit-Regeln (mehrere unabhängige Regeln, je mit eigenen Wochentagen und Zeitfenster) + Rate-Limit + Duplikat-Sperre + der Easy-Read-Textgrößen-Schalter
 - `/settings/logos` – globaler Logo-Schalter, Standard-Logo, sowie je Druckart eigener Schalter/Upload/Vorschau (fällt auf das Standard-Logo zurück, wenn kein eigenes gesetzt ist)
@@ -391,8 +408,8 @@ nie Geheimnisse: nicht `config.py`, nicht den API-Token, nicht den
 verschlüsselten Mealie-Token oder SSH-Passwörter (auch nicht verschlüsselt),
 nicht `secret.key`, nicht den SSH-`command` der Systembericht-Server und
 nicht Passwort, Benutzernamen oder CA-Datei für MQTT.
-Druckhistorie, ausstehende Aufträge und Listen-Entwürfe sind ebenfalls nicht
-enthalten. Die Datei enthält trotzdem persönliche Daten (Host- und
+Druckhistorie, ausstehende Aufträge, Listen-Entwürfe, Konten und ihre
+persönlichen Einstellungen sind ebenfalls nicht enthalten. Die Datei enthält trotzdem persönliche Daten (Host- und
 Benutzernamen, Orte, Adressen) und sollte entsprechend aufbewahrt werden.
 Beim Einspielen wird das Archiv zuerst geprüft und eine Zusammenfassung
 angezeigt; geändert wird erst nach Bestätigung. Geheimnisse auf dem Gerät
@@ -623,7 +640,8 @@ Ruhezeiten wie jedes andere Modul.
   (`lists_store.py`, ~1s nach Tipp-Ende), damit eine angefangene Liste
   auch beim Wegnavigieren oder Tab-Schließen erhalten bleibt; gelöscht
   wird der Entwurf erst nach tatsächlichem Druck. Ein "Verwerfen"-Button
-  setzt das Formular auf leer zurück.
+  setzt das Formular auf leer zurück. Mit Konten hat jedes Konto eigene
+  Entwürfe, siehe [Persönliche Einstellungen](#persönliche-einstellungen).
 
 ### Systembericht
 
@@ -782,6 +800,10 @@ einzeln ein- oder ausschalten:
   ausgeblendet ist.
 - Der Status-Streifen der Startseite zeigt an, wie viele dieser 8 Module
   aktuell aktiv sind (Schalter und Voraussetzung).
+- Dieser Schalter gilt für alle. Ein Konto kann eine Kachel zusätzlich
+  nur auf seiner eigenen Startseite ausblenden (siehe
+  [Persönliche Einstellungen](#persönliche-einstellungen)); das sperrt
+  keine Routen und ändert die Anzahl nicht.
 - Verlauf, die Settings-Seiten selbst und der generische
   Automation-Webhook liegen außerhalb dieses Schalter-Systems und
   bleiben immer erreichbar.
@@ -790,6 +812,56 @@ einzeln ein- oder ausschalten:
   `weather`-Moduls und überspringen sauber, wenn es deaktiviert ist.
   `github_star_watch.py` prüft das nicht und scheitert einfach an
   seinem Druckaufruf, wenn das `message`-Modul deaktiviert ist.
+
+### Persönliche Einstellungen
+
+Sobald ein Admin-Konto existiert, kann jedes Konto unter „Meine
+Einstellungen“ im Menü (`/preferences`) selbst wählen:
+- **Sprache der Oberfläche** (Deutsch/Englisch),
+- **Design** (eines der 6 Themes),
+- **Sprache der Bons** – die Sprache von allem, was das Konto druckt
+  (Beschriftungen und feste Texte auf dem Bon, nicht der eingegebene
+  Inhalt).
+
+Jede Auswahl hat als erste Option „Gerätestandard“; dann wird nichts
+gespeichert, und das Konto folgt der Einstellung des Geräts
+(`/settings/language`, `/settings/design`), auch wenn ein Admin sie
+später ändert. Ohne eigene Bon-Sprache druckt ein Konto in der Sprache
+des Geräts, nicht in seiner Oberflächensprache. Aufträge ohne Konto
+(API-Token, MQTT, Watcher, Boot-Begrüßung oder noch kein Admin
+eingerichtet) drucken immer in der Sprache des Geräts. Ein Neudruck aus
+den ausstehenden Aufträgen druckt in der Bon-Sprache, die sein Besitzer
+zum Zeitpunkt des Neudrucks gewählt hat (Sprache des Geräts für
+System-Einträge und gelöschte Konten). Die Anmeldeseite zeigt immer
+Sprache und Design des Geräts. Sobald Konten existieren, sind die
+Geräteseiten als „Gerätestandard“ beschriftet. Ein Konto mit
+Startpasswort erreicht nur seine Kontoseite, bis es ein eigenes
+Passwort gesetzt hat.
+
+**Kacheln der Startseite** (`/preferences/home`, verlinkt unten auf der
+Startseite und unter Meine Einstellungen): Ein Konto kann eine Kachel
+per Haken ausblenden und Kacheln mit Knöpfen innerhalb ihrer Gruppe
+(Drucken, Extras, Spiele) nach oben oder unten verschieben – ohne
+Drag-and-drop. Jeder Knopf speichert das ganze Formular; „Standard
+wiederherstellen“ entfernt die Kachel-Einstellungen. Ausgeblendete
+Kacheln fehlen nur auf der Startseite dieses Kontos: Die Seite bleibt
+über ihre Adresse erreichbar, und die Modulanzahl auf der Startseite
+bleibt die des Geräts. Ein Modul für alle abschalten geht weiterhin
+unter `/settings/modules`. In einer Gruppe, die das Konto umsortiert
+hat, erscheint ein in einer späteren Version neues Modul am Ende; eine
+unveränderte Gruppe behält die Standardreihenfolge. Aufgelistet sind
+nur Kacheln, die das Konto sehen kann; Reihenfolge und Sichtbarkeit der
+übrigen (z. B. eines Moduls, das ein Admin abgeschaltet hat) bleiben
+erhalten.
+
+**Listen-Entwürfe pro Konto**: Die Entwürfe von Einkaufsliste, To-do-Liste
+und Task-Karte (siehe [Listen](#listen)) gehören dem Konto, das sie
+eingetippt hat; kein anderes Konto kann sie sehen oder überschreiben.
+Ein Druck über die Web-UI leert nur den Entwurf des druckenden Kontos.
+Ein Druck über die API oder MQTT leert nur den System-Entwurf – den, den
+die Web-UI nutzt, solange kein Admin-Konto existiert, und in dem auch
+der eine gemeinsame Entwurf älterer Versionen landet. Beim Löschen eines
+Kontos werden seine Entwürfe und persönlichen Einstellungen gelöscht.
 
 ## Roadmap
 

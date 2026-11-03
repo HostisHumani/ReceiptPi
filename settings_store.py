@@ -16,7 +16,8 @@ Contains three areas:
     centralized instead of duplicated per module (see
     print_queue.check_print_rules()).
   - weather: freely definable locations for the weather report.
-  - language: UI language ("de"/"en"), see i18n.py.
+  - language: device default language ("de"/"en") for the UI and the
+    receipts; an account can choose its own (user_prefs.py), see i18n.py.
 """
 import json
 import os

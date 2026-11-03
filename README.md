@@ -79,14 +79,15 @@ receiptpi/
 ├── mqtt_bridge.py         optional MQTT bridge: print commands in, printer status out, Home Assistant discovery
 ├── security.py            CSRF protection, API token protection, JSON parsing, access markers for the login check
 ├── auth_store.py          web UI accounts and login sessions (SQLite STATE_DIR/auth.db, 0600)
+├── user_prefs.py          personal settings per account (UI language, design, receipt language, home tiles; stored in auth.db)
 ├── secrets_crypto.py      Fernet encryption for system-report SSH passwords, the recipe manager API token and the MQTT password (key in STATE_DIR, not in git)
 ├── settings_store.py      central settings (JSON in STATE_DIR, not in the project folder)
 ├── history_store.py       SQLite print history (STATE_DIR), auto-pruned after 180 days
-├── lists_store.py          in-progress list/task-card drafts (STATE_DIR), cleared once printed
+├── lists_store.py          in-progress list/task-card drafts per account (STATE_DIR, 0600), cleared once printed
 ├── pending_store.py        blocked/failed print jobs (STATE_DIR, 0600), see "Pending jobs" below
 ├── logos.py                per-print-type logo resolution, upload validation, seeding
 ├── i18n.py                 minimal translation lookup (JSON files, no Flask-Babel)
-├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL) + their effective on/off state
+├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL, home group) + their effective on/off state
 ├── text_style.py           Easy-Read text-size scaling, shared by print jobs and the web UI
 ├── themes.py                registry of the selectable web UI color themes
 ├── static_versioning.py     content-hash `?v=` URLs for static files (cache busting)
@@ -106,7 +107,7 @@ receiptpi/
 │   ├── history/                print history dashboard
 │   ├── pending/                 review/reprint/discard blocked or failed print jobs
 │   ├── backup/                  settings backup and restore (.zip)
-│   ├── auth/                    login, first-time setup, own account page, user management, login and role check for every request
+│   ├── auth/                    login, first-time setup, own account page, personal settings, user management, login and role check for every request
 │   └── settings/                settings pages (web UI) + settings API
 ├── watchers/
 │   ├── github_star_watch.py     cron: prints on a new GitHub star
@@ -140,6 +141,7 @@ receiptpi/
     ├── games_*.html            games overview + one page per game
     ├── recipes*.html           recipe search/random picker + recipe preview
     ├── auth_*.html             login, first-time setup, own account page, 403 page
+    ├── preferences*.html       personal settings and home page tiles of an account
     └── settings_*.html        settings overview + one sub-page per area
 ```
 
@@ -155,14 +157,18 @@ plain forms:
   live via `/health` every 60 seconds; how many of the toggleable modules
   are currently active; the print count from the history store - the
   viewer's own prints once accounts are in use),
-  followed by a tile grid linking to every currently enabled module.
+  followed by a tile grid linking to every currently enabled module. Each
+  account can hide tiles and reorder them within their group, see
+  [Personal settings](#personal-settings).
 - **Navigation** - a topbar wordmark, a small printer-status dot, and a
   hamburger menu (History and Pending; Settings, and Users once logged in -
   for admins only, see [Login and accounts](#login-and-accounts); once
-  logged in also Account and Log out).
+  logged in also My settings, Account and Log out).
 - **Themes** - 6 selectable color themes (Warm [default], Forrest, Dark
-  Lime, Frost, Butter Bean, White Purple), picked under `/settings/design`
-  and applied via a `data-theme` attribute plus CSS custom properties.
+  Lime, Frost, Butter Bean, White Purple). The device default is picked
+  under `/settings/design`; once accounts are in use, every account can
+  pick its own under My settings. Applied via a `data-theme` attribute
+  plus CSS custom properties.
   Warm is the only theme that also follows the system/browser light-dark
   preference automatically.
 - **Icons** - a local set of Lucide SVG icons under `static/icons/` (no
@@ -240,12 +246,13 @@ logins except the current one). Log out is in the menu.
 **Roles**: every account is either `admin` or `user`. Admins may use
 everything. Users may use the home page, message, lists (including drafts
 and `/shopping`), weather, guest Wi-Fi, recipes, games and images, plus
-their own account page, their own print history (`/history`) and
+their own account page, their own personal settings (`/preferences`,
+`/preferences/home`, see [Personal settings](#personal-settings)), their own print history (`/history`) and
 pending jobs (`/pending`, `/pending/print`, `/pending/discard`, see below)
 and log out - including the form posts of these pages. Everything else is
 admin only: all settings pages and `/ui/settings/*` routes, the system
-report (`/system`, `/ui/system`), the backup, the user management,
-language and design. Routes are admin only unless marked otherwise, so a
+report (`/system`, `/ui/system`), the backup, the user management, and
+the device default language and design. Routes are admin only unless marked otherwise, so a
 route added later without a marker is closed to users. The menu shows
 Settings and Users only to admins, and the home page shows a user
 no tile for a page they can't open. A user who opens an admin page in the
@@ -277,6 +284,10 @@ everyone, and the MQTT status (last job, pending count) still covers
 the whole device. On the first start, existing history rows from the
 web UI (source "ui" and their reprints) are given to the admin with the
 lowest id; everything else stays System.
+
+**Personal settings**: every account can choose its own interface
+language, design, receipt language and home page tiles, and has its own
+list drafts, see [Personal settings](#personal-settings).
 
 **User management** (`/settings/users`, admin only, also in the menu and
 on the settings page): lists every account with role, status (active,
@@ -320,10 +331,14 @@ argument. The script refuses to run as a different user than the owner of
 `STATE_DIR` (e.g. as root via `sudo`), since `auth.db` written as root
 could no longer be read by the service.
 
-**Storage**: accounts and logins are in `STATE_DIR/auth.db` (SQLite, file
-mode 0600). Passwords are stored as scrypt hashes (Werkzeug's default),
+**Storage**: accounts, logins and personal settings are in
+`STATE_DIR/auth.db` (SQLite, file mode 0600; the personal settings as a
+JSON object per account, an invalid value counts as "device default").
+Passwords are stored as scrypt hashes (Werkzeug's default),
 logins only as SHA-256 hashes of the cookie value. `auth.db` is not part of
-the settings backup. Stopping the service, deleting `auth.db` and starting
+the settings backup, so personal settings are not in it either. List
+drafts are in `STATE_DIR/lists_drafts.json` (0600), one area per account
+plus System. Stopping the service, deleting `auth.db` and starting
 it again restores the state without an admin (web UI open).
 
 **Configuration** (`config.py`, see `config.example.py`):
@@ -351,8 +366,8 @@ existing admin, `/print/*` stays open, but the JSON settings API under
 Printing / Integrations / System) linking to a dedicated sub-page per
 area, instead of one long form:
 
-- `/settings/language` - UI language (German/English)
-- `/settings/design` - web UI color theme
+- `/settings/language` - device default language (German/English): the UI language for the login page and for every account without its own choice, and the receipt language for every job without its own
+- `/settings/design` - device default web UI color theme
 - `/settings/modules` - enable/disable individual home-page modules, see [Module toggles](#module-toggles)
 - `/settings/print-rules` - quiet-hour rules (multiple independent rules, each with its own weekdays and time window) + rate limiting + duplicate suppression + the Easy-Read text-size switch
 - `/settings/logos` - global logo toggle, default logo, and a per-print-type toggle/upload/preview (falls back to the default logo if no custom one is set)
@@ -369,7 +384,7 @@ allowlisted copy of the settings, all logo files and a manifest (format and
 app version, SHA-256 per file). It never contains secrets: not `config.py`,
 not the API token, not the encrypted Mealie token or SSH passwords (not even
 encrypted), not `secret.key`, not the SSH `command` of system-report
-hosts, and not the MQTT password, user name or CA file. Print history, pending jobs and list drafts are not included either.
+hosts, and not the MQTT password, user name or CA file. Print history, pending jobs, list drafts, accounts and their personal settings are not included either.
 The file still contains personal data (host and user names, locations,
 addresses), so store it accordingly. Restoring checks the archive first and
 shows a summary; nothing changes before you confirm. Secrets already on the
@@ -590,7 +605,9 @@ every other module.
 - **Drafts** - all three forms auto-save to the server (`lists_store.py`,
   `~1s` after typing stops) so an in-progress list survives navigating
   away or closing the tab; a draft is only cleared once actually
-  printed. A "Discard" button clears it back to a blank form.
+  printed. A "Discard" button clears it back to a blank form. Once
+  accounts are in use, every account has its own drafts, see
+  [Login and accounts](#login-and-accounts).
 
 ### System report
 
@@ -739,12 +756,61 @@ off individually:
   saved and shows a note explaining why the module is hidden.
 - The home page's status strip shows how many of these 8 modules are
   currently active (toggle and precondition).
+- This switch applies to everyone. An account can additionally hide a
+  tile from its own home page only (see
+  [Personal settings](#personal-settings)); that doesn't block the
+  module's routes and doesn't change the count.
 - History, the Settings pages themselves, and the generic automation
   webhook are outside this toggle system and stay reachable regardless.
 - Two of the three watchers respect this: `fritzbox_wifi_watch.py` and
   `storm_warning_watch.py` check the `wifi`/`weather` module state and
   skip cleanly if disabled. `github_star_watch.py` does not check it and
   will simply fail its print call if the `message` module is disabled.
+
+### Personal settings
+
+Once an admin account exists, "My settings" in the menu (`/preferences`)
+lets every account pick its own
+- **interface language** (German/English),
+- **design** (one of the 6 themes),
+- **receipt language** - the language of everything the account prints
+  (labels and fixed texts on the receipt, not the content typed in).
+
+Every choice has "Device default" as its first option, which stores
+nothing: the account then follows the device setting
+(`/settings/language`, `/settings/design`), also when an admin changes
+it later. Without its own receipt language an account prints in the
+device language, not in its interface language. Jobs without an account
+(API token, MQTT, watchers, boot greeting, or no admin set up yet) always
+print in the device language. A reprint from the pending list prints in
+the receipt language its owner has chosen at the time of the reprint
+(device language for System entries and deleted accounts). The login
+page always shows the device language and design. Once accounts exist,
+the device pages are labelled "device default". An account with a start
+password can only reach its account page until it has set its own
+password.
+
+**Home page tiles** (`/preferences/home`, linked at the bottom of the
+home page and from My settings): an account can untick a tile to hide it
+and move tiles up or down within their group (Printing, Extras, Games)
+with buttons - no drag and drop. Every button saves the whole form;
+"Restore default" removes the tile settings. Hidden tiles are only left
+off that account's home page: the page stays reachable by its URL, and
+the module count on the home page stays the device-wide one. Switching a
+module off for everyone stays under `/settings/modules`. In a group the
+account has reordered, a module added in a later version appears at the
+end; an untouched group keeps the default order. Only tiles the
+account can see are listed; the order and visibility of the others (for
+example a module an admin has switched off) are kept.
+
+**List drafts per account**: the drafts of the shopping list, to-do list
+and task card (see [Lists](#lists)) belong to the account that typed
+them; no other account can see or overwrite them. A print via the web UI
+clears only the printing account's draft. A print via the API or MQTT
+clears only the System draft - the one the web UI uses while no admin
+account exists, which is also where the single shared draft from older
+versions ends up. Deleting an account deletes its drafts and its
+personal settings.
 
 ## Roadmap
 

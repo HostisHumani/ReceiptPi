@@ -18,9 +18,9 @@ another account's. System is what the web UI uses while no admin account
 exists, and what a print via the API or MQTT clears. File format:
   {"version": 2, "owners": {"system": {<kind>: {...}, "_cleared_at": {...}},
                             "<id>:<created>": {...}}}
-A file in the older format (the kinds at the top level, from before
-drafts had owners) is read as the System area and written in the new
-format with the next change - reading alone never writes the file.
+A file with the kinds at the top level (no "version", no owners) is read
+as the System area and written in the format above with the next change
+- reading alone never writes the file.
 Drafts stay out of auth.db on purpose: autosave writes every few
 seconds while typing, and every write to auth.db changes its mtime and
 with it the cache key of auth_store.admin_exists().
