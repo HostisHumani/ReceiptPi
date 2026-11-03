@@ -1,5 +1,6 @@
 {
   "auth.menu.account": "Konto",
+  "auth.menu.preferences": "Meine Einstellungen",
   "auth.menu.logout": "Abmelden",
   "auth.banner.setup_needed": "Noch kein Admin eingerichtet: Die Weboberfläche ist für alle im Netzwerk offen.",
   "auth.banner.setup_link": "Admin einrichten",
@@ -95,5 +96,13 @@
   "auth.users.password_reset": "Das Passwort von „{name}“ wurde zurückgesetzt. Alle Anmeldungen des Kontos sind beendet.",
   "auth.users.deleted": "Das Konto „{name}“ wurde gelöscht.",
   "auth.users.initial_password_heading": "Startpasswort für „{name}“",
-  "auth.users.initial_password_hint": "Wird nur jetzt angezeigt und nirgends gespeichert. Bitte an die Person weitergeben; bei der ersten Anmeldung muss es geändert werden. Geht es verloren, das Passwort einfach erneut zurücksetzen."
+  "auth.users.initial_password_hint": "Wird nur jetzt angezeigt und nirgends gespeichert. Bitte an die Person weitergeben; bei der ersten Anmeldung muss es geändert werden. Geht es verloren, das Passwort einfach erneut zurücksetzen.",
+  "auth.prefs.header": "Meine Einstellungen",
+  "auth.prefs.intro": "Diese Einstellungen gelten nur für dein Konto. „Gerätestandard“ folgt der Einstellung des Geräts, auch wenn ein Admin sie später ändert.",
+  "auth.prefs.device_default": "Gerätestandard ({value})",
+  "auth.prefs.ui_lang_heading": "Sprache der Oberfläche",
+  "auth.prefs.ui_lang_hint": "Die Anmeldeseite bleibt in der Sprache des Geräts.",
+  "auth.prefs.theme_heading": "Design",
+  "auth.prefs.saved": "Einstellungen gespeichert ✓",
+  "auth.prefs.invalid": "Ungültige Auswahl - nichts gespeichert."
 }

@@ -1,5 +1,6 @@
 {
   "auth.menu.account": "Account",
+  "auth.menu.preferences": "My settings",
   "auth.menu.logout": "Log out",
   "auth.banner.setup_needed": "No admin set up yet: the web UI is open to everyone on the network.",
   "auth.banner.setup_link": "Set up admin",
@@ -95,5 +96,13 @@
   "auth.users.password_reset": "The password of \"{name}\" has been reset. All logins of the account have ended.",
   "auth.users.deleted": "The account \"{name}\" has been deleted.",
   "auth.users.initial_password_heading": "Start password for \"{name}\"",
-  "auth.users.initial_password_hint": "Shown only now and not stored anywhere. Pass it on to the person; it has to be changed at the first login. If it gets lost, simply reset the password again."
+  "auth.users.initial_password_hint": "Shown only now and not stored anywhere. Pass it on to the person; it has to be changed at the first login. If it gets lost, simply reset the password again.",
+  "auth.prefs.header": "My settings",
+  "auth.prefs.intro": "These settings apply to your account only. \"Device default\" follows the device setting, also when an admin changes it later.",
+  "auth.prefs.device_default": "Device default ({value})",
+  "auth.prefs.ui_lang_heading": "Interface language",
+  "auth.prefs.ui_lang_hint": "The login page stays in the device language.",
+  "auth.prefs.theme_heading": "Design",
+  "auth.prefs.saved": "Settings saved ✓",
+  "auth.prefs.invalid": "Invalid choice - nothing was saved."
 }

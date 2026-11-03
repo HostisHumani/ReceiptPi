@@ -23,6 +23,17 @@ SUPPORTED_THEMES = {
     "white-purple": "White Purple",
 }
 
+# key -> one representative color for the small swatch next to each
+# theme in the theme pickers (device default and personal settings).
+SWATCHES = {
+    "warm": "#c2410c",
+    "forrest": "#2fae66",
+    "dark-lime": "#b6ff2e",
+    "frost": "#81a1c1",
+    "butter-bean": "#013e37",
+    "white-purple": "#460b6a",
+}
+
 # "Warm" is the new default (2026 redesign) - the only theme that also
 # follows the system/browser light-dark preference automatically, see
 # its [data-theme="warm"] block in static/style.css. Existing

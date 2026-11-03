@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block header_icon %}<span class="mark"><span class="icon icon-globe" aria-hidden="true"></span></span>{% endblock %}
-{% block header_title %}{{ t('settings.index.language.name') }}{% endblock %}
+{% block header_title %}{{ t('settings.index.language.name_device') if auth_admin_exists else t('settings.index.language.name') }}{% endblock %}
 {% block content %}
 <a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
 
@@ -14,7 +14,7 @@
     {{ name }}
   </label>
   {% endfor %}
-  <div class="hint">{{ t('settings.language.hint') }}</div>
+  <div class="hint">{{ t('settings.language.hint_device') if auth_admin_exists else t('settings.language.hint') }}</div>
 
   <button type="submit">{{ t('settings.save') }}</button>
 </form>

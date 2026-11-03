@@ -44,6 +44,9 @@
             {%- endif %}
             {%- endif %}
             {%- if auth_user %}
+              {%- if not auth_must_change %}
+              <a href="/preferences"><span class="icon icon-sliders-horizontal" aria-hidden="true"></span> {{ t('auth.menu.preferences') }}</a>
+              {%- endif %}
               <a href="/account"><span class="icon icon-lock" aria-hidden="true"></span> {{ t('auth.menu.account') }}</a>
               {# Logout is a POST with CSRF token, so no other site can trigger it. #}
               <form method="post" action="/logout" class="burger-form">

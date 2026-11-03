@@ -47,6 +47,7 @@ import themes
 import version
 from logos import ensure_default_logo_seeded
 from modules.auth import guard as auth_guard
+from modules.auth.preferences import preferences_bp
 from modules.auth.routes import auth_bp
 from modules.auth.users import users_bp
 from modules.automation.routes import automation_bp
@@ -131,7 +132,7 @@ ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see
 
 for blueprint in (
     lists_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp,
-    history_bp, pending_bp, games_bp, recipes_bp, backup_bp, auth_bp, users_bp,
+    history_bp, pending_bp, games_bp, recipes_bp, backup_bp, auth_bp, users_bp, preferences_bp,
 ):
     app.register_blueprint(blueprint)
 

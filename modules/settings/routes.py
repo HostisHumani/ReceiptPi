@@ -262,6 +262,7 @@ def _render_design(message=None, success=None):
         message=message, success=success,
         csrf_token=get_csrf_token(),
         device_theme=settings_store.get_settings().get("theme", themes.DEFAULT_THEME),
+        theme_swatches=themes.SWATCHES,
     )
 
 

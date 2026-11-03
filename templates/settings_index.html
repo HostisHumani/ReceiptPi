@@ -17,16 +17,16 @@
     <a class="row" href="/settings/language">
       <div class="icon-chip neutral"><span class="icon icon-globe" aria-hidden="true"></span></div>
       <div class="body">
-        <div class="title">{{ t('settings.index.language.name') }}</div>
-        <div class="desc">{{ t('settings.index.language.desc') }}</div>
+        <div class="title">{{ t('settings.index.language.name_device') if auth_admin_exists else t('settings.index.language.name') }}</div>
+        <div class="desc">{{ t('settings.index.language.desc_device') if auth_admin_exists else t('settings.index.language.desc') }}</div>
       </div>
       <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>
     <a class="row" href="/settings/design">
       <div class="icon-chip neutral"><span class="icon icon-palette" aria-hidden="true"></span></div>
       <div class="body">
-        <div class="title">{{ t('settings.index.design.name') }}</div>
-        <div class="desc">{{ t('settings.index.design.desc') }}</div>
+        <div class="title">{{ t('settings.index.design.name_device') if auth_admin_exists else t('settings.index.design.name') }}</div>
+        <div class="desc">{{ t('settings.index.design.desc_device') if auth_admin_exists else t('settings.index.design.desc') }}</div>
       </div>
       <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block header_icon %}<span class="mark"><span class="icon icon-sliders-horizontal" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('auth.prefs.header') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<div class="hint hint-standalone">{{ t('auth.prefs.intro') }}</div>
+
+<form method="post" action="/ui/preferences">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <h2 class="section-title">{{ t('auth.prefs.ui_lang_heading') }}</h2>
+  <div class="card">
+    <label class="checkbox-row">
+      <input type="radio" name="ui_lang" value="" {% if not prefs.ui_lang %}checked{% endif %}>
+      {{ t('auth.prefs.device_default', value=supported_languages[device_language] if device_language in supported_languages else device_language) }}
+    </label>
+    {% for code, name in supported_languages.items() %}
+    <label class="checkbox-row">
+      <input type="radio" name="ui_lang" value="{{ code }}" {% if prefs.ui_lang == code %}checked{% endif %}>
+      {{ name }}
+    </label>
+    {% endfor %}
+    <div class="hint">{{ t('auth.prefs.ui_lang_hint') }}</div>
+  </div>
+
+  <h2 class="section-title">{{ t('auth.prefs.theme_heading') }}</h2>
+  <div class="card">
+    <label class="theme-option">
+      <input type="radio" name="theme" value="" {% if not prefs.theme %}checked{% endif %}>
+      <span class="theme-swatch" style="background:{{ theme_swatches.get(device_theme, theme_swatches['warm']) }};"></span>
+      {{ t('auth.prefs.device_default', value=supported_themes.get(device_theme, device_theme)) }}
+    </label>
+    {% for key, name in supported_themes.items() %}
+    <label class="theme-option">
+      <input type="radio" name="theme" value="{{ key }}" {% if prefs.theme == key %}checked{% endif %}>
+      <span class="theme-swatch" style="background:{{ theme_swatches[key] }};"></span>
+      {{ name }}
+    </label>
+    {% endfor %}
+  </div>
+
+  <button type="submit">{{ t('settings.save') }}</button>
+</form>
+{% endblock %}
