@@ -103,6 +103,8 @@
   "auth.prefs.ui_lang_heading": "Interface language",
   "auth.prefs.ui_lang_hint": "The login page stays in the device language.",
   "auth.prefs.theme_heading": "Design",
+  "auth.prefs.receipt_lang_heading": "Receipt language",
+  "auth.prefs.receipt_lang_hint": "Applies to everything you print, including a later reprint from \"Pending Jobs\". Prints via the API, MQTT or automations always use the device language.",
   "auth.prefs.saved": "Settings saved ✓",
   "auth.prefs.invalid": "Invalid choice - nothing was saved."
 }

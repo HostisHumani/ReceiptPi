@@ -20,6 +20,14 @@ carries it in its meta through the queue, the worker, the history and
 the pending list. The worker thread never looks at request state
 itself. The print rules (quiet hours, rate limit, duplicates) stay the
 same for every account - there is one physical printer.
+
+Receipt language: enqueue_print() also looks up the receipt language the
+owner chose (user_prefs.receipt_language()) and puts it into the meta;
+the worker runs the job inside i18n.job_language() with it. A job
+without an owner, or whose owner chose none, prints in the device
+language as before. A reprint from the pending list passes the entry's
+owner, so it prints in that account's receipt language at the time of
+the reprint.
 """
 import hashlib
 import queue
@@ -36,6 +44,7 @@ import i18n
 import pending_store
 import printer_status
 import settings_store
+import user_prefs
 
 PRINT_QUEUE = queue.Queue(maxsize=100)
 _worker_started = False
@@ -206,7 +215,7 @@ def _print_worker():
             # Held for the whole job, so a printer status check (see
             # printer_status.read_port_status) never touches the USB
             # interface while a job is using it.
-            with printer_status.USB_LOCK:
+            with printer_status.USB_LOCK, i18n.job_language(meta.get("receipt_lang")):
                 func(*args)
             result["ok"] = True
             result["detail"] = "printed"
@@ -327,6 +336,7 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     the history and the pending list, None for System. By default it is
     taken from the current request (see _request_owner()); a reprint
     from the pending list passes the owner of the pending entry instead.
+    The owner's receipt language (if any) is what the job prints in.
 
     Status codes: 429 quiet hours/rate limit/duplicate, 503 queue full,
     504 timeout, 500 print error, 200 success.
@@ -355,7 +365,7 @@ def enqueue_print(func, *args, timeout=30, bypass_rules=False, bypass_quiet_hour
     event = threading.Event()
     meta = {
         "job_type": job_type, "summary": summary, "source": source, "log_history": log_history,
-        "retry_payload": retry_payload, "owner": owner,
+        "retry_payload": retry_payload, "owner": owner, "receipt_lang": user_prefs.receipt_language(owner),
     }
     try:
         PRINT_QUEUE.put((func, args, result, event, meta), timeout=5)

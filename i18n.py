@@ -5,9 +5,10 @@ toolchain - .po/.mo compilation, pybabel CLI - for a handful of UI
 strings in two languages).
 
 The language of a lookup without an explicit lang comes from
-current_language(): the logged-in account's own UI language if it chose
-one (user_prefs.py), otherwise the device default settings["language"]
-from settings_store.
+current_language(): while the print worker runs a job, the receipt
+language of that job (see job_language()); in a request, the logged-in
+account's own UI language if it chose one (user_prefs.py); otherwise the
+device default settings["language"] from settings_store.
 
 Translation files: translations/<lang>.json in the project root for
 shared/chrome strings (navigation, settings page). Individual modules
@@ -15,9 +16,11 @@ MAY ship their own modules/<name>/translations/<lang>.json - the loader
 merges those in on top, so a module (including future community modules)
 can add or override its own strings without touching the core files.
 """
+import contextvars
 import glob
 import json
 import os
+from contextlib import contextmanager
 
 _TRANSLATIONS = {}  # lang -> {key: value}
 # code -> display name (shown in the language switcher). A dict instead
@@ -29,6 +32,11 @@ SUPPORTED_LANGUAGES = {
     "en": "English",
 }
 DEFAULT_LANGUAGE = "de"
+
+# Receipt language of the print job the current thread is running, None
+# outside a job or for a job without one. A ContextVar rather than a
+# plain global, so only the print worker's own context ever sees it.
+_job_language = contextvars.ContextVar("receipt_language", default=None)
 
 
 def _load_json(path):
@@ -79,14 +87,34 @@ def t(key, lang=None, **kwargs):
     return value
 
 
+@contextmanager
+def job_language(lang):
+    """Makes lang the language of every lookup without an explicit lang
+    inside the block - the print worker wraps each job in it, so the
+    receipt texts of all _raw_print_* functions follow the job's receipt
+    language without each of them taking a parameter. None (or an
+    unsupported value) leaves the normal resolution in place. The
+    previous value is restored however the block ends, so a job that
+    raises can't pass its language on to the next one."""
+    token = _job_language.set(lang if lang in SUPPORTED_LANGUAGES else None)
+    try:
+        yield
+    finally:
+        _job_language.reset(token)
+
+
 def current_language():
-    """The language for the current context: the UI language chosen by
+    """The language for the current context: the receipt language of the
+    print job being run (job_language()), else the UI language chosen by
     the account behind the current request, else the device default
-    from settings_store. Without a request (the print worker, the MQTT
-    thread, watchers) and on pages that load no session (login, API
-    token routes, no admin account yet) that is always the device
-    default. settings_store and user_prefs are imported here rather
-    than at module level: both import i18n themselves."""
+    from settings_store. Without a job or a request (the MQTT thread,
+    watchers) and on pages that load no session (login, API token
+    routes, no admin account yet) that is always the device default.
+    settings_store and user_prefs are imported here rather than at
+    module level: both import i18n themselves."""
+    lang = _job_language.get()
+    if lang is not None:
+        return lang
     import user_prefs
     lang = user_prefs.current().get(user_prefs.UI_LANG)
     if lang is not None:

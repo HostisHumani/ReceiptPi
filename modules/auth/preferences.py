@@ -28,6 +28,7 @@ preferences_bp = Blueprint("preferences", __name__)
 _FIELDS = {
     "ui_lang": user_prefs.UI_LANG,
     "theme": user_prefs.THEME,
+    "receipt_lang": user_prefs.RECEIPT_LANG,
 }
 
 

@@ -40,6 +40,21 @@
     {% endfor %}
   </div>
 
+  <h2 class="section-title">{{ t('auth.prefs.receipt_lang_heading') }}</h2>
+  <div class="card">
+    <label class="checkbox-row">
+      <input type="radio" name="receipt_lang" value="" {% if not prefs.receipt_lang %}checked{% endif %}>
+      {{ t('auth.prefs.device_default', value=supported_languages[device_language] if device_language in supported_languages else device_language) }}
+    </label>
+    {% for code, name in supported_languages.items() %}
+    <label class="checkbox-row">
+      <input type="radio" name="receipt_lang" value="{{ code }}" {% if prefs.receipt_lang == code %}checked{% endif %}>
+      {{ name }}
+    </label>
+    {% endfor %}
+    <div class="hint">{{ t('auth.prefs.receipt_lang_hint') }}</div>
+  </div>
+
   <button type="submit">{{ t('settings.save') }}</button>
 </form>
 {% endblock %}
