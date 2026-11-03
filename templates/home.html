@@ -16,9 +16,9 @@
   </div>
 </div>
 
-{% set printing_keys = ["lists", "message", "images", "weather", "recipes"] %}
+{% set printing_tiles = home_tiles["printing"] %}
 {% set printing_modules = [] %}
-{% for m in all_modules if m.key in printing_keys and active_modules.get(m.key, True) and auth_can_open(m.url) %}
+{% for m in printing_tiles if auth_can_open(m.url) %}
   {% set _ = printing_modules.append(m) %}
 {% endfor %}
 {% if printing_modules %}
@@ -36,9 +36,9 @@
 </div>
 {% endif %}
 
-{% set extra_keys = ["wifi", "system"] %}
+{% set extra_tiles = home_tiles["extras"] %}
 {% set extra_modules = [] %}
-{% for m in all_modules if m.key in extra_keys and active_modules.get(m.key, True) and auth_can_open(m.url) %}
+{% for m in extra_tiles if auth_can_open(m.url) %}
   {% set _ = extra_modules.append(m) %}
 {% endfor %}
 {% if extra_modules %}
@@ -56,7 +56,7 @@
 </div>
 {% endif %}
 
-{% if active_modules.get("games", True) and auth_can_open("/games") %}
+{% if home_tiles["games"] and auth_can_open("/games") %}
 <div class="section">
   <div class="heading">{{ t('tile.games.name') }}</div>
   <a class="game-card" href="/games">
@@ -73,4 +73,7 @@
   </a>
 </div>
 {% endif %}
+{%- if auth_user and not auth_must_change %}
+<a class="back-link" href="/preferences/home"><span class="icon icon-layout-grid" aria-hidden="true"></span> {{ t('auth.prefs.tiles.link') }}</a>
+{%- endif %}
 {% endblock %}

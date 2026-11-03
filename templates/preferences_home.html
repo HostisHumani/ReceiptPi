@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block header_icon %}<span class="mark"><span class="icon icon-layout-grid" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('auth.prefs.tiles.header') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<div class="hint hint-standalone">{{ t('auth.prefs.tiles.intro') }}</div>
+
+{% set group_titles = {"printing": t('settings.group.printing'), "extras": t('home.group.extras'), "games": t('tile.games.name')} %}
+<form method="post" action="/ui/preferences/home">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% for group, modules in listed_tiles.items() if modules %}
+  <h2 class="section-title">{{ group_titles[group] }}</h2>
+  <div class="card">
+    {% for m in modules %}
+    <div class="list-row">
+      <div class="list-row-main">
+        <input type="hidden" name="order_{{ group }}" value="{{ m.key }}">
+        <label class="checkbox-row">
+          <input type="checkbox" name="show" value="{{ m.key }}" {% if m.key not in hidden %}checked{% endif %}>
+          <span class="icon icon-{{ m.icon }}" aria-hidden="true"></span> {{ t('tile.' ~ m.key ~ '.name') }}
+        </label>
+      </div>
+      {% if modules|length > 1 %}
+      <div class="list-row-actions">
+        <button type="submit" name="move" value="up:{{ m.key }}" class="btn btn-icon"
+                aria-label="{{ t('auth.prefs.tiles.move_up', name=t('tile.' ~ m.key ~ '.name')) }}"
+                {% if loop.first %}disabled{% endif %}><span class="icon icon-chevron-left" style="transform: rotate(90deg);" aria-hidden="true"></span></button>
+        <button type="submit" name="move" value="down:{{ m.key }}" class="btn btn-icon"
+                aria-label="{{ t('auth.prefs.tiles.move_down', name=t('tile.' ~ m.key ~ '.name')) }}"
+                {% if loop.last %}disabled{% endif %}><span class="icon icon-chevron-right" style="transform: rotate(90deg);" aria-hidden="true"></span></button>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  <div class="hint">{{ t('auth.prefs.tiles.hint') }}</div>
+
+  <button type="submit" name="action" value="save">{{ t('settings.save') }}</button>
+  <button type="submit" name="action" value="reset" class="btn btn-secondary btn-block">{{ t('auth.prefs.tiles.reset') }}</button>
+</form>
+{% endblock %}

@@ -1,7 +1,8 @@
 """
 Single source of truth for the toggleable print-type modules shown as
 tiles on the home page. Used by:
-  - templates/home.html (which tiles to render, and in which order)
+  - templates/home.html (which tiles to render, and in which order,
+    through home_tiles())
   - templates/settings_modules.html (the on/off checkbox list)
   - app.py's before_request hook (which blueprint names are subject to
     the enabled_modules check)
@@ -33,6 +34,19 @@ MODULES = [
 
 MODULE_KEYS = {m["key"] for m in MODULES}
 
+# The groups on the home page, in display order, and the modules in each.
+# Within a group the default order is the order of MODULES; an account
+# can reorder the tiles inside a group and hide single tiles (the
+# "tiles" entry of its personal settings, see user_prefs.py), but never
+# move a tile into another group.
+HOME_GROUPS = {
+    "printing": ("lists", "message", "images", "weather", "recipes"),
+    "extras": ("wifi", "system"),
+    "games": ("games",),
+}
+
+MODULES_BY_KEY = {m["key"]: m for m in MODULES}
+
 
 def active_modules(settings):
     """Effective on/off state per module key: the user's
@@ -59,3 +73,58 @@ def active_modules(settings):
     if settings.get("recipes", {}).get("provider", "off") == "off":
         active["recipes"] = False
     return active
+
+
+def sanitize_tiles(tiles):
+    """An account's tile settings reduced to what is valid:
+    {"order": {group: [module keys of that group]}, "hidden": [module
+    keys]}, without duplicates and without empty parts. Anything else
+    (unknown groups or modules, wrong types) is dropped, so a module
+    removed from MODULES simply disappears from it."""
+    if not isinstance(tiles, dict):
+        return {}
+    clean = {}
+    order = tiles.get("order")
+    if isinstance(order, dict):
+        clean_order = {}
+        for group, members in HOME_GROUPS.items():
+            keys = order.get(group)
+            if isinstance(keys, list):
+                kept = []
+                for key in keys:
+                    if isinstance(key, str) and key in members and key not in kept:
+                        kept.append(key)
+                if kept:
+                    clean_order[group] = kept
+        if clean_order:
+            clean["order"] = clean_order
+    hidden = tiles.get("hidden")
+    if isinstance(hidden, list):
+        kept = sorted({key for key in hidden if isinstance(key, str) and key in MODULE_KEYS})
+        if kept:
+            clean["hidden"] = kept
+    return clean
+
+
+def group_order(group, tiles=None):
+    """Every module key of a group in the account's order: the keys it
+    stored first, then the rest in MODULES order - so a module added to
+    the catalog later appears at the end of its group."""
+    members = [m["key"] for m in MODULES if m["key"] in HOME_GROUPS[group]]
+    stored = sanitize_tiles(tiles).get("order", {}).get(group, [])
+    return stored + [key for key in members if key not in stored]
+
+
+def home_tiles(active, tiles=None):
+    """{group: [module dicts]} for the home page: only active modules
+    (see active_modules()), in the account's order, without the ones it
+    hid. Hiding only affects the home page - the module stays reachable
+    under its URL, and the module count on the home page stays the
+    device-wide one. Whether the account may open a tile is left to the
+    template (auth_can_open)."""
+    hidden = set(sanitize_tiles(tiles).get("hidden", []))
+    return {
+        group: [MODULES_BY_KEY[key] for key in group_order(group, tiles)
+                if active.get(key, True) and key not in hidden]
+        for group in HOME_GROUPS
+    }

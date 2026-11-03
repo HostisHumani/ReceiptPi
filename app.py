@@ -44,6 +44,7 @@ import pending_store
 import printer_status
 import settings_store
 import themes
+import user_prefs
 import version
 from logos import ensure_default_logo_seeded
 from modules.auth import guard as auth_guard
@@ -300,6 +301,7 @@ def index():
     total_prints = history_store.count_for(scope) if scope else 0
     return render_template(
         "home.html",
+        home_tiles=module_catalog.home_tiles(active, user_prefs.current().get(user_prefs.TILES)),
         active_module_count=active_count,
         total_module_count=len(module_catalog.MODULES),
         total_prints=total_prints,

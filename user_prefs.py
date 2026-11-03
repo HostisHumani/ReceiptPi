@@ -5,6 +5,8 @@ users.prefs column of auth.db (auth_store.get_prefs/update_prefs):
   ui_lang       language of the web UI (a key of i18n.SUPPORTED_LANGUAGES)
   theme         UI theme (a key of themes.SUPPORTED_THEMES)
   receipt_lang  language of the receipts the account prints
+  tiles         order and visibility of the home page tiles
+                (module_catalog.sanitize_tiles() describes the format)
 
 A missing key means "device default": the global setting in
 settings.json applies, as it does for everything without an account -
@@ -24,11 +26,13 @@ from flask import g, has_request_context
 
 import auth_store
 import i18n
+import module_catalog
 import themes
 
 UI_LANG = "ui_lang"
 THEME = "theme"
 RECEIPT_LANG = "receipt_lang"
+TILES = "tiles"
 
 _CHOICES = {
     UI_LANG: i18n.SUPPORTED_LANGUAGES,
@@ -47,6 +51,9 @@ def sanitize(prefs):
         value = prefs.get(key)
         if isinstance(value, str) and value in choices:
             clean[key] = value
+    tiles = module_catalog.sanitize_tiles(prefs.get(TILES))
+    if tiles:
+        clean[TILES] = tiles
     return clean
 
 
@@ -65,24 +72,29 @@ def current():
 
 def valid_choice(key, value):
     """Whether value may be stored under key. None and "" stand for
-    "device default" and are always valid."""
-    return value in (None, "") or (isinstance(value, str) and value in _CHOICES[key])
+    "device default" and are always valid. Tile settings are valid only
+    in their sanitized form."""
+    if value in (None, ""):
+        return True
+    if key == TILES:
+        return isinstance(value, dict) and module_catalog.sanitize_tiles(value) == value
+    return isinstance(value, str) and value in _CHOICES[key]
 
 
 def update(user_id, changes):
-    """Applies {key: value} to an account's settings; None or "" removes
-    the key, so the device default applies again. Raises ValueError for
+    """Applies {key: value} to an account's settings; None or "" (or an
+    empty tile setting) removes the key, so the default applies again. Raises ValueError for
     an unknown key or a value that is not one of its choices, and
     auth_store.AuthError("user_not_found") for an unknown account.
     Returns the new, sanitized settings."""
     for key, value in changes.items():
-        if key not in _CHOICES or not valid_choice(key, value):
+        if key not in (*_CHOICES, TILES) or not valid_choice(key, value):
             raise ValueError(key)
 
     def change(current):
         new = sanitize(current)
         for key, value in changes.items():
-            if value in (None, ""):
+            if value in (None, "", {}):
                 new.pop(key, None)
             else:
                 new[key] = value

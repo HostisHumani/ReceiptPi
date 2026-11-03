@@ -106,5 +106,13 @@
   "auth.prefs.receipt_lang_heading": "Receipt language",
   "auth.prefs.receipt_lang_hint": "Applies to everything you print, including a later reprint from \"Pending Jobs\". Prints via the API, MQTT or automations always use the device language.",
   "auth.prefs.saved": "Settings saved ✓",
-  "auth.prefs.invalid": "Invalid choice - nothing was saved."
+  "auth.prefs.invalid": "Invalid choice - nothing was saved.",
+  "auth.prefs.tiles.header": "Customize home page",
+  "auth.prefs.tiles.desc": "Show, hide and sort the tiles",
+  "auth.prefs.tiles.link": "Customize home page",
+  "auth.prefs.tiles.intro": "Choose which tiles your home page shows and change their order within each group. This applies to your account only.",
+  "auth.prefs.tiles.hint": "Hidden tiles are only left off the home page, their pages stay reachable. New modules appear at the end of their group.",
+  "auth.prefs.tiles.move_up": "Move {name} up",
+  "auth.prefs.tiles.move_down": "Move {name} down",
+  "auth.prefs.tiles.reset": "Restore default"
 }
