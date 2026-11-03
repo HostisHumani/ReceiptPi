@@ -6,9 +6,11 @@ to .gitignore).
 """
 
 # --- Printer -----------------------------------------------------------
-# Determine via `lsusb`.
+# USB vendor/product ID of the printer, shown by `lsusb` as "ID 04b8:0e02".
+# The values below are the Epson TM-T88V. Another printer also needs the
+# matching udev rule (deploy/udev/99-receiptpi-printer.rules).
 VENDOR_ID = 0x04b8
-PRODUCT_ID = 0x0202
+PRODUCT_ID = 0x0e02
 
 # --- Home Assistant (for Netatmo values) --------------------------------
 HA_BASE_URL = "http://homeassistant.local:8123"
