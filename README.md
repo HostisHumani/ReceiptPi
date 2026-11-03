@@ -153,10 +153,11 @@ plain forms:
 
 - **Home/dashboard** (`/`) - a status strip (printer reachability, polled
   live via `/health` every 60 seconds; how many of the toggleable modules
-  are currently active; total print count from the history store),
+  are currently active; the print count from the history store - the
+  viewer's own prints once accounts are in use),
   followed by a tile grid linking to every currently enabled module.
 - **Navigation** - a topbar wordmark, a small printer-status dot, and a
-  hamburger menu (History, Pending, Settings, and Users once logged in -
+  hamburger menu (History and Pending; Settings, and Users once logged in -
   for admins only, see [Login and accounts](#login-and-accounts); once
   logged in also Account and Log out).
 - **Themes** - 6 selectable color themes (Warm [default], Forrest, Dark
@@ -239,22 +240,43 @@ logins except the current one). Log out is in the menu.
 **Roles**: every account is either `admin` or `user`. Admins may use
 everything. Users may use the home page, message, lists (including drafts
 and `/shopping`), weather, guest Wi-Fi, recipes, games and images, plus
-their own account page and log out - including the form posts of these
-pages. Everything else is admin only: all settings pages and
-`/ui/settings/*` routes, the system report (`/system`, `/ui/system`), the
-backup, the user management, language and design, and for now also the
-print history (`/history`) and the pending jobs (`/pending`,
-`/pending/print`, `/pending/discard`): pending entries can contain secrets
-such as a guest Wi-Fi password, and history and pending are not yet kept
-per account. Routes are admin only unless marked otherwise, so a route
-added later without a marker is closed to users. The menu shows History,
-Pending, Settings and Users only to admins, and the home page shows a user
+their own account page, their own print history (`/history`) and
+pending jobs (`/pending`, `/pending/print`, `/pending/discard`, see below)
+and log out - including the form posts of these pages. Everything else is
+admin only: all settings pages and `/ui/settings/*` routes, the system
+report (`/system`, `/ui/system`), the backup, the user management,
+language and design. Routes are admin only unless marked otherwise, so a
+route added later without a marker is closed to users. The menu shows
+Settings and Users only to admins, and the home page shows a user
 no tile for a page they can't open. A user who opens an admin page in the
 browser gets a translated `403` page with a link to the home page; a
 `fetch()` or JSON request gets `403` with
 `{"status": "error", "error": "forbidden", "detail": "..."}`. The role is
 read from `auth.db` on every request, so changing a role, locking or
 deleting an account takes effect with the account's next request.
+
+**History and pending jobs per account**: every print job belongs to the
+account that triggered it - from the queue through printing, the history,
+the pending list and a reprint from there. Jobs without a logged-in
+account (API token, webhook, MQTT, watchers, boot greeting, storm warning,
+or no admin set up yet) belong to "System". An account is stored as its
+id together with its creation time, so an account created after
+`auth.db` was reset never inherits an older account's entries, even with
+the same id. Users see only their own entries on `/history` and
+`/pending`, and can only reprint or discard their own; ids of other
+entries are ignored. Admins see every entry with its owner and can
+filter by owner (all, System, an account, or a deleted account); entries
+of a deleted account stay and show up for admins as "Deleted account
+#id". Nobody sees a pending entry's stored content (such as a Wi-Fi
+password), only the fields the lists show. A user's reprint waits for
+quiet hours like a new job; only an admin's reprint skips them. The
+home page counts the viewer's own prints (admins included), the
+pending badge in the menu the viewer's own pending entries (admins: all).
+Rate limit, duplicate suppression and quiet hours stay the same for
+everyone, and the MQTT status (last job, pending count) still covers
+the whole device. On the first start, existing history rows from the
+web UI (source "ui" and their reprints) are given to the admin with the
+lowest id; everything else stays System.
 
 **User management** (`/settings/users`, admin only, also in the menu and
 on the settings page): lists every account with role, status (active,
@@ -677,8 +699,9 @@ is no separate screen-reader markup or contrast mode tied to it.
 A print job blocked by quiet hours/rate limit, or one that fails with a
 real printer error (device unreachable, USB error, ...), doesn't just
 vanish - its content is saved so it can be reviewed and manually
-reprinted or discarded later, reachable via the burger menu (for admins
-only once an admin account exists, see [Login and accounts](#login-and-accounts)). Applies
+reprinted or discarded later, reachable via the burger menu (each
+account sees its own entries once an admin account exists, see
+[Login and accounts](#login-and-accounts)). Applies
 across every source (web UI, JSON API, automation webhook, watchers)
 equally, since it hooks into `enqueue_print()` centrally rather than
 each module individually. Duplicate-suppression blocks are deliberately

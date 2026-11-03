@@ -156,12 +156,12 @@ Formulare umgesetzt:
 
 - **Home/Dashboard** (`/`) – ein Status-Streifen (Drucker-Erreichbarkeit,
   live per `/health`-Poll alle 60 Sekunden geprüft; wie viele der
-  schaltbaren Module aktuell aktiv sind; Gesamt-Druckanzahl aus dem
-  Verlaufs-Store), gefolgt von einem Kachel-Grid mit Links zu jedem
+  schaltbaren Module aktuell aktiv sind; Druckanzahl aus dem
+  Verlaufs-Store – mit Konten die eigenen Drucke), gefolgt von einem Kachel-Grid mit Links zu jedem
   aktuell aktivierten Modul.
 - **Navigation** – ein Topbar-Wordmark, ein kleiner Drucker-Status-Punkt
-  und ein Burger-Menü (Verlauf, Ausstehende Aufträge, Einstellungen und nach
-  der Anmeldung Nutzer – nur für Admins, siehe
+  und ein Burger-Menü (Verlauf und Ausstehende Aufträge; Einstellungen und
+  nach der Anmeldung Nutzer – nur für Admins, siehe
   [Anmeldung und Konten](#anmeldung-und-konten); nach der Anmeldung
   zusätzlich Konto und Abmelden).
 - **Themes** – 6 wählbare Farbschemata (Warm [Standard], Forrest, Dark
@@ -251,24 +251,47 @@ Anmeldungen außer der aktuellen. Abmelden steht im Menü.
 **Rollen**: Jedes Konto ist entweder `admin` oder `user` (Nutzer). Admins
 dürfen alles. Nutzer dürfen Startseite, Nachricht, Listen (einschließlich
 Entwürfen und `/shopping`), Wetter, Gast-WLAN, Rezepte, Spiele und Bilder
-verwenden sowie ihr eigenes Konto und Abmelden – einschließlich der
+verwenden sowie ihr eigenes Konto, ihren eigenen Druckverlauf (`/history`)
+und ihre eigenen ausstehenden Aufträge (`/pending`, `/pending/print`,
+`/pending/discard`, siehe unten) und Abmelden – einschließlich der
 Formular-Posts dieser Seiten. Alles andere ist nur für Admins: alle
 Einstellungsseiten und `/ui/settings/*`-Routen, der Systembericht
 (`/system`, `/ui/system`), die Sicherung, die Nutzerverwaltung, Sprache und
-Design sowie vorerst auch der Druckverlauf (`/history`) und die
-ausstehenden Aufträge (`/pending`, `/pending/print`, `/pending/discard`):
-Ausstehende Aufträge können Geheimnisse wie ein Gast-WLAN-Passwort
-enthalten, und Verlauf und ausstehende Aufträge sind noch nicht pro Konto
-getrennt. Routen sind nur für Admins, sofern sie nicht anders markiert
+Design. Routen sind nur für Admins, sofern sie nicht anders markiert
 sind; eine später ergänzte Route ohne Markierung ist für Nutzer also
-gesperrt. Das Menü zeigt Verlauf, Ausstehende Aufträge, Einstellungen und
-Nutzer nur Admins, und die Startseite zeigt Nutzern keine Kachel für eine
+gesperrt. Das Menü zeigt Einstellungen und Nutzer nur Admins, und die
+Startseite zeigt Nutzern keine Kachel für eine
 Seite, die sie nicht öffnen dürfen. Öffnet ein Nutzer eine Admin-Seite im
 Browser, kommt eine übersetzte `403`-Seite mit Link zur Startseite; eine
 `fetch()`- oder JSON-Anfrage bekommt `403` mit
 `{"status": "error", "error": "forbidden", "detail": "..."}`. Die Rolle wird
 bei jeder Anfrage aus `auth.db` gelesen; eine Rollenänderung, Sperre oder
 Löschung wirkt also mit der nächsten Anfrage des Kontos.
+
+**Verlauf und ausstehende Aufträge pro Konto**: Jeder Druckauftrag gehört
+dem Konto, das ihn ausgelöst hat – von der Warteschlange über den Druck,
+den Verlauf und die ausstehenden Aufträge bis zum Nachdruck von dort.
+Aufträge ohne angemeldetes Konto (API-Token, Webhook, MQTT, Watcher,
+Boot-Gruß, Unwetterwarnung oder solange kein Admin eingerichtet ist)
+gehören „System“. Ein Konto wird mit seiner ID und seiner Anlagezeit
+gespeichert; ein nach dem Zurücksetzen von `auth.db` angelegtes Konto
+erbt deshalb keine Einträge eines älteren Kontos, auch nicht bei
+gleicher ID. Nutzer sehen auf `/history` und `/pending` nur ihre eigenen
+Einträge und können nur eigene nachdrucken oder verwerfen; IDs fremder
+Einträge werden ignoriert. Admins sehen alle Einträge mit Besitzer und
+können nach Besitzer filtern (alle, System, ein Konto oder ein gelöschtes
+Konto); Einträge eines gelöschten Kontos bleiben erhalten und erscheinen
+für Admins als „Gelöschtes Konto #id“. Den gespeicherten Inhalt eines
+ausstehenden Auftrags (etwa ein WLAN-Passwort) sieht niemand, nur die
+Felder der Liste. Der Nachdruck eines Nutzers wartet wie ein neuer
+Auftrag auf das Ende der Ruhezeit; nur der Nachdruck eines Admins
+umgeht sie. Die Startseite zählt die eigenen Drucke (auch bei Admins),
+das Badge im Menü die eigenen ausstehenden Aufträge (Admins: alle).
+Rate-Limit, Duplikat-Sperre und Ruhezeiten gelten für alle gleich, und
+der MQTT-Status (letzter Auftrag, Anzahl ausstehender Aufträge) umfasst
+weiter das ganze Gerät. Beim ersten Start gehen vorhandene
+Verlaufseinträge aus der Web-UI (Quelle „ui“ und deren Nachdrucke) an
+den Admin mit der kleinsten ID; alles andere bleibt System.
 
 **Nutzerverwaltung** (`/settings/users`, nur Admins, auch im Menü und auf
 der Einstellungsseite): listet alle Konten mit Rolle, Status (aktiv,
@@ -718,8 +741,9 @@ Ein durch Ruhezeiten/Rate-Limit blockierter Druckauftrag – oder einer,
 der an einem echten Druckerfehler (Gerät nicht erreichbar, USB-Fehler,
 …) scheitert – verschwindet nicht einfach: der Inhalt wird gespeichert,
 damit er später überprüft und manuell nachgedruckt oder verworfen
-werden kann, erreichbar über das Burger-Menü (nur für Admins, sobald ein
-Admin-Konto existiert, siehe [Anmeldung und Konten](#anmeldung-und-konten)). Gilt gleichermaßen für
+werden kann, erreichbar über das Burger-Menü (jedes Konto sieht seine
+eigenen Einträge, sobald ein Admin-Konto existiert, siehe
+[Anmeldung und Konten](#anmeldung-und-konten)). Gilt gleichermaßen für
 jede Quelle (Web-UI, JSON-API, Automation-Webhook, Watcher), da zentral
 an `enqueue_print()` angeknüpft wird statt einzeln pro Modul.
 Duplikat-Sperren-Blockaden sind bewusst ausgeschlossen – die spiegeln
