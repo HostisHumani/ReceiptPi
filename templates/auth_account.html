@@ -5,6 +5,13 @@
 
 <div class="hint hint-standalone">{{ t('auth.account.signed_in_as', name=account.name) }}</div>
 
+{%- if must_change %}
+  <div class="msg notice">
+    <span class="icon icon-info" aria-hidden="true"></span>
+    <span>{{ t('auth.account.must_change_notice') }}</span>
+  </div>
+{%- endif %}
+
 <h2 class="section-title">{{ t('auth.account.password_heading') }}</h2>
 <form method="post" action="/account" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -26,6 +33,7 @@
   <button type="submit">{{ t('auth.account.password_submit') }}</button>
 </form>
 
+{%- if not must_change %}
 <h2 class="section-title">{{ t('auth.account.sessions_heading') }}</h2>
 <form method="post" action="/account" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -33,4 +41,5 @@
   <div class="hint hint-standalone">{{ t('auth.account.sessions_hint') }}</div>
   <button type="submit" class="btn btn-secondary btn-block">{{ t('auth.account.logout_others') }}</button>
 </form>
+{%- endif %}
 {% endblock %}

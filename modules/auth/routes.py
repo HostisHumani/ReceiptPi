@@ -26,7 +26,7 @@ import i18n
 from modules.auth import guard
 from modules.auth.throttle import throttle
 from print_queue import enqueue_print
-from security import csrf_protect, get_csrf_token, public
+from security import any_user, csrf_protect, get_csrf_token, public
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -301,10 +301,11 @@ def logout():
 
 def _account_page(status=200, message=None, success=None):
     return _render("auth_account.html", status, message=message, success=success,
-                   account=g.auth_user)
+                   account=g.auth_user, must_change=g.auth_user["must_change_password"])
 
 
 @auth_bp.route("/account", methods=["GET"])
+@any_user
 def account_page():
     # Without an admin account there is no login, so no own account
     # either; the guard lets every request through in that state.
@@ -314,6 +315,7 @@ def account_page():
 
 
 @auth_bp.route("/account", methods=["POST"])
+@any_user
 @csrf_protect
 def account_submit():
     if not g.get("auth_user"):
@@ -322,6 +324,8 @@ def account_submit():
     current_hash = g.auth_session["token_hash"]
     action = request.form.get("action")
 
+    # The guard only lets change_password through while the account still
+    # has a start password.
     if action == "logout_others":
         count = auth_store.revoke_user_sessions(user["id"], except_token_hash=current_hash)
         return _account_page(message=i18n.tr("auth.account.others_logged_out", count=count), success=True)
@@ -343,6 +347,9 @@ def account_submit():
         auth_store.validate_password(new_password)
         if new_password != request.form.get("new_password_repeat", ""):
             raise auth_store.AuthError("password_mismatch")
+        # A start password has to be replaced, not confirmed.
+        if new_password == request.form.get("current_password", ""):
+            raise auth_store.AuthError("password_unchanged")
         # Every other session ends with the old password: whoever might
         # have known it is logged out along with it.
         auth_store.set_password(user["id"], new_password, revoke_sessions=True,
@@ -350,18 +357,27 @@ def account_submit():
     except auth_store.AuthError as e:
         return _account_page(400, i18n.tr(f"auth.error.{e.code}", min=auth_store.PASSWORD_MIN_LEN,
                                           max=auth_store.PASSWORD_MAX_LEN), False)
+    # The page rendered below should already show the account without
+    # the start password notice and with the full menu.
+    g.auth_user = dict(user, must_change_password=False)
     return _account_page(message=i18n.tr("auth.account.password_changed"), success=True)
 
 
 @auth_bp.app_context_processor
 def inject_auth():
     """Login state for base.html (menu entries, setup banner) and the
-    settings page (missing API_TOKEN warning). menu_csrf_token is a
+    settings page (missing API_TOKEN warning). auth_is_admin decides the
+    admin entries in the menu; auth_can_open(path) hides links to pages
+    the account may not open. menu_csrf_token is a
     function so the CSRF token (and with it Flask's session cookie) is
     only created on pages that actually render the logout button."""
     admin_exists = auth_store.admin_exists()
+    user = g.get("auth_user")
     return {
-        "auth_user": g.get("auth_user"),
+        "auth_user": user,
+        "auth_is_admin": guard.is_admin(),
+        "auth_must_change": bool(user and user["must_change_password"]),
+        "auth_can_open": guard.can_open,
         "auth_admin_exists": admin_exists,
         "auth_setup_needed": not admin_exists,
         "auth_api_token_missing": admin_exists and not _api_token(),

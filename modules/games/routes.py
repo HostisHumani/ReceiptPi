@@ -18,7 +18,7 @@ from flask import Blueprint, render_template, request
 import i18n
 from print_queue import enqueue_print
 from printer import get_printer
-from security import csrf_protect, get_csrf_token
+from security import any_user, csrf_protect, get_csrf_token
 from text_style import BODY_COLUMNS, get_text_scale
 
 from . import sudoku
@@ -74,11 +74,13 @@ def _raw_print_sudoku_solution(solution):
 
 
 @games_bp.route("/games", methods=["GET"])
+@any_user
 def games_index():
     return render_template("games_index.html")
 
 
 @games_bp.route("/games/sudoku", methods=["GET"])
+@any_user
 def games_sudoku_page():
     return render_template(
         "games_sudoku.html", message=None, success=None, csrf_token=get_csrf_token(),
@@ -86,6 +88,7 @@ def games_sudoku_page():
 
 
 @games_bp.route("/ui/games/sudoku", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_sudoku():
     difficulty = request.form.get("difficulty", "medium")
@@ -221,11 +224,13 @@ def _raw_print_dice_blocks(num_players):
 
 
 @games_bp.route("/games/dice", methods=["GET"])
+@any_user
 def games_dice_page():
     return render_template("games_dice.html", message=None, success=None, csrf_token=get_csrf_token())
 
 
 @games_bp.route("/ui/games/dice", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_dice():
     try:
@@ -284,11 +289,13 @@ def _raw_print_tictactoe(rounds):
 
 
 @games_bp.route("/games/tictactoe", methods=["GET"])
+@any_user
 def games_tictactoe_page():
     return render_template("games_tictactoe.html", message=None, success=None, csrf_token=get_csrf_token())
 
 
 @games_bp.route("/ui/games/tictactoe", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_tictactoe():
     try:

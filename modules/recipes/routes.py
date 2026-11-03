@@ -21,7 +21,7 @@ from flask import Blueprint, jsonify, render_template, request
 import i18n
 from print_queue import enqueue_print
 from printer import get_printer
-from security import MAX_TITLE_LEN, csrf_protect, get_csrf_token
+from security import MAX_TITLE_LEN, any_user, csrf_protect, get_csrf_token
 from text_style import BODY_COLUMNS, get_text_scale
 
 from . import mealie
@@ -151,6 +151,7 @@ def _render_detail(recipe, message=None, success=None, random_query=None):
 
 
 @recipes_bp.route("/recipes", methods=["GET"])
+@any_user
 def recipes_page():
     """Search runs as a plain GET (?q=...) - it's read-only, and this
     way the result list survives the browser's back button from a
@@ -166,6 +167,7 @@ def recipes_page():
 
 
 @recipes_bp.route("/recipes/view/<slug>", methods=["GET"])
+@any_user
 def recipe_detail_page(slug):
     try:
         recipe = mealie.recipe_to_printable(mealie.get_recipe(slug))
@@ -186,6 +188,7 @@ def _parse_ingredient_names(raw):
 
 
 @recipes_bp.route("/recipes/random", methods=["GET"])
+@any_user
 def random_recipe_page():
     raw_ingredients = request.args.get("ingredients", "")
     match_all = request.args.get("match") == "all"
@@ -221,6 +224,7 @@ def random_recipe_page():
 
 
 @recipes_bp.route("/ui/recipes/print", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_recipe():
     """Re-fetches the recipe by slug instead of trusting preview data
@@ -250,6 +254,7 @@ def _json_error(err):
 
 
 @recipes_bp.route("/recipes/import/lists", methods=["GET"])
+@any_user
 def import_shopping_lists():
     try:
         lists = mealie.get_shopping_lists()
@@ -259,6 +264,7 @@ def import_shopping_lists():
 
 
 @recipes_bp.route("/recipes/import/lists/<list_id>", methods=["GET"])
+@any_user
 def import_shopping_list_items(list_id):
     try:
         lines, skipped_checked = mealie.get_shopping_list_items(list_id, _decimal_sep())

@@ -26,6 +26,7 @@ from security import (
     MAX_ITEMS,
     MAX_TEXT_LEN,
     MAX_TITLE_LEN,
+    any_user,
     csrf_protect,
     get_csrf_token,
     get_json_body,
@@ -282,12 +283,14 @@ def do_print_task(fields, source="ui"):
 
 
 @lists_bp.route("/lists", methods=["GET"])
+@any_user
 def lists_index():
     return render_template("lists_index.html")
 
 
 @lists_bp.route("/shopping", methods=["GET"])
 @lists_bp.route("/lists/shopping", methods=["GET"])
+@any_user
 def shopping_page():
     default_title = i18n.tr("shopping.title_default")
     draft = lists_store.get_draft("shopping")
@@ -321,6 +324,7 @@ def print_list():
 
 
 @lists_bp.route("/ui/list", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_list():
     default_title = i18n.tr("shopping.title_default")
@@ -349,6 +353,7 @@ def ui_print_list():
 
 
 @lists_bp.route("/ui/list/draft", methods=["POST"])
+@any_user
 @csrf_protect
 def save_list_draft():
     """Called by static/draft-autosave.js a short while after typing
@@ -361,6 +366,7 @@ def save_list_draft():
 
 
 @lists_bp.route("/lists/todo", methods=["GET"])
+@any_user
 def todo_page():
     default_title = i18n.tr("lists.todo.title_default")
     draft = lists_store.get_draft("todo")
@@ -391,6 +397,7 @@ def print_todo():
 
 
 @lists_bp.route("/ui/todo", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_todo():
     default_title = i18n.tr("lists.todo.title_default")
@@ -409,6 +416,7 @@ def ui_print_todo():
 
 
 @lists_bp.route("/ui/todo/draft", methods=["POST"])
+@any_user
 @csrf_protect
 def save_todo_draft():
     lists_store.save_draft("todo", {
@@ -419,6 +427,7 @@ def save_todo_draft():
 
 
 @lists_bp.route("/lists/task", methods=["GET"])
+@any_user
 def task_page():
     draft = lists_store.get_draft("task")
     return render_template(
@@ -456,6 +465,7 @@ def print_task():
 
 
 @lists_bp.route("/ui/task", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_task():
     form_data = {
@@ -497,6 +507,7 @@ def ui_print_task():
 
 
 @lists_bp.route("/ui/task/draft", methods=["POST"])
+@any_user
 @csrf_protect
 def save_task_draft():
     lists_store.save_draft("task", {

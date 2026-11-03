@@ -5,8 +5,9 @@ input limits used by several modules.
 
 Every view's access class for the login check (modules/auth/guard.py)
 comes from the decorators here, not from its URL: require_api_token
-marks a view as "api_token", public marks it as "public", and a view
-with neither needs a login once an admin account exists.
+marks a view as "api_token", public marks it as "public", any_user marks
+it as open to every logged-in account, and a view with none of them is
+for admins only once an admin account exists.
 """
 import re
 import secrets as secrets_module
@@ -21,6 +22,7 @@ import i18n
 ACCESS_ATTR = "receiptpi_access"
 ACCESS_PUBLIC = "public"
 ACCESS_API_TOKEN = "api_token"
+ACCESS_USER = "user"
 
 # Shared input limits (used by shopping, message, and others)
 MAX_TITLE_LEN = 100
@@ -77,6 +79,15 @@ def public(view_func):
     """Marks a view as reachable without a login (health check, static
     assets, the login page itself). The view is returned unchanged."""
     setattr(view_func, ACCESS_ATTR, ACCESS_PUBLIC)
+    return view_func
+
+
+def any_user(view_func):
+    """Marks a view as open to every logged-in account, not only admins.
+    Without this (or public/require_api_token) a view is admin-only, so a
+    route added later is closed to normal accounts until someone decides
+    otherwise. The view is returned unchanged."""
+    setattr(view_func, ACCESS_ATTR, ACCESS_USER)
     return view_func
 
 

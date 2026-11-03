@@ -7,7 +7,9 @@
 {% if not configured %}
 <div class="card">
   <div class="hint hint-standalone">{{ t('recipes.not_configured_hint') }}</div>
+  {%- if auth_can_open("/settings/recipes") %}
   <a class="btn btn-secondary" href="/settings/recipes">{{ t('recipes.open_settings') }}</a>
+  {%- endif %}
 </div>
 {% else %}
 

@@ -27,7 +27,7 @@ from flask import Blueprint, jsonify, make_response, render_template, request
 import i18n
 from print_queue import enqueue_print
 from printer import get_printer
-from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
+from security import any_user, csrf_protect, get_csrf_token, get_json_body, require_api_token
 
 from .processing import DEFAULT_DITHER, DITHER_METHODS, ImageConversionError, image_to_1bit
 
@@ -163,6 +163,7 @@ def _render_page(message=None, success=None, dither=DEFAULT_DITHER):
 
 
 @images_bp.route("/images", methods=["GET"])
+@any_user
 def images_page():
     return _render_page()
 
@@ -204,6 +205,7 @@ def preview_image_api():
 
 
 @images_bp.route("/ui/images/preview", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_preview_image():
     """Preview for the web UI subpage (static/image-preview.js): same
@@ -217,6 +219,7 @@ def ui_preview_image():
 
 
 @images_bp.route("/ui/images", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_image():
     """File upload from the web UI subpage (multipart/form-data), no

@@ -781,6 +781,14 @@ a.list-row .list-row-actions { color: var(--text-dim); }
 
 .inline-form { margin: 0; }
 
+/* User management (templates/settings_users.html): the actions for one
+   account wrap below its name on a narrow screen, and the start password
+   is shown large enough to copy by hand without mixing up characters. */
+.user-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.user-role-form { display: flex; gap: var(--space-2); align-items: center; }
+.user-role-form select { width: auto; margin: 0; }
+.initial-password { font-size: 1.4em; font-weight: 600; word-break: break-all; user-select: all; }
+
 .badge {
   display: inline-flex;
   align-items: center;

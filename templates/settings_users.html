@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block header_icon %}<span class="mark"><span class="icon icon-list" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('auth.users.header') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+{% if initial_password %}
+  {# Shown once, in the response to the create/reset POST only. #}
+  <div class="card">
+    <h3 class="section-subtitle section-title-flush">{{ t('auth.users.initial_password_heading', name=initial_password.name) }}</h3>
+    <div class="mono initial-password">{{ initial_password.password }}</div>
+    <div class="hint">{{ t('auth.users.initial_password_hint') }}</div>
+  </div>
+{% endif %}
+
+{% if confirm_delete %}
+  <h2 class="section-title section-title-flush">{{ t('auth.users.delete_heading') }}</h2>
+  <form method="post" action="/ui/settings/users/{{ confirm_delete.id }}/delete" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="confirm" value="yes">
+    <div class="hint hint-standalone">{{ t('auth.users.delete_confirm', name=confirm_delete.name) }}</div>
+    <button type="submit" class="btn btn-danger btn-block">{{ t('auth.users.delete_button') }}</button>
+  </form>
+  <a class="btn btn-secondary btn-block" href="/settings/users">{{ t('auth.users.delete_cancel') }}</a>
+{% endif %}
+
+<h2 class="section-title{% if not initial_password and not confirm_delete %} section-title-flush{% endif %}">{{ t('auth.users.list_heading') }}</h2>
+<div class="card">
+  {% for u in users %}
+    <div class="list-row list-row-top">
+      <div class="list-row-main">
+        <div class="list-row-title">{{ u.name }}{% if u.is_self %} {{ t('auth.users.you') }}{% endif %}</div>
+        <div class="list-row-meta">
+          <span class="badge {{ 'badge-accent' if u.role == 'admin' else 'badge-muted' }}">{{ t('auth.users.role.' ~ u.role) }}</span>
+          {% if u.disabled %}<span class="badge badge-danger">{{ t('auth.users.status.locked') }}</span>
+          {% elif u.must_change_password %}<span class="badge badge-muted">{{ t('auth.users.status.must_change') }}</span>
+          {% else %}<span class="badge badge-muted">{{ t('auth.users.status.active') }}</span>{% endif %}
+        </div>
+        <div class="list-row-meta">{{ t('auth.users.last_login', when=u.last_login_display) if u.last_login_display else t('auth.users.never_logged_in') }}</div>
+        {% if not u.is_self %}
+        <div class="user-actions">
+          <form method="post" action="/ui/settings/users/{{ u.id }}/role" class="inline-form user-role-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="role" aria-label="{{ t('auth.users.role_label') }}">
+              {% for r in roles %}<option value="{{ r }}"{% if r == u.role %} selected{% endif %}>{{ t('auth.users.role.' ~ r) }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary btn-sm">{{ t('auth.users.role_button') }}</button>
+          </form>
+          <form method="post" action="/ui/settings/users/{{ u.id }}/{{ 'unlock' if u.disabled else 'lock' }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-secondary btn-sm">{{ t('auth.users.unlock_button') if u.disabled else t('auth.users.lock_button') }}</button>
+          </form>
+          <form method="post" action="/ui/settings/users/{{ u.id }}/reset-password" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-secondary btn-sm">{{ t('auth.users.reset_button') }}</button>
+          </form>
+          <form method="post" action="/ui/settings/users/{{ u.id }}/delete" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-danger btn-sm">{{ t('auth.users.delete_button') }}</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+  <div class="hint">{{ t('auth.users.self_hint') }}</div>
+</div>
+
+<h2 class="section-title">{{ t('auth.users.create_heading') }}</h2>
+<form method="post" action="/ui/settings/users/create" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="name">{{ t('auth.field.name') }}</label>
+  <input type="text" id="name" name="name" value="{{ name_value }}" maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+  <div class="hint">{{ t('auth.field.name_hint') }}</div>
+
+  <label for="role">{{ t('auth.users.role_label') }}</label>
+  <select id="role" name="role">
+    {% for r in roles %}<option value="{{ r }}"{% if r == role_value %} selected{% endif %}>{{ t('auth.users.role.' ~ r) }}</option>{% endfor %}
+  </select>
+  <div class="hint">{{ t('auth.users.role_hint') }}</div>
+
+  <button type="submit">{{ t('auth.users.create_button') }}</button>
+</form>
+{% endblock %}

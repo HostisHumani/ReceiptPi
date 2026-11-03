@@ -17,6 +17,7 @@ from print_queue import enqueue_print
 from security import (
     MAX_TEXT_LEN,
     MAX_TITLE_LEN,
+    any_user,
     csrf_protect,
     get_csrf_token,
     get_json_body,
@@ -85,6 +86,7 @@ def do_print_message(title, text, source="ui"):
 
 
 @message_bp.route("/message", methods=["GET"])
+@any_user
 def message_page():
     return render_template("message.html", message=None, success=None, csrf_token=get_csrf_token())
 
@@ -107,6 +109,7 @@ def print_message():
 
 
 @message_bp.route("/ui/message", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_message():
     title = request.form.get("title", "").strip()[:MAX_TITLE_LEN]

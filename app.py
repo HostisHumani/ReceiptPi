@@ -48,6 +48,7 @@ import version
 from logos import ensure_default_logo_seeded
 from modules.auth import guard as auth_guard
 from modules.auth.routes import auth_bp
+from modules.auth.users import users_bp
 from modules.automation.routes import automation_bp
 from modules.backup.routes import backup_bp
 from modules.games.routes import games_bp
@@ -62,7 +63,7 @@ from modules.system.routes import system_bp
 from modules.weather.routes import weather_bp
 from modules.wifi.routes import wifi_bp
 from print_queue import start_worker
-from security import public
+from security import any_user, public
 from static_versioning import static_url, versioned_style_css
 
 app = Flask(__name__)
@@ -129,7 +130,7 @@ ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see
 
 for blueprint in (
     lists_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp,
-    history_bp, pending_bp, games_bp, recipes_bp, backup_bp, auth_bp,
+    history_bp, pending_bp, games_bp, recipes_bp, backup_bp, auth_bp, users_bp,
 ):
     app.register_blueprint(blueprint)
 
@@ -276,6 +277,7 @@ def health():
 
 
 @app.route("/", methods=["GET"])
+@any_user
 def index():
     active = module_catalog.active_modules(settings_store.get_settings())
     active_count = sum(1 for m in module_catalog.MODULES if active[m["key"]])

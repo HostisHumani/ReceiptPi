@@ -27,7 +27,7 @@ from logos import print_logo
 from modules.message.routes import _raw_print_message
 from modules.weather.alerts import fetch_open_meteo_forecast
 from print_queue import enqueue_print
-from security import MAX_TITLE_LEN, csrf_protect, get_csrf_token, require_api_token
+from security import MAX_TITLE_LEN, any_user, csrf_protect, get_csrf_token, require_api_token
 from text_style import get_text_scale, wrap_body_text
 
 weather_bp = Blueprint("weather", __name__)
@@ -225,6 +225,7 @@ def do_print_weather(location_name, source="ui"):
 
 
 @weather_bp.route("/weather", methods=["GET"])
+@any_user
 def weather_page():
     weather_settings = settings_store.get_settings()["weather"]
     return render_template(
@@ -261,6 +262,7 @@ def print_weather():
 
 
 @weather_bp.route("/ui/weather", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_weather():
     location_name = request.form.get("location") or None

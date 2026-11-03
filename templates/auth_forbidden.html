@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block header_title %}{{ t('auth.forbidden.header') }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="hint hint-standalone">{{ t('auth.forbidden.text') }}</div>
+  <a class="btn btn-secondary btn-block" href="/">{{ t('auth.forbidden.home') }}</a>
+</div>
+{% endblock %}

@@ -29,9 +29,17 @@
         <details class="burger-menu">
           <summary class="icon-btn" aria-label="Menu"><span class="icon icon-menu" aria-hidden="true"></span></summary>
           <div class="burger-dropdown">
+            {#- Admin pages only for admins (and for everyone while no admin
+                exists). With a start password, the account page is the
+                only page the account can open. #}
+            {%- if auth_is_admin and not auth_must_change %}
             <a href="/history"><span class="icon icon-history" aria-hidden="true"></span> {{ t('menu.history') }}</a>
             <a href="/pending"><span class="icon icon-clipboard-list" aria-hidden="true"></span> {{ t('menu.pending') }}{% if pending_count %} ({{ pending_count }}){% endif %}</a>
             <a href="/settings"><span class="icon icon-settings" aria-hidden="true"></span> {{ t('menu.settings') }}</a>
+            {%- if auth_user %}
+              <a href="/settings/users"><span class="icon icon-list" aria-hidden="true"></span> {{ t('auth.menu.users') }}</a>
+            {%- endif %}
+            {%- endif %}
             {%- if auth_user %}
               <a href="/account"><span class="icon icon-lock" aria-hidden="true"></span> {{ t('auth.menu.account') }}</a>
               {# Logout is a POST with CSRF token, so no other site can trigger it. #}

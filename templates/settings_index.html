@@ -120,6 +120,16 @@
       </div>
       <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
     </a>
+    {%- if auth_user %}
+    <a class="row" href="/settings/users">
+      <div class="icon-chip violet"><span class="icon icon-list" aria-hidden="true"></span></div>
+      <div class="body">
+        <div class="title">{{ t('auth.users.header') }}</div>
+        <div class="desc">{{ t('auth.users.desc') }}</div>
+      </div>
+      <div class="chev"><span class="icon icon-chevron-right" aria-hidden="true"></span></div>
+    </a>
+    {%- endif %}
   </div>
 </div>
 {% endblock %}

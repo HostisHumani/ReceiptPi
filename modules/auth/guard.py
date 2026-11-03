@@ -12,8 +12,19 @@ be kept in sync with every new route by hand:
   - "api_token" (security.require_api_token): open here; the decorator
     itself checks the X-Api-Token header and never looks at the
     session cookie.
-  - anything else, including routes added later without either
-    decorator and URLs that match no route: needs a valid session.
+  - "user" (security.any_user): needs a valid session of any role.
+  - anything else, including routes added later without a decorator
+    and URLs that match no route: needs a valid admin session. A
+    logged-in non-admin gets 403 (an HTML page for a browser, JSON for
+    fetch), never the login page - logging in again wouldn't help.
+
+An account whose password is a start password made by an admin
+(must_change_password) can only open its account page to change it;
+every other request that needs a session is sent there.
+
+The role comes from auth.db on every request (see
+auth_store.validate_session), so changing a role, locking or deleting
+an account takes effect with the account's next request.
 
 The session cookie (COOKIE_NAME) is separate from Flask's own signed
 session cookie, which keeps holding only the CSRF token. It carries a
@@ -23,17 +34,33 @@ so ending a session server-side takes effect immediately.
 from urllib.parse import urlsplit
 
 import config
-from flask import current_app, g, jsonify, redirect, request, url_for
+from flask import (
+    current_app,
+    g,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
+from werkzeug.exceptions import HTTPException
 
 import auth_store
 import i18n
-from security import ACCESS_API_TOKEN, ACCESS_ATTR, ACCESS_PUBLIC
+from security import ACCESS_API_TOKEN, ACCESS_ATTR, ACCESS_PUBLIC, ACCESS_USER
 
 COOKIE_NAME = "receiptpi_session"
 
 # Flask registers its static file route itself, so it can't carry the
 # decorator.
 _PUBLIC_ENDPOINTS = {"static"}
+
+# What an account with must_change_password may still reach: its
+# account page, where only the password change is accepted (see
+# _password_change_allowed). Public routes, including /logout and the
+# static files, stay open anyway.
+_PASSWORD_CHANGE_ENDPOINTS = {"auth.account_page", "auth.account_submit"}
 
 _MAX_NEXT_LEN = 2000
 
@@ -43,8 +70,8 @@ def cookie_secure():
 
 
 def access_class(endpoint):
-    """"public", "api_token" or None (login required) for an endpoint;
-    None also for a request that matched no route."""
+    """"public", "api_token", "user" or None (admin only) for an
+    endpoint; None also for a request that matched no route."""
     if endpoint is None:
         return None
     if endpoint in _PUBLIC_ENDPOINTS:
@@ -127,15 +154,74 @@ def login_required_response():
                     "detail": i18n.tr("auth.error.login_required")}), 401
 
 
+def forbidden_response():
+    """A logged-in account without the role for this route. A page in
+    the browser gets a translated 403 page with a way back home;
+    fetch() and scripts get JSON."""
+    if _wants_html_page() and "X-Api-Token" not in request.headers:
+        return make_response(render_template("auth_forbidden.html"), 403)
+    return jsonify({"status": "error", "error": "forbidden",
+                    "detail": i18n.tr("auth.error.forbidden")}), 403
+
+
+def _password_change_allowed():
+    if request.endpoint not in _PASSWORD_CHANGE_ENDPOINTS:
+        return False
+    return request.method in ("GET", "HEAD") or request.form.get("action") == "change_password"
+
+
+def password_change_required_response():
+    """Sends an account with a start password to its account page: a
+    page load or a form post by redirect, fetch() and scripts get a
+    JSON 403 (a redirect would only hand them the HTML page)."""
+    if _wants_html_page() and "X-Api-Token" not in request.headers:
+        code = 302 if request.method in ("GET", "HEAD") else 303
+        return redirect(url_for("auth.account_page"), code=code)
+    return jsonify({"status": "error", "error": "password_change_required",
+                    "detail": i18n.tr("auth.error.password_change_required")}), 403
+
+
+def is_admin():
+    """True while no admin account exists (no logins, everything open as
+    before) and for a logged-in admin; for templates and the guard."""
+    if not auth_store.admin_exists():
+        return True
+    user = g.get("auth_user")
+    return bool(user) and user["role"] == "admin"
+
+
+def can_open(path):
+    """Whether the current request's account may open path with GET -
+    for templates that link to another page (home tiles, the hint on the
+    recipes page), so a normal account is not shown links to admin
+    pages. Follows the same classification as enforce_login()."""
+    if is_admin():
+        return True
+    if not g.get("auth_user"):
+        return False
+    try:
+        endpoint, _args = current_app.url_map.bind("").match(path, method="GET")
+    except HTTPException:
+        return False
+    return access_class(endpoint) in (ACCESS_PUBLIC, ACCESS_USER)
+
+
 def enforce_login():
     """before_request hook, see the module docstring."""
     if not auth_store.admin_exists():
         return None
-    if access_class(request.endpoint) in (ACCESS_PUBLIC, ACCESS_API_TOKEN):
+    access = access_class(request.endpoint)
+    if access in (ACCESS_PUBLIC, ACCESS_API_TOKEN):
         return None
-    if load_session():
+    session = load_session()
+    if not session:
+        return login_required_response()
+    user = session["user"]
+    if user["must_change_password"] and not _password_change_allowed():
+        return password_change_required_response()
+    if access == ACCESS_USER or user["role"] == "admin":
         return None
-    return login_required_response()
+    return forbidden_response()
 
 
 def set_session_cookie(response, token, remember, expires):

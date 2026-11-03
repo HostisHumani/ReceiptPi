@@ -17,7 +17,7 @@ from PIL import Image
 import i18n
 from logos import print_logo
 from print_queue import enqueue_print
-from security import csrf_protect, get_csrf_token, get_json_body, require_api_token
+from security import any_user, csrf_protect, get_csrf_token, get_json_body, require_api_token
 from text_style import get_text_scale
 
 wifi_bp = Blueprint("wifi", __name__)
@@ -99,6 +99,7 @@ def _raw_print_wifi(ssid, password, auth_type="WPA"):
 
 
 @wifi_bp.route("/wifi", methods=["GET"])
+@any_user
 def wifi_page():
     return render_template("wifi.html", message=None, success=None, csrf_token=get_csrf_token())
 
@@ -135,6 +136,7 @@ def print_wifi():
 
 
 @wifi_bp.route("/ui/wifi", methods=["POST"])
+@any_user
 @csrf_protect
 def ui_print_wifi():
     """Queries the CURRENT guest network status live from the Fritz!Box
