@@ -19,5 +19,10 @@
   "history.empty": "No print jobs recorded yet.",
   "history.pagination.prev": "Previous",
   "history.pagination.next": "Next",
-  "history.source.mqtt": "MQTT"
+  "history.source.mqtt": "MQTT",
+  "history.filter.label": "Owner",
+  "history.filter.all": "All",
+  "history.filter.apply": "Show",
+  "history.owner.system": "System",
+  "history.owner.deleted": "Deleted account #{id}"
 }

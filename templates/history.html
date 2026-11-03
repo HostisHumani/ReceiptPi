@@ -2,7 +2,12 @@
 {% block header_icon %}<span class="mark"><span class="icon icon-history" aria-hidden="true"></span></span>{% endblock %}
 {% block header_title %}{{ t('history.header') }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+<a class="back-link" href="/"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>{% if show_filter %}
+<form method="get" action="/history" class="card">
+  <label for="owner">{{ t('history.filter.label') }}</label>
+  <select id="owner" name="owner">{% for value, label in owner_options %}<option value="{{ value }}"{% if value == owner_selected %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <button type="submit" class="btn btn-secondary">{{ t('history.filter.apply') }}</button>
+</form>{% endif %}
 
 <div class="status-strip status-strip-4">
   <div class="status-card">
@@ -39,7 +44,7 @@
           {% if entry.status != 'ok' and entry.detail %}
             <span>&middot; {{ entry.detail }}</span>
           {% endif %}
-          <span>&middot; {{ t('history.source.' + entry.source) }}</span>
+          <span>&middot; {{ t('history.source.' + entry.source) }}</span>{% if show_filter %}<span>&middot; {{ entry.owner_label }}</span>{% endif %}
         </div>
       </div>
       <span class="mono list-row-meta list-row-timestamp">{{ entry.timestamp[:16].replace('T', ' ') }}</span>
@@ -50,11 +55,11 @@
 {% if total_pages > 1 %}
 <div class="pagination">
   {% if page > 1 %}
-    <a class="btn btn-secondary" href="/history?page={{ page - 1 }}"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('history.pagination.prev') }}</a>
+    <a class="btn btn-secondary" href="/history?page={{ page - 1 }}{% if show_filter %}&amp;owner={{ owner_selected | urlencode }}{% endif %}"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('history.pagination.prev') }}</a>
   {% else %}<span></span>{% endif %}
   <span class="hint">{{ page }} / {{ total_pages }}</span>
   {% if page < total_pages %}
-    <a class="btn btn-secondary" href="/history?page={{ page + 1 }}">{{ t('history.pagination.next') }} <span class="icon icon-arrow-right" aria-hidden="true"></span></a>
+    <a class="btn btn-secondary" href="/history?page={{ page + 1 }}{% if show_filter %}&amp;owner={{ owner_selected | urlencode }}{% endif %}">{{ t('history.pagination.next') }} <span class="icon icon-arrow-right" aria-hidden="true"></span></a>
   {% else %}<span></span>{% endif %}
 </div>
 {% endif %}

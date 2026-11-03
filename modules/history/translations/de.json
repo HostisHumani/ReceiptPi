@@ -19,5 +19,10 @@
   "history.empty": "Noch keine Druckjobs aufgezeichnet.",
   "history.pagination.prev": "Zurück",
   "history.pagination.next": "Weiter",
-  "history.source.mqtt": "MQTT"
+  "history.source.mqtt": "MQTT",
+  "history.filter.label": "Besitzer",
+  "history.filter.all": "Alle",
+  "history.filter.apply": "Anzeigen",
+  "history.owner.system": "System",
+  "history.owner.deleted": "Gelöschtes Konto #{id}"
 }
