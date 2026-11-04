@@ -90,6 +90,9 @@ drucken.
 - **Rezepte und Spiele** haben keine API.
 - Es gelten dieselben Grenzen wie in der Oberfläche, zum Beispiel 100
   Listeneinträge.
+- **Steuerzeichen werden nicht gedruckt.** Zeilenumbrüche bleiben, ein
+  Tab wird ein Leerzeichen, andere Steuerzeichen (zum Beispiel ESC)
+  fallen weg. So kann ein Text keine Befehle an den Drucker schicken.
 
 ## Klappt nicht?
 

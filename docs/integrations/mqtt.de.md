@@ -72,6 +72,9 @@ Status steht auf `receiptpi/state`.
   deiner eigenen CA, lade sie unter **Eigene CA (optional)** hoch.
 - **Die Druckregeln gelten** wie überall: Ruhezeiten, Drucklimit,
   Duplikate.
+- **Steuerzeichen werden nicht gedruckt.** Zeilenumbrüche bleiben, ein
+  Tab wird ein Leerzeichen, andere Steuerzeichen (zum Beispiel ESC)
+  fallen weg.
 - **Nicht über MQTT verfügbar:** Gäste-WLAN, Systemreport und Bilder.
 - **Home Assistant Discovery** legt ein Gerät mit **Druckerstatus**,
   **Problem**, **Ausstehende Aufträge**, **Letzter Auftrag** und einem

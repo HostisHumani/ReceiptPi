@@ -23,7 +23,7 @@ from security import (
     get_json_body,
     require_api_token,
 )
-from text_style import SCALES, get_text_scale, wrap_body_text
+from text_style import SCALES, clean_print_text, get_text_scale, wrap_body_text
 
 message_bp = Blueprint("message", __name__)
 
@@ -41,6 +41,7 @@ def _raw_print_message(title, text, module="message", use_text_scale=True):
     notice, not user content, and shouldn't grow just because Easy-Read
     is turned on for actual receipts."""
     scale = get_text_scale() if use_text_scale else SCALES["normal"]
+    title, text = clean_print_text(title), clean_print_text(text)
     # Imported lazily on purpose: watchers/storm_warning_watch.py
     # imports this module (via the weather module), and a module-level
     # import would pull in python-escpos, whose capabilities.py calls

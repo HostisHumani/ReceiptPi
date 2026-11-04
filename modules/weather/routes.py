@@ -28,7 +28,7 @@ from modules.message.routes import _raw_print_message
 from modules.weather.alerts import fetch_open_meteo_forecast
 from print_queue import enqueue_print
 from security import MAX_TITLE_LEN, any_user, csrf_protect, get_csrf_token, require_api_token
-from text_style import get_text_scale, wrap_body_text
+from text_style import clean_print_text, get_text_scale, wrap_body_text
 
 weather_bp = Blueprint("weather", __name__)
 
@@ -103,7 +103,7 @@ def fetch_ha_sensor(entity_id):
 
 def _raw_print_weather(location_name=None):
     resolved_name, lat, lon = resolve_location(location_name)
-    location_display = resolved_name or i18n.tr("receipt.weather.no_location_configured")
+    location_display = clean_print_text(resolved_name) or i18n.tr("receipt.weather.no_location_configured")
 
     report_provider = settings_store.get_settings()["weather"].get("report_provider", "dwd")
     provider_label = "Open-Meteo" if report_provider == "open-meteo" else "DWD"
@@ -184,7 +184,7 @@ def _raw_print_weather(location_name=None):
         p.text(i18n.tr("receipt.weather.dwd_heading", provider=provider_label) + "\n")
         p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
         for line in dwd_lines:
-            p.text(wrap_body_text(line, scale) + "\n")
+            p.text(wrap_body_text(clean_print_text(line), scale) + "\n")
         p.text("\n")
 
         if netatmo_lines:
@@ -192,7 +192,7 @@ def _raw_print_weather(location_name=None):
             p.text(i18n.tr("receipt.weather.netatmo_heading") + "\n")
             p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
             for line in netatmo_lines:
-                p.text(wrap_body_text(line, scale) + "\n")
+                p.text(wrap_body_text(clean_print_text(line), scale) + "\n")
             p.text("\n")
 
         p.set(align="center", bold=False, width=1, height=1, custom_size=True)

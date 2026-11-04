@@ -16,7 +16,11 @@ Existing separators/list formatting behavior is deliberately left
 untouched - see the boot greeting and the receipt footer timestamp,
 which stay at "normal" size regardless of this setting (reference
 info, not read-content).
+
+clean_print_text() removes control characters from text that goes to
+the printer, see its docstring.
 """
+import re
 import textwrap
 from dataclasses import dataclass
 
@@ -62,3 +66,25 @@ def wrap_body_text(text: str, scale: TextScale) -> str:
         textwrap.fill(line, width=cols) if line.strip() else line
         for line in text.split("\n")
     )
+
+
+# C0 control characters except the line feed, DEL, and C1 control
+# characters. python-escpos' text() passes them through to the printer
+# unchanged, so ESC/GS sequences inside a text field would run as printer
+# commands (reset, cut, code page switch, ...).
+_CONTROL_CHARS = re.compile(r"[\x00-\x09\x0b-\x1f\x7f-\x9f]")
+
+
+def clean_print_text(text):
+    """Returns text without control characters, ready for text(): CRLF
+    becomes LF, a tab becomes one space, every other control character
+    (lone CR included) is dropped. Line breaks and all printable
+    characters - umlauts, the euro sign, ... - stay as they are. Applied
+    to every field that comes from outside the code (user input, API,
+    MQTT, external services) before it is word-wrapped, so the wrap
+    width counts only characters that are actually printed. None and ""
+    are returned unchanged."""
+    if not text:
+        return text
+    text = str(text).replace("\r\n", "\n").replace("\t", " ")
+    return _CONTROL_CHARS.sub("", text)

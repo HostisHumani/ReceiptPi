@@ -18,7 +18,7 @@ import i18n
 from logos import print_logo
 from print_queue import enqueue_print
 from security import any_user, csrf_protect, get_csrf_token, get_json_body, require_api_token
-from text_style import get_text_scale
+from text_style import clean_print_text, get_text_scale
 
 wifi_bp = Blueprint("wifi", __name__)
 
@@ -83,9 +83,11 @@ def _raw_print_wifi(ssid, password, auth_type="WPA"):
         p.text(i18n.tr("receipt.wifi.title") + "\n")
         p.text("\n")
         p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
-        p.text(i18n.tr("receipt.wifi.ssid_label", value=ssid) + "\n")
+        # Only the printed lines are cleaned: the QR code keeps the exact
+        # values, since joining the network needs them unchanged.
+        p.text(i18n.tr("receipt.wifi.ssid_label", value=clean_print_text(ssid)) + "\n")
         p.text("\n")
-        p.text(i18n.tr("receipt.wifi.password_label", value=password) + "\n")
+        p.text(i18n.tr("receipt.wifi.password_label", value=clean_print_text(password)) + "\n")
         p.text("\n")
         # Always normal (1x1) size for the QR code regardless of
         # print_rules.text_size - explicit bold=False/underline=0 too,

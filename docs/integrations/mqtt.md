@@ -67,6 +67,9 @@ is on `receiptpi/state`.
   from your own CA, upload it under **Own CA (optional)**.
 - **Print rules apply**, like everywhere: quiet hours, print limit,
   duplicates.
+- **Control characters are not printed.** Line breaks stay, a tab
+  becomes a space, and other control characters (for example ESC) are
+  removed.
 - **Not available over MQTT:** guest Wi-Fi, system report and images.
 - **Home Assistant discovery** creates a device with **Printer status**,
   **Problem**, **Pending jobs**, **Last job** and a **Print weather

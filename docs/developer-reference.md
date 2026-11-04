@@ -59,7 +59,7 @@ receiptpi/
 ├── logos.py                per-print-type logo resolution, upload validation, seeding
 ├── i18n.py                 minimal translation lookup (JSON files, no Flask-Babel)
 ├── module_catalog.py       registry of the toggleable home-page modules (key, icon, URL, home group) + their effective on/off state
-├── text_style.py           Easy-Read text-size scaling, shared by print jobs and the web UI
+├── text_style.py           Easy-Read text-size scaling, shared by print jobs and the web UI; control-character cleanup for print text
 ├── themes.py                registry of the selectable web UI color themes
 ├── static_versioning.py     content-hash `?v=` URLs for static files (cache busting)
 ├── version.py               reads VERSION, minimal comparison for ReceiptPi's own version scheme
@@ -698,6 +698,20 @@ setting:
 
 It is a plain text-size switch, not a full accessibility overhaul - there
 is no separate screen-reader markup or contrast mode tied to it.
+
+### Control characters in print text
+
+python-escpos' `text()` sends control characters to the printer as they
+are, so an ESC or GS sequence inside a text field would run as a printer
+command (reset, cut, code page switch). `text_style.clean_print_text()`
+therefore cleans every field that comes from outside the code before it
+is wrapped and printed: CRLF becomes LF, a tab becomes one space, and
+every other control character (C0 except LF, DEL, C1) is removed.
+Umlauts, the euro sign and all other printable characters stay. This
+applies to every way into a print, web UI, `/print/*` API, MQTT, pending
+reprints and data from external services (weather, Mealie, Fritz!Box,
+system report). The Wi-Fi QR code keeps the exact SSID and password, only
+the printed lines are cleaned.
 
 ### Pending jobs
 

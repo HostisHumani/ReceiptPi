@@ -88,6 +88,9 @@ without printing.
 - **Recipes and games** have no API.
 - The same limits apply as in the web interface, for example 100 list
   entries.
+- **Control characters are not printed.** Line breaks stay, a tab
+  becomes a space, and other control characters (for example ESC) are
+  removed. So a text can't send commands to the printer.
 
 ## Something not working?
 

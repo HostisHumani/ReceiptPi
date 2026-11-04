@@ -22,7 +22,7 @@ import i18n
 from print_queue import enqueue_print
 from printer import get_printer
 from security import MAX_TITLE_LEN, any_user, csrf_protect, get_csrf_token
-from text_style import BODY_COLUMNS, get_text_scale
+from text_style import BODY_COLUMNS, clean_print_text, get_text_scale
 
 from . import mealie
 from .mealie import MealieError
@@ -65,7 +65,9 @@ def _raw_print_recipe(recipe):
     """recipe: the dict from mealie.recipe_to_printable() - also exactly
     what's stored as the pending-reprint payload, so a replay never
     needs Mealie to be reachable."""
-    fix = mealie.to_ascii_fractions
+    def fix(text):
+        return clean_print_text(mealie.to_ascii_fractions(text))
+
     scale = get_text_scale()
     cols = BODY_COLUMNS.get(scale.body_width, 42)
     # Recipe titles can be long ("Crispy Rice Salmon Sushi Salad with

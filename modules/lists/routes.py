@@ -33,7 +33,7 @@ from security import (
     get_json_body,
     require_api_token,
 )
-from text_style import BODY_COLUMNS, get_text_scale
+from text_style import BODY_COLUMNS, clean_print_text, get_text_scale
 
 lists_bp = Blueprint("lists", __name__)
 
@@ -59,6 +59,7 @@ def _print_checklist(p, items):
     # prefix length here too, or lines end up narrower than intended.
     cols = max(BODY_COLUMNS.get(scale.body_width, 42), 10)
     for item in items:
+        item = clean_print_text(item)
         if item.strip():
             wrapped = textwrap.fill(
                 item.strip(), width=cols,
@@ -87,7 +88,7 @@ def _raw_print_list(title, items, with_logo):
                 p.set(align="left", bold=False, width=1, height=1)
                 p.text("\n")
         p.set(align="center", bold=True, width=scale.heading_width, height=scale.heading_height, custom_size=True)
-        p.text(f"{title}\n")
+        p.text(f"{clean_print_text(title)}\n")
         p.text("\n")
         # Separator stays at normal size on purpose, even in Easy-Read
         # mode - it's a plain divider line, not content to read.
@@ -235,14 +236,14 @@ def _raw_print_task(fields):
     p = get_printer()
     try:
         p.set(align="center", bold=True, width=scale.heading_width, height=scale.heading_height, custom_size=True)
-        p.text(f"{fields['title']}\n")
+        p.text(f"{clean_print_text(fields['title'])}\n")
         p.text("\n")
         p.set(align="left", bold=False, width=1, height=1, custom_size=True)
 
         if fields["description"]:
             p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
             cols = BODY_COLUMNS.get(scale.body_width, 42)
-            p.text(textwrap.fill(fields["description"], width=cols) + "\n")
+            p.text(textwrap.fill(clean_print_text(fields["description"]), width=cols) + "\n")
             p.text("\n")
             p.set(align="left", bold=False, width=1, height=1, custom_size=True)
 

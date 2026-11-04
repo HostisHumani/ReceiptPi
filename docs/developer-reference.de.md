@@ -62,7 +62,7 @@ receiptpi/
 ├── logos.py                Logo-Auflösung je Druckart, Upload-Validierung, Seeding
 ├── i18n.py                 minimales Übersetzungs-Lookup (JSON-Dateien, kein Flask-Babel)
 ├── module_catalog.py       Registry der ein-/ausschaltbaren Home-Module (Key, Icon, URL, Gruppe auf der Startseite) + deren tatsächlicher Aktiv-Zustand
-├── text_style.py           Easy-Read-Textgrößen-Skalierung, gemeinsam für Druck und Web-UI
+├── text_style.py           Easy-Read-Textgrößen-Skalierung, gemeinsam für Druck und Web-UI; Bereinigung von Steuerzeichen im Drucktext
 ├── themes.py                Registry der wählbaren Web-UI-Farbschemata
 ├── static_versioning.py     Inhalts-Hash-URLs (`?v=`) für statische Dateien (Cache-Busting)
 ├── version.py               liest VERSION, minimaler Vergleich für ReceiptPis eigenes Versionsschema
@@ -732,6 +732,20 @@ derselben Einstellung heraus:
 Es handelt sich um einen reinen Textgrößen-Schalter, keine vollständige
 Accessibility-Überarbeitung – es gibt kein separates
 Screen-Reader-Markup oder einen eigenen Kontrastmodus dazu.
+
+### Steuerzeichen im Drucktext
+
+`text()` aus python-escpos schickt Steuerzeichen unverändert an den
+Drucker, eine ESC- oder GS-Folge in einem Textfeld liefe also als
+Druckerbefehl (Reset, Schnitt, Codepage-Wechsel). Deshalb bereinigt
+`text_style.clean_print_text()` jedes Feld, das von außerhalb des Codes
+kommt, bevor es umbrochen und gedruckt wird: CRLF wird LF, ein Tab wird
+ein Leerzeichen, alle anderen Steuerzeichen (C0 außer LF, DEL, C1)
+fallen weg. Umlaute, das Euro-Zeichen und alle anderen druckbaren
+Zeichen bleiben. Das gilt für jeden Weg zum Druck: Web-UI, `/print/*`-API,
+MQTT, Nachdruck ausstehender Aufträge und Daten externer Dienste (Wetter,
+Mealie, Fritz!Box, Systembericht). Der QR-Code fürs Gäste-WLAN behält
+SSID und Passwort exakt, nur die gedruckten Zeilen werden bereinigt.
 
 ### Ausstehende Aufträge
 
