@@ -72,7 +72,7 @@
   "auth.users.role.admin": "Admin",
   "auth.users.role.user": "User",
   "auth.users.role_label": "Role",
-  "auth.users.role_hint": "Admins may do everything. Users may print (message, lists, weather, guest Wi-Fi, recipes, games, images) and change their own account, but can't see settings, history, pending jobs or the system report.",
+  "auth.users.role_hint": "Admins may do everything. Users may print (message, lists, weather, guest Wi-Fi, recipes, games, images), change their own account and see their own history and pending jobs, but can't see settings or the system report.",
   "auth.users.role_button": "Change role",
   "auth.users.status.active": "active",
   "auth.users.status.locked": "locked",

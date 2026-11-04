@@ -72,7 +72,7 @@
   "auth.users.role.admin": "Admin",
   "auth.users.role.user": "Nutzer",
   "auth.users.role_label": "Rolle",
-  "auth.users.role_hint": "Admins dürfen alles. Nutzer dürfen drucken (Nachricht, Listen, Wetter, Gast-WLAN, Rezepte, Spiele, Bilder) und ihr eigenes Konto ändern, aber keine Einstellungen, keinen Verlauf, keine ausstehenden Aufträge und keinen Systemreport sehen.",
+  "auth.users.role_hint": "Admins dürfen alles. Nutzer dürfen drucken (Nachricht, Listen, Wetter, Gäste-WLAN, Rezepte, Spiele, Bilder), ihr eigenes Konto ändern und ihren eigenen Verlauf und ihre eigenen ausstehenden Aufträge sehen, aber keine Einstellungen und keinen Systemreport.",
   "auth.users.role_button": "Rolle ändern",
   "auth.users.status.active": "aktiv",
   "auth.users.status.locked": "gesperrt",

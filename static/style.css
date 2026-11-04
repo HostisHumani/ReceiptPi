@@ -1402,16 +1402,16 @@ footer a { color: var(--accent); text-decoration: none; }
   -webkit-backdrop-filter: blur(10px) saturate(1.5);
   backdrop-filter: blur(10px) saturate(1.5);
 }
-/* The dropdown lies over content, so it stays nearly opaque. */
+/* The dropdown lies over content, so it stays opaque - and gets
+   no blur of its own, with or without data-blur: it sits inside the nav,
+   and with blur on the nav's own backdrop-filter makes the nav the
+   dropdown's backdrop root. A blur on the dropdown then only sees the
+   nav, not the page below, and the hero's text showed through the menu
+   (found in the documentation screenshots). */
 [data-glass="on"] .burger-dropdown {
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  background: var(--surface);
   border-color: transparent;
   box-shadow: inset 0 0 0 1px var(--g-ring), inset 0 1px 0 var(--g-top), var(--g-shadow);
-}
-[data-blur="on"] .burger-dropdown {
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  backdrop-filter: blur(14px) saturate(1.4);
 }
 
 /* Quieter separators and hover, small light edge on chips and tiles */
