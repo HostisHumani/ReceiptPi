@@ -423,7 +423,7 @@ Ein blockierter Auftrag antwortet mit `429`.
 - `POST /print/list` – `{ "title": "...", "items": ["..."] }` – Einkaufsliste, unverändert seit vor dem Lists-Modul, weiterhin voll abwärtskompatibel
 - `POST /print/todo` – `{ "title": "...", "items": ["..."] }` – To-Do-Liste, gleiche Form wie `/print/list`
 - `POST /print/task` – `{ "title": "...", "description": "optional", "items": ["optionale Checkliste"], "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD" }` – druckbare Task-/Kanban-Karte; nur `title` ist Pflicht
-- `POST /print/image` – `{ "image_base64": "...", "dither": "floyd-steinberg" }` (max. 6000px pro Seite, 12MB); `dither` ist optional: `floyd-steinberg` (Standard), `atkinson` oder `bayer`. Bilder werden auf 512px Breite verkleinert; Atkinson ist auf 1.024.000 Pixel nach dem Skalieren (512x2000) und 15 Sekunden Rechenzeit begrenzt, sonst `400`/`504`
+- `POST /print/image` – `{ "image_base64": "...", "dither": "floyd-steinberg" }` (max. 6000px pro Seite, 12MB); `dither` ist optional: `floyd-steinberg` (Standard), `atkinson` oder `bayer`. Bilder, die breiter als 512px sind, werden auf 512px Breite verkleinert (schmalere behalten ihre Größe), die EXIF-Ausrichtung wird nach dem Skalieren angewendet; Atkinson ist auf 1.024.000 Pixel nach dem Skalieren (512x2000) und 15 Sekunden Rechenzeit begrenzt, sonst `400`/`504`
 - `POST /print/image/preview` – gleicher Body wie `/print/image`, liefert das 1-Bit-Druckbild als PNG, ohne zu drucken (keine Druckregeln, keine Historie)
 - `POST /print/wifi` – `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort; auch `GET /print/weather?location=Berlin`

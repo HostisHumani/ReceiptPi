@@ -4,8 +4,9 @@ endpoints (see routes.py). Kept free of Flask/printer imports, so it can
 be called and tested on its own.
 
 Pipeline (same order for every dithering method):
-  validate -> scale down to the print width -> flatten transparency onto
-  white -> grayscale -> autocontrast -> dither.
+  validate -> scale down to the print width -> apply the EXIF orientation
+  -> flatten transparency onto white -> grayscale -> autocontrast ->
+  dither.
 """
 import io
 import time
@@ -62,6 +63,37 @@ class ImageConversionError(Exception):
         if self.ui_key:
             return tr(self.ui_key, **self.ui_params)
         return self.detail
+
+
+# EXIF orientation tag (0x0112) -> the transpose that turns the stored
+# pixels into the picture as it was taken. Same mapping as Pillow's
+# ImageOps.exif_transpose(); 1 (and anything unknown) means "as stored".
+_EXIF_ORIENTATION = 0x0112
+_ORIENTATION_TRANSPOSE = {
+    2: Image.Transpose.FLIP_LEFT_RIGHT,
+    3: Image.Transpose.ROTATE_180,
+    4: Image.Transpose.FLIP_TOP_BOTTOM,
+    5: Image.Transpose.TRANSPOSE,
+    6: Image.Transpose.ROTATE_270,
+    7: Image.Transpose.TRANSVERSE,
+    8: Image.Transpose.ROTATE_90,
+}
+# Orientations that swap width and height.
+_SWAPS_AXES = (5, 6, 7, 8)
+
+
+def _orientation(img):
+    """The EXIF orientation of an opened image, 1 if there is none.
+
+    Phone cameras often store a portrait photo as landscape pixels plus
+    this tag, which says how to turn it. A broken EXIF block must not make
+    an otherwise readable image unprintable, so any error counts as "no
+    orientation"."""
+    try:
+        value = img.getexif().get(_EXIF_ORIENTATION, 1)
+    except Exception:
+        return 1
+    return value if value in _ORIENTATION_TRANSPOSE else 1
 
 
 def _has_alpha(img):
@@ -194,10 +226,16 @@ def image_to_1bit(img_bytes, dither=DEFAULT_DITHER):
             f"Image too large ({img.width}x{img.height}), maximum {MAX_IMAGE_DIMENSION}px per side", 400,
         )
 
-    target_size = img.size
-    if img.width > PRINT_WIDTH:
-        ratio = PRINT_WIDTH / img.width
-        target_size = (PRINT_WIDTH, int(img.height * ratio))
+    # Width and height as the picture is meant to be seen: the print-width
+    # limit and the Atkinson pixel limit apply to that, not to the stored
+    # pixels.
+    orientation = _orientation(img)
+    swap = orientation in _SWAPS_AXES
+    width, height = (img.height, img.width) if swap else img.size
+    target_size = (width, height)
+    if width > PRINT_WIDTH:
+        ratio = PRINT_WIDTH / width
+        target_size = (PRINT_WIDTH, int(height * ratio))
 
     # Checked against the header size before decoding/scaling, so an
     # oversized Atkinson request fails right away instead of after the
@@ -213,9 +251,15 @@ def image_to_1bit(img_bytes, dither=DEFAULT_DITHER):
         )
 
     # Scaling happens before any per-pixel work, so dithering cost
-    # depends on the print size, not on the upload's resolution.
-    if target_size != img.size:
-        img = img.resize(target_size)
+    # depends on the print size, not on the upload's resolution. The
+    # orientation is applied after scaling: turning the small image costs
+    # almost nothing, turning the full-size one would briefly hold a
+    # second full-size copy in memory.
+    stored_target = (target_size[1], target_size[0]) if swap else target_size
+    if stored_target != img.size:
+        img = img.resize(stored_target)
+    if orientation != 1:
+        img = img.transpose(_ORIENTATION_TRANSPOSE[orientation])
 
     if _has_alpha(img):
         img = _flatten_on_white(img)

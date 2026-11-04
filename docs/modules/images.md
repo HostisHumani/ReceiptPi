@@ -30,9 +30,13 @@ dots first. You can look at the result before you print.
 
 ## Good to know
 
-- **The width is always the full paper width.** The picture is scaled to
-  512 dots wide, the height follows. A tall picture makes a long
-  receipt.
+- **Wide pictures are scaled to the paper width.** A picture wider than
+  512 dots is scaled down to 512 dots, the height follows. A narrower
+  picture prints at its own size, on the left. A tall picture makes a
+  long receipt.
+- **Phone photos print the right way up.** Many phones save a portrait
+  photo sideways and note the turn in the file (EXIF orientation).
+  ReceiptPi applies that note, in the web interface and in the API.
 - **Strong contrasts print best.** Dark, low-contrast photos come out
   muddy. Try another method in the preview.
 - **Limits:** PNG or JPG, at most 12 MB and 6,000 pixels per side.

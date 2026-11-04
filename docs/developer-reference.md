@@ -404,7 +404,7 @@ A blocked job responds with `429`.
 - `POST /print/list` - `{ "title": "...", "items": ["..."] }` - shopping list, unchanged since before the lists module existed, kept fully backward compatible
 - `POST /print/todo` - `{ "title": "...", "items": ["..."] }` - to-do list, same shape as `/print/list`
 - `POST /print/task` - `{ "title": "...", "description": "optional", "items": ["optional checklist"], "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD" }` - printable task/kanban card; only `title` is required
-- `POST /print/image` - `{ "image_base64": "...", "dither": "floyd-steinberg" }` (max. 6000px per side, 12MB); `dither` is optional: `floyd-steinberg` (default), `atkinson` or `bayer`. Images are scaled down to 512px width; Atkinson is limited to 1,024,000 pixels after scaling (512x2000) and to 15 seconds of processing, `400`/`504` otherwise
+- `POST /print/image` - `{ "image_base64": "...", "dither": "floyd-steinberg" }` (max. 6000px per side, 12MB); `dither` is optional: `floyd-steinberg` (default), `atkinson` or `bayer`. Images wider than 512px are scaled down to 512px width (narrower ones keep their size), and the EXIF orientation is applied after scaling; Atkinson is limited to 1,024,000 pixels after scaling (512x2000) and to 15 seconds of processing, `400`/`504` otherwise
 - `POST /print/image/preview` - same body as `/print/image`, returns the 1-bit print image as PNG without printing (no print rules, no history)
 - `POST /print/wifi` - `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` - optional `{ "location": "Berlin" }`, otherwise the default location; also `GET /print/weather?location=Berlin`

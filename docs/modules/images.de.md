@@ -30,9 +30,14 @@ ein Punktmuster um. Das Ergebnis kannst du dir vor dem Drucken ansehen.
 
 ## Gut zu wissen
 
-- **Die Breite ist immer die volle Papierbreite.** Das Bild wird auf 512
-  Punkte Breite skaliert, die Höhe ergibt sich daraus. Ein hohes Bild
-  ergibt einen langen Bon.
+- **Breite Bilder werden auf die Papierbreite skaliert.** Ein Bild, das
+  breiter als 512 Punkte ist, wird auf 512 Punkte verkleinert, die Höhe
+  ergibt sich daraus. Ein schmaleres Bild druckt in seiner eigenen
+  Größe, linksbündig. Ein hohes Bild ergibt einen langen Bon.
+- **Handyfotos kommen richtig herum.** Viele Handys speichern ein
+  Hochkant-Foto quer und vermerken die Drehung in der Datei
+  (EXIF-Ausrichtung). ReceiptPi wendet diesen Vermerk an, in der
+  Oberfläche und in der API.
 - **Kräftige Kontraste drucken am besten.** Dunkle, flaue Fotos werden
   matschig. Probier in der Vorschau ein anderes Verfahren.
 - **Grenzen:** PNG oder JPG, höchstens 12 MB und 6.000 Pixel pro Seite.
