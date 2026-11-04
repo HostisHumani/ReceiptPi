@@ -13,7 +13,8 @@ the same processing.image_to_1bit() call.
 
 The web UI can add a message (caption) that prints under the image on
 the same receipt, in the same print job. The JSON API has no caption
-field.
+field. Turning and cropping happen in the browser (static/image-editor.js),
+which sends the finished picture through the same /ui/images routes.
 
 Note: the detail strings from processing.ImageConversionError (image
 too large, unknown method, ...) stay in English on the JSON API, which
@@ -34,7 +35,14 @@ from printer import get_printer
 from security import any_user, csrf_protect, get_csrf_token, get_json_body, require_api_token
 from text_style import BODY_COLUMNS, clean_print_text, get_text_scale, wrap_body_text
 
-from .processing import DEFAULT_DITHER, DITHER_METHODS, ImageConversionError, image_to_1bit
+from .processing import (
+    DEFAULT_DITHER,
+    DITHER_METHODS,
+    MAX_IMAGE_DIMENSION,
+    PRINT_WIDTH,
+    ImageConversionError,
+    image_to_1bit,
+)
 
 images_bp = Blueprint("images", __name__)
 logger = logging.getLogger(__name__)
@@ -54,6 +62,9 @@ PRINT_LOCK_WAIT_S = 30
 MAX_CAPTION_LEN = 500
 # Characters of the caption shown in the history/pending summary.
 SUMMARY_CAPTION_LEN = 40
+
+# Aspect ratios of the crop frame in the editor: (value, translation key).
+EDITOR_ASPECTS = (("free", "free"), ("original", "original"), ("1:1", "1_1"), ("4:3", "4_3"), ("3:4", "3_4"))
 
 
 def _raw_print_image(img, caption=None):
@@ -207,7 +218,15 @@ def _render_page(message=None, success=None, dither=DEFAULT_DITHER, caption=""):
         dither_methods=DITHER_METHODS, selected_dither=dither if dither in DITHER_METHODS else DEFAULT_DITHER,
         caption=caption or "", max_caption=MAX_CAPTION_LEN,
         caption_columns=BODY_COLUMNS.get(get_text_scale().body_width, 42),
+        aspects=EDITOR_ASPECTS, print_width=PRINT_WIDTH, max_height=MAX_IMAGE_DIMENSION,
     )
+
+
+def _wants_json():
+    """True for the editor's fetch() print request (static/image-editor.js),
+    which asks for JSON so the page and its edits stay in place. The
+    plain form post asks for HTML and gets the page as before."""
+    return request.accept_mimetypes.best_match(["text/html", "application/json"]) == "application/json"
 
 
 @images_bp.route("/images", methods=["GET"])
@@ -273,15 +292,19 @@ def ui_print_image():
     """File upload from the web UI subpage (multipart/form-data), no
     base64 detour needed - the browser sends the raw bytes directly.
     After a failed print the caption stays in the form, so it doesn't
-    have to be typed again."""
+    have to be typed again. The editor's fetch() request gets the same
+    result as JSON ({"status": "printed"/"error", "detail": ...}, with
+    the status codes of enqueue_print())."""
     dither = _read_dither(request.form.get("dither"))
     caption = _read_caption(request.form.get("caption"))
     uploaded = request.files.get("image")
     if not uploaded or uploaded.filename == "":
-        message, success = i18n.tr("images.no_file_selected"), False
+        message, success, status_code = i18n.tr("images.no_file_selected"), False, 400
     else:
         img_bytes = uploaded.read()
-        ok, detail, _status_code = process_and_enqueue_image(img_bytes, dither=dither, localized=True, caption=caption)
+        ok, detail, status_code = process_and_enqueue_image(img_bytes, dither=dither, localized=True, caption=caption)
         message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
         success = ok
+    if _wants_json():
+        return jsonify({"status": "printed" if success else "error", "detail": message}), (200 if success else status_code)
     return _render_page(message, success, dither, caption=None if success else caption)

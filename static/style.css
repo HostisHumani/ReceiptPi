@@ -834,6 +834,39 @@ a.list-row .list-row-actions { color: var(--text-dim); }
   font-size: calc(512px / var(--caption-cols, 42) / 0.6); line-height: 1.35;
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
+/* Image editor (templates/images.html, static/image-editor.js): the
+   picture on a canvas, scaled to the card width, with the crop frame on
+   top. Outside the frame the picture is dimmed by a huge shadow around
+   .image-editor-window, cut off at the picture's edges by the shade
+   layer. The interactive frame sits above that layer and is not cut
+   off, so its corner handles stay fully touchable at the picture's
+   edges; the stage's padding keeps them inside the card. The frame and
+   its handles take all touch gestures (touch-action: none), so dragging
+   them never scrolls the page; the rest of the page scrolls as usual.
+   Handles are 32px touch targets with a smaller visible square. */
+.image-editor { margin-top: var(--space-4); }
+.image-editor-stage { display: flex; justify-content: center; padding: 16px; }
+.image-editor-frame { position: relative; background: #fff; outline: 1px solid var(--line); }
+.image-editor-frame canvas { display: block; }
+.image-editor-shade { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.image-editor-window { position: absolute; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45); }
+.image-editor-crop {
+  position: absolute; box-sizing: border-box; border: 2px solid #fff; outline: 1px solid rgba(0, 0, 0, 0.6);
+  cursor: move; touch-action: none;
+}
+.image-editor-handle { position: absolute; width: 32px; height: 32px; margin: -16px; touch-action: none; }
+.image-editor-handle::after {
+  content: ""; position: absolute; left: 9px; top: 9px; width: 14px; height: 14px; box-sizing: border-box;
+  background: var(--accent); border: 2px solid #fff; border-radius: 3px;
+}
+.image-editor-handle[data-handle="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+.image-editor-handle[data-handle="ne"] { right: 0; top: 0; cursor: nesw-resize; }
+.image-editor-handle[data-handle="sw"] { left: 0; bottom: 0; cursor: nesw-resize; }
+.image-editor-handle[data-handle="se"] { right: 0; bottom: 0; cursor: nwse-resize; }
+.image-editor-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+/* The aspect label is the first label inside the editor block, which
+   the generic label:first-of-type rule would leave without a gap. */
+.image-editor label:first-of-type { margin-top: var(--space-4); }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

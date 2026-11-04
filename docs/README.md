@@ -25,7 +25,7 @@ and what to do if it doesn't work.
 |------|------------------------|
 | [Lists](modules/lists.md) | Shopping lists, to-do lists and task cards |
 | [Message](modules/message.md) | Printing any text |
-| [Image](modules/images.md) | Printing a photo or picture |
+| [Image](modules/images.md) | Printing a photo or picture, turned, cropped and with a message if you like |
 | [Weather and storm warnings](modules/weather.md) | Weather report on paper, automatic storm warnings |
 | [Recipes](modules/recipes.md) | Printing recipes from Mealie |
 | [Guest Wi-Fi](modules/wifi.md) | A slip with the guest network name, password and QR code |

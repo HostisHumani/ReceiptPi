@@ -39,7 +39,7 @@ home network.
 |---|---|
 | **[Lists](docs/modules/lists.md)** | Shopping lists, to-do lists and task cards to tick off with a pen |
 | **[Message](docs/modules/message.md)** | Print any text |
-| **[Image](docs/modules/images.md)** | Photos and pictures in black and white, with a preview of the print |
+| **[Image](docs/modules/images.md)** | Photos and pictures in black and white: turn and crop them, add a message, preview the print |
 | **[Weather](docs/modules/weather.md)** | Weather reports (DWD or Open-Meteo) and automatic storm warnings |
 | **[Recipes](docs/modules/recipes.md)** | Search and print recipes from Mealie, import its shopping lists |
 | **[Guest Wi-Fi](docs/modules/wifi.md)** | A slip with name, password and QR code as soon as the FRITZ!Box guest network is on |

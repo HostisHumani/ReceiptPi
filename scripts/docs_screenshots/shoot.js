@@ -95,10 +95,16 @@ async function go(page, url) {
 
   await go(page, '/images');
   await page.setInputFiles('#image', picture);
+  await page.waitForSelector('#image_editor:not([hidden])');
+  await page.selectOption('#image_aspect', '1:1');
   await page.fill('#caption', t('Happy birthday!\nSee you on Sunday.', 'Alles Gute zum Geburtstag!\nBis Sonntag.'));
   await page.click('#image_preview_btn');
   await page.waitForSelector('#image_preview_result:not([hidden])', { timeout: 20000 });
+  // Two shots: the form with the editor from the top, then the preview.
+  await page.evaluate(() => window.scrollTo(0, 0));
   await shot(page, 'modules', 'images', { wait: 800 });
+  await page.evaluate(() => { document.getElementById('image_preview').scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); });
+  await shot(page, 'modules', 'images-preview', { full: false, wait: 400 });
 
   await go(page, '/weather');
   await shot(page, 'modules', 'weather');

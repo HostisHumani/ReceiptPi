@@ -39,7 +39,7 @@ in deinem Heimnetz.
 |---|---|
 | **[Listen](docs/modules/lists.de.md)** | Einkaufszettel, To-do-Listen und Task-Karten zum Abhaken mit dem Stift |
 | **[Nachricht](docs/modules/message.de.md)** | Beliebigen Text drucken |
-| **[Bild](docs/modules/images.de.md)** | Fotos und Bilder in Schwarz-Weiß, mit Vorschau des Drucks |
+| **[Bild](docs/modules/images.de.md)** | Fotos und Bilder in Schwarz-Weiß: drehen und zuschneiden, Nachricht dazu, Vorschau des Drucks |
 | **[Wetter](docs/modules/weather.de.md)** | Wetterberichte (DWD oder Open-Meteo) und automatische Unwetterwarnungen |
 | **[Rezepte](docs/modules/recipes.de.md)** | Rezepte aus Mealie suchen und drucken, Einkaufslisten übernehmen |
 | **[Gäste-WLAN](docs/modules/wifi.de.md)** | Ein Zettel mit Name, Passwort und QR-Code, sobald das Gästenetz der FRITZ!Box an ist |

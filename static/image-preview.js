@@ -1,8 +1,10 @@
 // Image preview on /images (see the #image_preview block in
 // templates/images.html and /ui/images/preview in
 // modules/images/routes.py). Sends the same form fields as the print
-// button - file, dithering method, CSRF token - and shows the returned
-// 1-bit PNG at its native size, which is the real print width. The
+// button - file (the edited picture while the editor in
+// static/image-editor.js is active), dithering method, CSRF token - and
+// shows the returned 1-bit PNG at its native size, which is the real
+// print width. The
 // optional caption (message under the image) is shown below it as text
 // and follows the textarea live; it also drives the character counter.
 //
@@ -89,6 +91,15 @@
   // as soon as either changes, so it can't be mistaken for the new one.
   fileInput.addEventListener("change", clearPreview);
   select.addEventListener("change", clearPreview);
+  // Same for every turn/crop in the editor (static/image-editor.js).
+  form.addEventListener("receiptpi:image-edit", clearPreview);
+
+  // With the editor active the preview gets the edited picture, exactly
+  // what the print button would send; otherwise the plain form fields.
+  function previewBody() {
+    var ed = window.ReceiptPiImageEditor;
+    return ed && ed.active() ? ed.buildFormData() : Promise.resolve(new FormData(form));
+  }
 
   button.addEventListener("click", function () {
     if (running) return;
@@ -102,21 +113,26 @@
     var timer = controller ? setTimeout(function () { controller.abort(); }, TIMEOUT_MS) : null;
     setBusy(true);
 
-    fetch("/ui/images/preview", {
-      method: "POST",
-      body: new FormData(form),
-      cache: "no-store",
-      credentials: "same-origin",
-      signal: controller ? controller.signal : undefined
-    })
-      .then(function (res) {
-        var type = res.headers.get("Content-Type") || "";
-        if (res.ok && type.indexOf("image/png") === 0) return res.blob();
-        return res.json().catch(function () { return {}; }).then(function (data) {
-          throw new Error(data.detail || box.dataset.networkErrorText);
+    // A rejection from previewBody() (the editor refused to export, e.g.
+    // a crop that makes the receipt too long) carries the message to
+    // show and goes straight to the catch below.
+    previewBody()
+      .then(function (body) {
+        return fetch("/ui/images/preview", {
+          method: "POST",
+          body: body,
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller ? controller.signal : undefined
+        }).then(function (res) {
+          var type = res.headers.get("Content-Type") || "";
+          if (res.ok && type.indexOf("image/png") === 0) return res.blob();
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            throw new Error(data.detail || box.dataset.networkErrorText);
+          });
+        }, function (err) {
+          throw new Error(err && err.name === "AbortError" ? box.dataset.timeoutText : box.dataset.networkErrorText);
         });
-      }, function (err) {
-        throw new Error(err && err.name === "AbortError" ? box.dataset.timeoutText : box.dataset.networkErrorText);
       })
       .then(function (blob) {
         return new Promise(function (resolve, reject) {

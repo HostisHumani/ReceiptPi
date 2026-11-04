@@ -102,6 +102,7 @@ receiptpi/
 │   ├── style.css             design system (spacing/colors/themes, card/tile/icon styles)
 │   ├── draft-autosave.js      generic auto-save for the lists/task-card forms
 │   ├── mealie-import.js       Mealie shopping list import on the shopping list page
+│   ├── image-editor.js        turning and cropping on the images page (canvas, exports a 512px JPEG)
 │   ├── image-preview.js       preview of the 1-bit print image on the images page
 │   ├── manifest.json          web app manifest (home-screen name/icons/colors)
 │   ├── sw.js                  service worker (served at /sw.js, HTTPS only)
@@ -406,6 +407,7 @@ A blocked job responds with `429`.
 - `POST /print/task` - `{ "title": "...", "description": "optional", "items": ["optional checklist"], "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD" }` - printable task/kanban card; only `title` is required
 - `POST /print/image` - `{ "image_base64": "...", "dither": "floyd-steinberg" }` (max. 6000px per side, 12MB); `dither` is optional: `floyd-steinberg` (default), `atkinson` or `bayer`. Images wider than 512px are scaled down to 512px width (narrower ones keep their size), and the EXIF orientation is applied after scaling; Atkinson is limited to 1,024,000 pixels after scaling (512x2000) and to 15 seconds of processing, `400`/`504` otherwise
 - `POST /print/image/preview` - same body as `/print/image`, returns the 1-bit print image as PNG without printing (no print rules, no history)
+- `POST /ui/images`, `POST /ui/images/preview` - web UI form posts (CSRF-protected, logged-in account), multipart fields `image`, `dither` and, for printing, `caption` (max. 500 characters). With `Accept: application/json`, `/ui/images` answers `{"status": "printed"|"error", "detail": "..."}` with the print queue's status codes instead of the page; the editor (`static/image-editor.js`) prints this way
 - `POST /print/wifi` - `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` - optional `{ "location": "Berlin" }`, otherwise the default location; also `GET /print/weather?location=Berlin`
 - `POST /print/system` - no body needed
@@ -548,7 +550,7 @@ existing crontab (`crontab -e`).
 
 - Lists: shopping lists, to-do lists, and printable task/kanban cards, see [Lists](#lists) below
 - Free-form messages
-- Image printing from the web UI or the JSON API, with a choice of dithering (Floyd-Steinberg, Atkinson, Bayer) and a preview of the exact 1-bit print image; in the web UI with an optional message (up to 500 characters) printed under the image on the same receipt
+- Image printing from the web UI or the JSON API, with a choice of dithering (Floyd-Steinberg, Atkinson, Bayer) and a preview of the exact 1-bit print image; in the web UI with turning and cropping in the browser (the server only gets a 512px-wide JPEG) and an optional message (up to 500 characters) printed under the image on the same receipt
 - Guest Wi-Fi credentials and QR codes
 - Weather reports (DWD or Open-Meteo, selectable, + optional Netatmo), with an optional storm-warning watcher (DWD, MeteoAlarm, or NWS, prints only when a warning is actually active)
 - System reports: Proxmox/PBS via SSH, plus a custom-command role for any other host (e.g. a NAS), with optional encrypted password auth, see [System report](#system-report) below

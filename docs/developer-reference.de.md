@@ -105,6 +105,7 @@ receiptpi/
 │   ├── style.css             Design-System (Spacing/Farben/Themes, Card-/Tile-/Icon-Stile)
 │   ├── draft-autosave.js      generisches Auto-Save für die Listen-/Task-Karten-Formulare
 │   ├── mealie-import.js       Import einer Mealie-Einkaufsliste auf der Einkaufszettel-Seite
+│   ├── image-editor.js        Drehen und Zuschneiden auf der Bilder-Seite (Canvas, exportiert ein JPEG mit 512px)
 │   ├── image-preview.js       Vorschau des 1-Bit-Druckbilds auf der Bilder-Seite
 │   ├── manifest.json          Web-App-Manifest (Name/Icons/Farben für den Homescreen)
 │   ├── sw.js                  Service Worker (ausgeliefert unter /sw.js, nur über HTTPS)
@@ -425,6 +426,7 @@ Ein blockierter Auftrag antwortet mit `429`.
 - `POST /print/task` – `{ "title": "...", "description": "optional", "items": ["optionale Checkliste"], "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD" }` – druckbare Task-/Kanban-Karte; nur `title` ist Pflicht
 - `POST /print/image` – `{ "image_base64": "...", "dither": "floyd-steinberg" }` (max. 6000px pro Seite, 12MB); `dither` ist optional: `floyd-steinberg` (Standard), `atkinson` oder `bayer`. Bilder, die breiter als 512px sind, werden auf 512px Breite verkleinert (schmalere behalten ihre Größe), die EXIF-Ausrichtung wird nach dem Skalieren angewendet; Atkinson ist auf 1.024.000 Pixel nach dem Skalieren (512x2000) und 15 Sekunden Rechenzeit begrenzt, sonst `400`/`504`
 - `POST /print/image/preview` – gleicher Body wie `/print/image`, liefert das 1-Bit-Druckbild als PNG, ohne zu drucken (keine Druckregeln, keine Historie)
+- `POST /ui/images`, `POST /ui/images/preview` – Formular-Posts der Web-UI (CSRF-geschützt, angemeldetes Konto), Multipart-Felder `image`, `dither` und, beim Drucken, `caption` (max. 500 Zeichen). Mit `Accept: application/json` antwortet `/ui/images` statt mit der Seite mit `{"status": "printed"|"error", "detail": "..."}` und den Statuscodes der Druck-Queue; so druckt der Editor (`static/image-editor.js`)
 - `POST /print/wifi` – `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort; auch `GET /print/weather?location=Berlin`
 - `POST /print/system` – kein Body nötig
@@ -573,7 +575,7 @@ bestehende Crontab übernehmen (`crontab -e`).
 
 - Listen: Einkaufslisten, To-Do-Listen und druckbare Task-/Kanban-Karten, siehe [Listen](#listen) unten
 - Freie Textmeldungen
-- Bilddruck aus der Web-UI oder per JSON-API, mit wählbarem Dithering (Floyd-Steinberg, Atkinson, Bayer) und einer Vorschau des exakten 1-Bit-Druckbilds; in der Web-UI mit optionaler Nachricht (bis 500 Zeichen), die unter dem Bild auf denselben Bon gedruckt wird
+- Bilddruck aus der Web-UI oder per JSON-API, mit wählbarem Dithering (Floyd-Steinberg, Atkinson, Bayer) und einer Vorschau des exakten 1-Bit-Druckbilds; in der Web-UI mit Drehen und Zuschneiden im Browser (der Server bekommt nur ein 512px breites JPEG) und optionaler Nachricht (bis 500 Zeichen), die unter dem Bild auf denselben Bon gedruckt wird
 - Gäste-WLAN-Zugangsdaten und QR-Codes
 - Wetterberichte (DWD oder Open-Meteo wählbar, + optional Netatmo), mit optionalem Unwetterwarnungs-Watcher (DWD, MeteoAlarm oder NWS, druckt nur bei tatsächlich aktiver Warnung)
 - Systemberichte: Proxmox/PBS via SSH, plus eine Eigener-Befehl-Rolle für jeden anderen Host (z. B. ein NAS), mit optionalem verschlüsseltem Passwort-Login, siehe [Systembericht](#systembericht) unten

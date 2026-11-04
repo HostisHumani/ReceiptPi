@@ -25,7 +25,7 @@ Schritt benutzt und was du tun kannst, wenn es nicht klappt.
 |-------|---------------------|
 | [Listen](modules/lists.de.md) | Einkaufszettel, To-do-Listen und Task-Karten |
 | [Nachricht](modules/message.de.md) | Beliebigen Text drucken |
-| [Bild](modules/images.de.md) | Ein Foto oder Bild drucken |
+| [Bild](modules/images.de.md) | Ein Foto oder Bild drucken, auf Wunsch gedreht, zugeschnitten und mit Nachricht |
 | [Wetter und Unwetterwarnung](modules/weather.de.md) | Wetterbericht auf Papier, automatische Unwetterwarnungen |
 | [Rezepte](modules/recipes.de.md) | Rezepte aus Mealie drucken |
 | [Gäste-WLAN](modules/wifi.de.md) | Ein Zettel mit Netzname, Passwort und QR-Code fürs Gästenetz |

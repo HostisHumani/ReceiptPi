@@ -11,6 +11,48 @@
   <input type="file" id="image" name="image" accept="image/png, image/jpeg" required>
   <div class="hint">{{ t('images.hint') }}</div>
 
+  {# Editor for turning and cropping, see static/image-editor.js. Hidden
+     until a picture is loaded; without JS it never shows and the form
+     sends the original file. #}
+  <div class="msg notice inline-result" id="image_editor_load_error" role="status" hidden>
+    <span class="icon icon-info" aria-hidden="true"></span>
+    <span>{{ t('images.editor.load_error') }}</span>
+  </div>
+  <div class="image-editor" id="image_editor" hidden
+       data-print-width="{{ print_width }}" data-max-height="{{ max_height }}"
+       data-size-text="{{ t('images.editor.size') }}"
+       data-too-tall-text="{{ t('images.editor.too_tall') }}"
+       data-load-error-text="{{ t('images.editor.load_error') }}"
+       data-print-error-text="{{ t('images.print_network_error') }}"
+       data-print-timeout-text="{{ t('images.print_timeout') }}">
+    <div class="image-editor-stage">
+      <div class="image-editor-frame" id="image_editor_frame">
+        <canvas id="image_editor_canvas" role="img" aria-label="{{ t('images.editor.canvas_label') }}"></canvas>
+        <div class="image-editor-shade" aria-hidden="true"><div class="image-editor-window" id="image_editor_window"></div></div>
+        <div class="image-editor-crop" id="image_editor_crop" aria-label="{{ t('images.editor.crop_label') }}">
+          <span class="image-editor-handle" data-handle="nw"></span>
+          <span class="image-editor-handle" data-handle="ne"></span>
+          <span class="image-editor-handle" data-handle="sw"></span>
+          <span class="image-editor-handle" data-handle="se"></span>
+        </div>
+      </div>
+    </div>
+    <div class="image-editor-tools">
+      <button type="button" class="btn btn-secondary btn-sm" id="image_rotate_left"><span aria-hidden="true">↺</span> {{ t('images.editor.rotate_left') }}</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="image_rotate_right"><span aria-hidden="true">↻</span> {{ t('images.editor.rotate_right') }}</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="image_undo" disabled>{{ t('images.editor.undo') }}</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="image_reset" disabled>{{ t('images.editor.reset') }}</button>
+    </div>
+    <label for="image_aspect">{{ t('images.editor.aspect_label') }}</label>
+    <select id="image_aspect">
+      {% for value, key in aspects %}
+        <option value="{{ value }}">{{ t('images.editor.aspect.' ~ key) }}</option>
+      {% endfor %}
+    </select>
+    <div class="hint" id="image_editor_info" aria-live="polite"></div>
+    <div class="hint">{{ t('images.editor.hint') }}</div>
+  </div>
+
   <label for="dither">{{ t('images.dither_label') }}</label>
   <select id="dither" name="dither">
     {% for method in dither_methods %}
@@ -27,7 +69,11 @@
        data-counter-text="{{ t('images.caption_counter') }}">{{ t('images.caption_hint', max=max_caption) }}</div>
 
   <button type="button" class="btn btn-secondary btn-block" id="image_preview_btn"><span class="icon icon-image" aria-hidden="true"></span> {{ t('images.preview_button') }}</button>
-  <button type="submit">{{ t('images.button') }}</button>
+  <button type="submit" id="image_print_btn">{{ t('images.button') }}</button>
+  <div class="msg inline-result" id="image_print_result" role="status" aria-live="polite" hidden>
+    <span class="icon" aria-hidden="true"></span>
+    <span class="image-print-text"></span>
+  </div>
 </form>
 
 {# Preview of the exact 1-bit image the print path would send, see
@@ -61,4 +107,7 @@
   </div>
 </div>
 {% endblock %}
-{% block extra_scripts %}<script src="{{ static_url('image-preview.js') }}" defer></script>{% endblock %}
+{% block extra_scripts %}
+<script src="{{ static_url('image-editor.js') }}" defer></script>
+<script src="{{ static_url('image-preview.js') }}" defer></script>
+{% endblock %}
