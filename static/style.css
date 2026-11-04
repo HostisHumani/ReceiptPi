@@ -826,6 +826,14 @@ a.list-row .list-row-actions { color: var(--text-dim); }
 .image-preview-frame { margin-inline: -16px; overflow-x: auto; padding: 1px 0; }
 .image-preview-paper { width: 512px; margin: 0 auto; background: #fff; outline: 1px solid var(--line); }
 .image-preview-paper img { display: block; image-rendering: crisp-edges; image-rendering: pixelated; }
+/* Caption under the preview: monospaced, one line = the printer's
+   column count across the 512px paper (IBM Plex Mono advances 0.6em per
+   character), black on the white paper like the print. */
+.image-preview-caption {
+  padding: 1em 0 0.5em; color: #000; font-family: var(--font-mono);
+  font-size: calc(512px / var(--caption-cols, 42) / 0.6); line-height: 1.35;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

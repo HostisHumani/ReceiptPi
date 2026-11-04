@@ -113,8 +113,9 @@ def _replay_images(entry, admin):
         # list either way (see the caller in pending_print()), so
         # nothing is silently lost, just permanently unprintable.
         return False, "pending image file is missing", 410
+    # An entry without a caption prints the image alone.
     return enqueue_print(
-        _raw_print_image, img,
+        _raw_print_image, img, (entry.get("payload") or {}).get("caption"),
         job_type="images", summary=entry["summary"], **_replay_options(entry, admin),
     )
 

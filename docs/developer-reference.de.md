@@ -573,7 +573,7 @@ bestehende Crontab übernehmen (`crontab -e`).
 
 - Listen: Einkaufslisten, To-Do-Listen und druckbare Task-/Kanban-Karten, siehe [Listen](#listen) unten
 - Freie Textmeldungen
-- Bilddruck aus der Web-UI oder per JSON-API, mit wählbarem Dithering (Floyd-Steinberg, Atkinson, Bayer) und einer Vorschau des exakten 1-Bit-Druckbilds
+- Bilddruck aus der Web-UI oder per JSON-API, mit wählbarem Dithering (Floyd-Steinberg, Atkinson, Bayer) und einer Vorschau des exakten 1-Bit-Druckbilds; in der Web-UI mit optionaler Nachricht (bis 500 Zeichen), die unter dem Bild auf denselben Bon gedruckt wird
 - Gäste-WLAN-Zugangsdaten und QR-Codes
 - Wetterberichte (DWD oder Open-Meteo wählbar, + optional Netatmo), mit optionalem Unwetterwarnungs-Watcher (DWD, MeteoAlarm oder NWS, druckt nur bei tatsächlich aktiver Warnung)
 - Systemberichte: Proxmox/PBS via SSH, plus eine Eigener-Befehl-Rolle für jeden anderen Host (z. B. ein NAS), mit optionalem verschlüsseltem Passwort-Login, siehe [Systembericht](#systembericht) unten
@@ -776,6 +776,9 @@ Nicht jede Druckart ist dabei: Wetter/Systembericht holen beim
 Nachdruck ohnehin live neue Daten (kein Veraltet-Risiko), ein
 Bild-Upload wird dagegen als bereits verkleinerte/gedithert
 druckfertige Version gespeichert (wenige KB, nicht das Original-Foto).
+Die Nachricht (Bildunterschrift) eines Bild-Auftrags liegt neben dem
+Bildverweis in der Payload des Eintrags und wird beim Nachdruck wieder
+mitgedruckt; ein Eintrag ohne Nachricht druckt nur das Bild.
 
 ### Modul-Schalter
 

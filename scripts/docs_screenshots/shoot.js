@@ -95,6 +95,7 @@ async function go(page, url) {
 
   await go(page, '/images');
   await page.setInputFiles('#image', picture);
+  await page.fill('#caption', t('Happy birthday!\nSee you on Sunday.', 'Alles Gute zum Geburtstag!\nBis Sonntag.'));
   await page.click('#image_preview_btn');
   await page.waitForSelector('#image_preview_result:not([hidden])', { timeout: 20000 });
   await shot(page, 'modules', 'images', { wait: 800 });

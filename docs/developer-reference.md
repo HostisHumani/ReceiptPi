@@ -548,7 +548,7 @@ existing crontab (`crontab -e`).
 
 - Lists: shopping lists, to-do lists, and printable task/kanban cards, see [Lists](#lists) below
 - Free-form messages
-- Image printing from the web UI or the JSON API, with a choice of dithering (Floyd-Steinberg, Atkinson, Bayer) and a preview of the exact 1-bit print image
+- Image printing from the web UI or the JSON API, with a choice of dithering (Floyd-Steinberg, Atkinson, Bayer) and a preview of the exact 1-bit print image; in the web UI with an optional message (up to 500 characters) printed under the image on the same receipt
 - Guest Wi-Fi credentials and QR codes
 - Weather reports (DWD or Open-Meteo, selectable, + optional Netatmo), with an optional storm-warning watcher (DWD, MeteoAlarm, or NWS, prints only when a warning is actually active)
 - System reports: Proxmox/PBS via SSH, plus a custom-command role for any other host (e.g. a NAS), with optional encrypted password auth, see [System report](#system-report) below
@@ -740,7 +740,10 @@ days).
 Not every job type is included - weather/system reports re-fetch live
 data on reprint anyway (no staleness concern), but a raw image upload
 is stored as its already-downscaled/dithered print-ready version (a
-few KB, not the original photo) rather than the full upload.
+few KB, not the original photo) rather than the full upload. An image
+job's message (caption) is kept next to the image reference in the
+entry's payload and printed again on reprint; an entry without one
+reprints the image alone.
 
 ### Module toggles
 

@@ -8,7 +8,8 @@
 
 Prints a photo or picture from your phone or computer. A receipt printer
 only knows black dots, so ReceiptPi turns the picture into a pattern of
-dots first. You can look at the result before you print.
+dots first. You can add a message that prints under the picture on the
+same receipt, and look at the result before you print.
 
 ## How to use it
 
@@ -23,8 +24,11 @@ dots first. You can look at the result before you print.
    | **Atkinson (higher contrast)** | clearer areas, drawings, logos |
    | **Bayer 8×8 (regular pattern)** | an even, retro-looking dot pattern |
 
-4. Tap **Preview** to see exactly what will be printed.
-5. Tap **Print**.
+4. Optional: write a text under **Message (optional)**. The counter
+   below shows how many of the 500 characters you have used.
+5. Tap **Preview** to see exactly what will be printed. The message
+   shows under the picture.
+6. Tap **Print**.
 
    <img src="../images/modules/images.webp" alt="Image page with the preview of the print" width="300">
 
@@ -37,6 +41,12 @@ dots first. You can look at the result before you print.
 - **Phone photos print the right way up.** Many phones save a portrait
   photo sideways and note the turn in the file (EXIF orientation).
   ReceiptPi applies that note, in the web interface and in the API.
+- **The message** prints under the picture, left-aligned, in the
+  printer's own font, like a [message](message.md). Long lines wrap at
+  word boundaries. With [Easy-Read](../settings/print-rules.md) on, it
+  prints larger. The preview shows where the lines break only roughly,
+  because the printer sets the text itself. Line breaks you type stay;
+  control characters are left out.
 - **Strong contrasts print best.** Dark, low-contrast photos come out
   muddy. Try another method in the preview.
 - **Limits:** PNG or JPG, at most 12 MB and 6,000 pixels per side.
@@ -46,9 +56,13 @@ dots first. You can look at the result before you print.
   to wait a moment.
 - [Print rules](../settings/print-rules.md) apply: during quiet hours the
   picture waits under [Pending jobs](pending.md), already converted to
-  dots.
+  dots, together with its message. The same picture with a different
+  message is not a duplicate.
+- **History:** the [history](history.md) shows the picture size and the
+  first 40 characters of the message.
 - **From other systems:** pictures can also be sent by scripts, see
-  [Automation API](../integrations/api.md).
+  [Automation API](../integrations/api.md). The API has no message
+  field.
 
 ## Something not working?
 

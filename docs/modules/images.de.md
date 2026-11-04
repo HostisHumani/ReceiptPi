@@ -8,7 +8,9 @@
 
 Druckt ein Foto oder Bild von deinem Handy oder Rechner. Ein Bondrucker
 kennt nur schwarze Punkte, deshalb wandelt ReceiptPi das Bild zuerst in
-ein Punktmuster um. Das Ergebnis kannst du dir vor dem Drucken ansehen.
+ein Punktmuster um. Eine Nachricht kannst du dazuschreiben, sie wird
+unter dem Bild auf denselben Bon gedruckt. Das Ergebnis kannst du dir
+vor dem Drucken ansehen.
 
 ## So geht's
 
@@ -23,8 +25,11 @@ ein Punktmuster um. Das Ergebnis kannst du dir vor dem Drucken ansehen.
    | **Atkinson (kontrastreicher)** | klarere Flächen, Zeichnungen, Logos |
    | **Bayer 8×8 (regelmäßiges Raster)** | ein gleichmäßiges Punktmuster im Retro-Look |
 
-4. Tippe auf **Vorschau**, um genau zu sehen, was gedruckt wird.
-5. Tippe auf **Drucken**.
+4. Optional: Schreib unter **Nachricht (optional)** einen Text. Der
+   Zähler darunter zeigt, wie viele der 500 Zeichen du schon nutzt.
+5. Tippe auf **Vorschau**, um genau zu sehen, was gedruckt wird. Die
+   Nachricht steht unter dem Bild.
+6. Tippe auf **Drucken**.
 
    <img src="../images/modules/images.de.webp" alt="Bild-Seite mit der Vorschau des Drucks" width="300">
 
@@ -38,6 +43,12 @@ ein Punktmuster um. Das Ergebnis kannst du dir vor dem Drucken ansehen.
   Hochkant-Foto quer und vermerken die Drehung in der Datei
   (EXIF-Ausrichtung). ReceiptPi wendet diesen Vermerk an, in der
   Oberfläche und in der API.
+- **Die Nachricht** steht unter dem Bild, linksbündig, in der Schrift
+  des Druckers, wie bei einer [Nachricht](message.de.md). Lange Zeilen
+  brechen an Wortgrenzen um. Mit [Easy-Read](../settings/print-rules.de.md)
+  druckt sie größer. Wo die Zeilen umbrechen, zeigt die Vorschau nur
+  ungefähr, weil der Drucker den Text selbst setzt. Deine Zeilenumbrüche
+  bleiben, Steuerzeichen fallen weg.
 - **Kräftige Kontraste drucken am besten.** Dunkle, flaue Fotos werden
   matschig. Probier in der Vorschau ein anderes Verfahren.
 - **Grenzen:** PNG oder JPG, höchstens 12 MB und 6.000 Pixel pro Seite.
@@ -47,9 +58,13 @@ ein Punktmuster um. Das Ergebnis kannst du dir vor dem Drucken ansehen.
   zweites kurz warten.
 - Die [Druckregeln](../settings/print-rules.de.md) gelten: Während einer
   Ruhezeit wartet das Bild unter [Ausstehende Aufträge](pending.de.md),
-  schon in Punkte umgewandelt.
+  schon in Punkte umgewandelt, zusammen mit seiner Nachricht. Dasselbe
+  Bild mit einer anderen Nachricht gilt nicht als Duplikat.
+- **Verlauf:** Der [Verlauf](history.de.md) zeigt die Bildgröße und die
+  ersten 40 Zeichen der Nachricht.
 - **Aus anderen Systemen:** Bilder können auch Skripte schicken, siehe
-  [Automations-API](../integrations/api.de.md).
+  [Automations-API](../integrations/api.de.md). Die API hat kein Feld
+  für eine Nachricht.
 
 ## Klappt nicht?
 

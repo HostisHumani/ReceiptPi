@@ -19,6 +19,13 @@
   </select>
   <div class="hint">{{ t('images.dither_hint') }}</div>
 
+  <label for="caption">{{ t('images.caption_label') }}</label>
+  <textarea id="caption" name="caption" class="textarea-compact" maxlength="{{ max_caption }}"
+            placeholder="{{ t('images.caption_placeholder') }}">{{ caption }}</textarea>
+  {# Without JS this stays the plain limit; image-preview.js turns it into a live counter. #}
+  <div class="hint" id="caption_counter" aria-live="polite" data-max="{{ max_caption }}"
+       data-counter-text="{{ t('images.caption_counter') }}">{{ t('images.caption_hint', max=max_caption) }}</div>
+
   <button type="button" class="btn btn-secondary btn-block" id="image_preview_btn"><span class="icon icon-image" aria-hidden="true"></span> {{ t('images.preview_button') }}</button>
   <button type="submit">{{ t('images.button') }}</button>
 </form>
@@ -43,9 +50,14 @@
   <div id="image_preview_result" hidden>
     <h2 class="section-title">{{ t('images.preview_heading') }}</h2>
     <div class="image-preview-frame">
-      <div class="image-preview-paper"><img id="image_preview_img" alt="{{ t('images.preview_heading') }}"></div>
+      <div class="image-preview-paper"><img id="image_preview_img" alt="{{ t('images.preview_heading') }}">
+        {# The caption as text in the printer's column count - the server
+           preview only renders the image, the printer sets the text. #}
+        <div class="image-preview-caption" id="image_preview_caption" style="--caption-cols: {{ caption_columns }}" hidden></div>
+      </div>
     </div>
     <div class="hint" id="image_preview_info"></div>
+    <div class="hint" id="image_preview_caption_hint" hidden>{{ t('images.preview_caption_hint') }}</div>
   </div>
 </div>
 {% endblock %}

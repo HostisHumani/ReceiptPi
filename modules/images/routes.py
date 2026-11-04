@@ -11,6 +11,10 @@ Previews mirror that split without printing:
 Both return the exact 1-bit PNG the print path would send, produced by
 the same processing.image_to_1bit() call.
 
+The web UI can add a message (caption) that prints under the image on
+the same receipt, in the same print job. The JSON API has no caption
+field.
+
 Note: the detail strings from processing.ImageConversionError (image
 too large, unknown method, ...) stay in English on the JSON API, which
 isn't localized. The web UI shows the translated variant where one
@@ -28,6 +32,7 @@ import i18n
 from print_queue import enqueue_print
 from printer import get_printer
 from security import any_user, csrf_protect, get_csrf_token, get_json_body, require_api_token
+from text_style import BODY_COLUMNS, clean_print_text, get_text_scale, wrap_body_text
 
 from .processing import DEFAULT_DITHER, DITHER_METHODS, ImageConversionError, image_to_1bit
 
@@ -44,11 +49,28 @@ _CONVERT_LOCK = threading.Lock()
 PREVIEW_LOCK_WAIT_S = 2
 PRINT_LOCK_WAIT_S = 30
 
+# A caption is meant to be a short note under a picture, not a letter:
+# 500 characters are about twelve lines at normal size.
+MAX_CAPTION_LEN = 500
+# Characters of the caption shown in the history/pending summary.
+SUMMARY_CAPTION_LEN = 40
 
-def _raw_print_image(img):
+
+def _raw_print_image(img, caption=None):
+    """caption: optional text under the image, on the same receipt.
+    Printed like the body of a message: left-aligned, Easy-Read size
+    from get_text_scale(), word-wrapped to the line width. Cleaned again
+    here, so a pending entry written by any version prints safely."""
     p = get_printer()
     try:
         p.image(img)
+        if caption:
+            scale = get_text_scale()
+            p.set(align="left", bold=False, width=scale.body_width, height=scale.body_height, custom_size=True)
+            p.text("\n" + wrap_body_text(clean_print_text(caption), scale) + "\n")
+            # custom_size=True, or set() skips the size reset (see the
+            # footer in modules/message/routes.py).
+            p.set(align="left", bold=False, width=1, height=1, custom_size=True)
         p.cut()
     finally:
         p.close()
@@ -75,13 +97,25 @@ def _read_dither(value):
     return value.strip().lower() if isinstance(value, str) else value
 
 
-def process_and_enqueue_image(img_bytes, source="ui", dither=DEFAULT_DITHER, localized=False):
+def _read_caption(value):
+    """The caption from the web form: control characters removed (see
+    text_style.clean_print_text()), trimmed, cut to MAX_CAPTION_LEN.
+    None when there is no text left."""
+    if not isinstance(value, str):
+        return None
+    caption = clean_print_text(value).strip()[:MAX_CAPTION_LEN].rstrip()
+    return caption or None
+
+
+def process_and_enqueue_image(img_bytes, source="ui", dither=DEFAULT_DITHER, localized=False, caption=None):
     """Shared pipeline for both upload paths: converts via
     image_to_1bit() and enqueues the print job. Returns (ok, detail,
     http_status) - the same 3-tuple convention as enqueue_print().
 
     localized=True returns the translated UI text for conversion errors
-    that have one (web UI); the JSON API keeps the English detail."""
+    that have one (web UI); the JSON API keeps the English detail.
+
+    caption: already read via _read_caption(), or None."""
     try:
         img = _convert_exclusive(img_bytes, dither, PRINT_LOCK_WAIT_S)
     except ImageConversionError as e:
@@ -105,11 +139,21 @@ def process_and_enqueue_image(img_bytes, source="ui", dither=DEFAULT_DITHER, loc
     if dither != DEFAULT_DITHER:
         dedupe_key = f"{dedupe_key}:{dither}"
         summary = f"{summary}, {dither}"
+    # The same image with another caption is another receipt, not a
+    # duplicate. Without a caption the key stays as it is.
+    retry_payload = {"image": img}
+    if caption:
+        dedupe_key = f"{dedupe_key}:caption:{hashlib.sha256(caption.encode()).hexdigest()}"
+        start = " ".join(caption.split())
+        if len(start) > SUMMARY_CAPTION_LEN:
+            start = start[:SUMMARY_CAPTION_LEN] + "…"
+        summary = f"{summary}: {start}"
+        retry_payload["caption"] = caption
 
     return enqueue_print(
-        _raw_print_image, img, dedupe_key=dedupe_key,
+        _raw_print_image, img, caption, dedupe_key=dedupe_key,
         job_type="images", summary=summary, source=source,
-        retry_payload={"image": img},
+        retry_payload=retry_payload,
     )
 
 
@@ -155,10 +199,14 @@ def _decode_base64_image(data):
         return None, (jsonify({"status": "error", "detail": "Invalid base64"}), 400)
 
 
-def _render_page(message=None, success=None, dither=DEFAULT_DITHER):
+def _render_page(message=None, success=None, dither=DEFAULT_DITHER, caption=""):
+    """caption_columns: characters per caption line at the current text
+    size, so the preview can show roughly where the printer wraps."""
     return render_template(
         "images.html", message=message, success=success, csrf_token=get_csrf_token(),
         dither_methods=DITHER_METHODS, selected_dither=dither if dither in DITHER_METHODS else DEFAULT_DITHER,
+        caption=caption or "", max_caption=MAX_CAPTION_LEN,
+        caption_columns=BODY_COLUMNS.get(get_text_scale().body_width, 42),
     )
 
 
@@ -223,14 +271,17 @@ def ui_preview_image():
 @csrf_protect
 def ui_print_image():
     """File upload from the web UI subpage (multipart/form-data), no
-    base64 detour needed - the browser sends the raw bytes directly."""
+    base64 detour needed - the browser sends the raw bytes directly.
+    After a failed print the caption stays in the form, so it doesn't
+    have to be typed again."""
     dither = _read_dither(request.form.get("dither"))
+    caption = _read_caption(request.form.get("caption"))
     uploaded = request.files.get("image")
     if not uploaded or uploaded.filename == "":
         message, success = i18n.tr("images.no_file_selected"), False
     else:
         img_bytes = uploaded.read()
-        ok, detail, _status_code = process_and_enqueue_image(img_bytes, dither=dither, localized=True)
+        ok, detail, _status_code = process_and_enqueue_image(img_bytes, dither=dither, localized=True, caption=caption)
         message = i18n.tr("print.success") if ok else i18n.tr("print.error_prefix") + detail
         success = ok
-    return _render_page(message, success, dither)
+    return _render_page(message, success, dither, caption=None if success else caption)

@@ -2,7 +2,9 @@
 // templates/images.html and /ui/images/preview in
 // modules/images/routes.py). Sends the same form fields as the print
 // button - file, dithering method, CSRF token - and shows the returned
-// 1-bit PNG at its native size, which is the real print width.
+// 1-bit PNG at its native size, which is the real print width. The
+// optional caption (message under the image) is shown below it as text
+// and follows the textarea live; it also drives the character counter.
 //
 // The response is shown through a blob: URL and never stored: the
 // server marks it no-store, and the service worker only handles
@@ -22,7 +24,37 @@
   var result = document.getElementById("image_preview_result");
   var img = document.getElementById("image_preview_img");
   var info = document.getElementById("image_preview_info");
+  var caption = document.getElementById("caption");
+  var counter = document.getElementById("caption_counter");
+  var captionBox = document.getElementById("image_preview_caption");
+  var captionHint = document.getElementById("image_preview_caption_hint");
   if (!form || !fileInput || !select || !button || !box || !loading || !errorBox || !result || !img || !info) return;
+
+  // Same cleanup as the server (text_style.clean_print_text), so the
+  // preview shows what will be printed.
+  function cleanCaption(text) {
+    return text.replace(/\r\n/g, "\n").replace(/\t/g, " ").replace(/[\x00-\x09\x0b-\x1f\x7f-\x9f]/g, "").trim();
+  }
+
+  function updateCaption() {
+    if (!caption) return;
+    if (counter) {
+      counter.textContent = counter.dataset.counterText
+        .replace("{count}", caption.value.length)
+        .replace("{max}", counter.dataset.max);
+    }
+    if (captionBox) {
+      var text = cleanCaption(caption.value);
+      captionBox.textContent = text;
+      captionBox.hidden = !text;
+      if (captionHint) captionHint.hidden = !text;
+    }
+  }
+
+  if (caption) {
+    caption.addEventListener("input", updateCaption);
+    updateCaption();
+  }
 
   // Longer than the server needs in the worst allowed case (lock wait
   // plus the Atkinson time limit plus decoding a large photo), so this

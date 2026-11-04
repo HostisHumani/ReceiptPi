@@ -240,18 +240,19 @@ def add(job_type, summary, source, status, reason, payload, *, owner):
     System - deliberately without a default.
 
     `payload` is normally a plain JSON-serializable dict. EXCEPTION:
-    for job_type "images", pass {"image": <PIL Image>} instead - the
+    for job_type "images", pass {"image": <PIL Image>, ...} instead - the
     image is written to disk here (via save_pending_image(), only at
     the moment it's actually needed, i.e. only when a job truly ends
     up pending, not on every successful print) and replaced with a
-    small {"image_ref": "<id>.png"} marker before the JSON entry is
-    written. This keeps the generic call sites in print_queue.py free
+    small "image_ref": "<id>.png" marker before the JSON entry is
+    written. The other keys (e.g. "caption") stay in the entry as
+    they are. This keeps the generic call sites in print_queue.py free
     of any image-specific special-casing - they just pass `payload`
     through opaquely."""
     entry_id = uuid.uuid4().hex[:12]
     if job_type == "images" and "image" in payload:
         save_pending_image(entry_id, payload["image"])
-        payload = {"image_ref": f"{entry_id}.png"}
+        payload = {**{k: v for k, v in payload.items() if k != "image"}, "image_ref": f"{entry_id}.png"}
     entry = {
         "id": entry_id,
         "job_type": job_type,
