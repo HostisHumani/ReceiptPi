@@ -16,33 +16,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Validate and normalize release tag
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Version from the release tag
         id: version
         shell: bash
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-
-          if [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-alpha1$ ]]; then
-            VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}alpha"
-          elif [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-beta1$ ]]; then
-            VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}beta"
-          elif [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
-          else
-            echo "Unsupported release tag: $TAG"
-            exit 1
-          fi
-
+          VERSION=$(deploy/release/version_from_tag.sh "$TAG")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Release $TAG -> VERSION $VERSION"
-
-      - name: Checkout main
-        uses: actions/checkout@v7
-        with:
-          ref: main
-          fetch-depth: 0
 
       - name: Update VERSION
         id: update

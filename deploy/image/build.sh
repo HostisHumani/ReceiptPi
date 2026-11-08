@@ -12,6 +12,11 @@
 #   build.sh summary    print the summary, also as annotations
 #
 # Everything happens below WORK; the results end up in WORK/out.
+#
+# With PACKAGE set to an update package (receiptpi-<version>.tar.gz from
+# deploy/release/build_package.py), the image installs exactly the files
+# of that package instead of the checkout; PACKAGE_VERSION, if set, must
+# match its VERSION.
 set -Eeuo pipefail
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
@@ -138,9 +143,24 @@ step_customize() {
     rm -f "$MNT/etc/resolv.conf"
     cp -L /etc/resolv.conf "$MNT/etc/resolv.conf"
 
-    # Only files tracked in git, as a fresh checkout would have them.
     mkdir -p "$MNT$SRC_IN_IMAGE"
-    git_repo archive --format=tar HEAD | tar -C "$MNT$SRC_IN_IMAGE" -xf -
+    if [ -n "${PACKAGE:-}" ]; then
+        # The release's update package, so image and update hold the same files.
+        [ -f "$PACKAGE" ] || die "package $PACKAGE not found"
+        tar -C "$MNT$SRC_IN_IMAGE" --strip-components=1 --no-same-owner -xzf "$PACKAGE"
+    else
+        # Only files tracked in git, as a fresh checkout would have them.
+        git_repo archive --format=tar HEAD | tar -C "$MNT$SRC_IN_IMAGE" -xf -
+    fi
+    tr -d '\r\n' < "$MNT$SRC_IN_IMAGE/VERSION" > "$WORK/version"
+    if [ -n "${PACKAGE_VERSION:-}" ] && [ "$(cat "$WORK/version")" != "$PACKAGE_VERSION" ]; then
+        die "package holds version $(cat "$WORK/version"), expected $PACKAGE_VERSION"
+    fi
+    if [ -n "${PACKAGE:-}" ]; then
+        summary "source: package $(basename "$PACKAGE"), version $(cat "$WORK/version")"
+    else
+        summary "source: git checkout, version $(cat "$WORK/version")"
+    fi
     chroot_run /bin/bash "$SRC_IN_IMAGE/deploy/install.sh"
     chroot_run /bin/bash "$SRC_IN_IMAGE/deploy/image/customize.sh"
 
@@ -203,7 +223,8 @@ print(struct.unpack_from("<I", open(sys.argv[1], "rb").read(512), 462 + 8)[0])' 
     summary "check partitions: $(tail -n 1 "$WORK/check-image.txt")"
     [ "$rc" -eq 0 ]
 
-    version=$(tr -d '\r\n' < "$REPO/VERSION")
+    # The version of what was installed: the package's, or the checkout's.
+    version=$(cat "$WORK/version" 2>/dev/null || tr -d '\r\n' < "$REPO/VERSION")
     name=receiptpi-$version-arm64
     summary "image: $name.img, $(stat -c %s "$IMG") bytes, sha256 $(sha256sum < "$IMG" | cut -d' ' -f1)"
     xz -T0 -6 -c "$IMG" > "$OUT/$name.img.xz"

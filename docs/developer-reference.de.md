@@ -75,7 +75,8 @@ receiptpi/
 │   ├── systemd/                Units für Server, Erststart, WLAN-Einrichtung, Updater und Watcher, Timer
 │   ├── update/updater.py       Root-Updater in zwei Stufen: der installierte prüft das signierte Release, der neue installiert es (Umgebung, Sicherung, Umschalten, Gesundheitsprüfung), der installierte macht rückgängig, was schiefgeht
 │   ├── udev/                   Regel für den Druckerzugriff des Dienst-Benutzers
-│   └── image/                  Image-Bau aus Raspberry Pi OS Lite (.github/workflows/image.yml, nur von Hand gestartet)
+│   ├── release/                build_package.py (signiertes Update-Paket) und version_from_tag.sh, genutzt von .github/workflows/release.yml
+│   └── image/                  Image-Bau aus Raspberry Pi OS Lite (.github/workflows/image.yml, von Hand oder aus release.yml)
 ├── modules/
 │   ├── lists/                 Einkaufslisten, To-Do-Listen, Task-/Kanban-Karten
 │   ├── message/               Statusmeldungen (freier Titel + Text)
@@ -709,6 +710,79 @@ sudo python3 -I -E -s /var/lib/receiptpi-update/updater.py rollback --yes
 Grenzen: Ein Update kann keine neuen Systempakete installieren, keine
 neuen Units einschalten und das Netzwerk nicht ändern; ein Release, das
 das braucht, nennt es in seinem Manifest und wird abgelehnt.
+
+### Releases und Signaturschlüssel
+
+**Ein Release veröffentlichen.** Ein veröffentlichtes volles Release
+`vX.Y.Z` (nicht als Pre-Release markiert) startet
+`.github/workflows/release.yml`:
+
+1. **package** (Environment `release-signing`, `contents: read`): checkt
+   den Tag aus, nimmt die Version daraus mit
+   `deploy/release/version_from_tag.sh` (dieselbe Regel, die
+   `sync-version-on-release.yml` für den VERSION-Commit nutzt), prüft,
+   dass `deploy/update/keys/` mindestens einen öffentlichen Schlüssel
+   enthält, baut das Paket mit `deploy/release/build_package.py`
+   (reproduzierbar: gleicher Commit und gleiche Version ergeben dieselben
+   Bytes; VERSION aus dem Tag), signiert das Manifest, prüft die Signatur
+   wie ein Gerät gegen `deploy/update/keys/*.pub` und schreibt
+   `SHA256SUMS`.
+2. **release-assets** (`contents: write`): hängt
+   `receiptpi-X.Y.Z.tar.gz`, `receiptpi-X.Y.Z.manifest.json`,
+   `receiptpi-X.Y.Z.manifest.json.sig` und `SHA256SUMS` an das Release.
+   Eine schon angehängte Datei wird nie ersetzt.
+3. **image** (`image.yml`, mit dem Paket aufgerufen): baut das Image aus
+   genau diesem Paket.
+4. **image-assets** (`contents: write`): hängt
+   `receiptpi-X.Y.Z-arm64.img.xz` und `receiptpi-X.Y.Z-arm64.img.xz.sha256`
+   an. Jede Datei eines Releases muss kleiner als 2 GiB sein
+   ([GitHub Docs: About releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases));
+   der Job prüft das vor dem Hochladen.
+
+Pre-Releases bekommen kein Paket: Als Update werden nur volle Releases
+angeboten. Geräte sehen das Release, sobald es veröffentlicht ist;
+solange seine Dateien noch fehlen, meldet der Updater „nicht verfügbar“
+und versucht es später wieder.
+
+**Schlüssel.** Zwei Ed25519-Schlüsselpaare:
+
+| Schlüssel | Privater Teil | Öffentlicher Teil |
+|-----------|---------------|-------------------|
+| 1 (Signatur) | Secret `UPDATE_SIGNING_KEY` der Environment `release-signing`, und offline | `deploy/update/keys/release-1.pub` |
+| 2 (Ersatz) | Nur offline, nie bei GitHub | `deploy/update/keys/release-2.pub` |
+
+Die öffentlichen Schlüssel sind PEM-Dateien, wie `openssl pkey -pubout`
+sie schreibt (`-----BEGIN PUBLIC KEY-----`). Geräte vertrauen jedem
+`*.pub` im `deploy/update/keys/` ihres installierten Releases. Ohne
+öffentlichen Schlüssel bricht der Workflow mit „no public signing key in
+deploy/update/keys“ ab, bevor etwas signiert wird.
+
+Die Environment `release-signing` erlaubt nur den Branch `main` und Tags
+nach dem Muster `v*` („Selected branches and tags“), Läufe aus anderen
+Branches bekommen das Secret also nicht. Der Signierschritt schreibt den
+Schlüssel in eine Datei, die nur der Runner-Benutzer lesen kann, nutzt
+sie einmal und löscht sie; nichts gibt ihn aus. `release.yml` hat keinen
+Auslöser für Pull Requests.
+
+**Rotation.** Ist Schlüssel 1 verloren oder womöglich bekannt geworden:
+den privaten Teil von Schlüssel 2 in `UPDATE_SIGNING_KEY` eintragen,
+einen neuen Ersatzschlüssel 3 erzeugen und ein Release veröffentlichen,
+dessen `deploy/update/keys/` `release-2.pub` und `release-3.pub` enthält,
+aber nicht mehr `release-1.pub`. Geräte nehmen es an, weil sie
+Schlüssel 2 vertrauen; nach dem Update vertrauen sie nur noch den
+Schlüsseln 2 und 3. Ein geplanter Wechsel geht genauso.
+
+**Testpakete.** Von Hand gestartet (Actions → Release packages → Run
+workflow) mit `version`, `break_start` und `build_image` baut der
+Workflow ein Paket im Kanal `test` aus dem gewählten Branch, signiert mit
+demselben Schlüssel, und hebt es (auf Wunsch mit Image) einen Tag lang
+als Workflow-Artefakt auf; an ein Release wird nichts gehängt. Geräte
+nehmen den Testkanal nur mit `allow_test_channel = yes` in
+`/etc/receiptpi/update.conf` an. `break_start` lässt den Server des
+Testpakets `update-test-break-start` in sein Datenverzeichnis schreiben
+und dann den Start verweigern: Ein Gerät, das darauf aktualisiert, muss
+zurückfallen, und die Datei ist danach weg. Im Release-Kanal wird
+`break_start` abgelehnt.
 
 ## Features
 

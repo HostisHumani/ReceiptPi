@@ -72,7 +72,8 @@ receiptpi/
 │   ├── systemd/                server, first-start, Wi-Fi setup, updater and watcher units, timers
 │   ├── update/updater.py       root updater in two stages: the installed one checks the signed release, the new one installs it (environment, backup, switch, health check), the installed one undoes whatever goes wrong
 │   ├── udev/                   printer access rule for the service user
-│   └── image/                  image build from Raspberry Pi OS Lite (.github/workflows/image.yml, started by hand)
+│   ├── release/                build_package.py (signed update package) and version_from_tag.sh, used by .github/workflows/release.yml
+│   └── image/                  image build from Raspberry Pi OS Lite (.github/workflows/image.yml, by hand or from release.yml)
 ├── modules/
 │   ├── lists/                 shopping lists, to-do lists, task/kanban cards
 │   ├── message/               status messages (free title + text)
@@ -677,6 +678,73 @@ sudo python3 -I -E -s /var/lib/receiptpi-update/updater.py rollback --yes
 Limits: an update can't install new system packages, enable new units or
 change the network setup; a release that needs that names it in its
 manifest and is refused.
+
+### Releases and signing keys
+
+**Publishing a release.** A published full release `vX.Y.Z` (not marked
+as a prerelease) starts `.github/workflows/release.yml`:
+
+1. **package** (environment `release-signing`, `contents: read`): checks
+   out the tag, takes the version from it with
+   `deploy/release/version_from_tag.sh` (the same rule
+   `sync-version-on-release.yml` uses for the VERSION commit), checks that
+   `deploy/update/keys/` holds at least one public key, builds the package
+   with `deploy/release/build_package.py` (reproducible: same commit and
+   version, same bytes; VERSION set from the tag), signs the manifest,
+   verifies the signature against `deploy/update/keys/*.pub` like a
+   device, and writes `SHA256SUMS`.
+2. **release-assets** (`contents: write`): attaches
+   `receiptpi-X.Y.Z.tar.gz`, `receiptpi-X.Y.Z.manifest.json`,
+   `receiptpi-X.Y.Z.manifest.json.sig` and `SHA256SUMS` to the release.
+   An asset that is already attached is never replaced.
+3. **image** (`image.yml`, called with the package): builds the image
+   from exactly that package.
+4. **image-assets** (`contents: write`): attaches
+   `receiptpi-X.Y.Z-arm64.img.xz` and `receiptpi-X.Y.Z-arm64.img.xz.sha256`.
+   Each file of a release must be under 2 GiB
+   ([GitHub Docs: About releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases));
+   the job checks that before uploading.
+
+Prereleases get no package: only full releases are offered as updates.
+Devices see the release as soon as it is published; until its files are
+attached, the updater reports "not available" and tries again later.
+
+**Keys.** Two Ed25519 key pairs:
+
+| Key | Private part | Public part |
+|-----|--------------|-------------|
+| 1 (signing) | Secret `UPDATE_SIGNING_KEY` of the environment `release-signing`, and offline | `deploy/update/keys/release-1.pub` |
+| 2 (spare) | Offline only, never on GitHub | `deploy/update/keys/release-2.pub` |
+
+The public keys are PEM files as `openssl pkey -pubout` writes them
+(`-----BEGIN PUBLIC KEY-----`). Devices trust every `*.pub` in the
+`deploy/update/keys/` of their installed release. Without a public key
+the workflow stops with "no public signing key in deploy/update/keys"
+before anything is signed.
+
+The environment `release-signing` allows only the branch `main` and tags
+matching `v*` ("Selected branches and tags"), so the secret is not
+available to runs from other branches. The signing step writes the key
+to a file only the runner user can read, uses it once and removes it;
+nothing prints it. `release.yml` has no pull request trigger.
+
+**Rotation.** If key 1 is lost or may have leaked: put the private part
+of key 2 into `UPDATE_SIGNING_KEY`, create a new spare key 3, and publish
+a release whose `deploy/update/keys/` holds `release-2.pub` and
+`release-3.pub` but no longer `release-1.pub`. Devices accept it because
+they trust key 2; once updated, they trust only keys 2 and 3. A planned
+change works the same way.
+
+**Test packages.** Started by hand (Actions → Release packages → Run
+workflow) with `version`, `break_start` and `build_image`, the workflow
+builds a package on the channel `test` from the chosen branch, signed
+with the same key, and keeps it (and on request an image) as a workflow
+artifact for one day; nothing is attached to a release. Devices only
+accept the test channel with `allow_test_channel = yes` in
+`/etc/receiptpi/update.conf`. `break_start` makes the server of the test
+package write `update-test-break-start` into its data directory and then
+refuse to start: a device updating to it has to fall back, and the file
+is gone afterwards. It is refused on the release channel.
 
 ## Features
 

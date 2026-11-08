@@ -1,0 +1,212 @@
+name: Release packages
+
+# For a published full release: builds the signed update package from the
+# release's tag, attaches it to the release, builds the image from that
+# package and attaches it as well. Prereleases get nothing: only full
+# releases are offered as updates.
+#
+# Started by hand: builds a test package (channel "test", accepted only
+# by devices with a test configuration) from the chosen branch, and on
+# request an image from it. Both are kept as workflow artifacts for one
+# day and never attached to a release.
+#
+# The private signing key is the secret UPDATE_SIGNING_KEY of the
+# environment release-signing, which only main and v* tags may use. Only
+# the signing step sees it. The public keys the devices trust are
+# deploy/update/keys/*.pub; without one the run stops before signing.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version of the test package (MAJOR.MINOR.PATCH, higher than the device's)"
+        type: string
+        required: true
+      break_start:
+        description: "Test package whose server fails to start (tests the automatic rollback)"
+        type: boolean
+        default: false
+      build_image:
+        description: "Also build an image from the test package (artifact, kept for 1 day)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-packages
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release-signing
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      # The release's tag, or the branch the run was started from.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Version and channel
+        id: meta
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          BREAK_START: ${{ inputs.break_start }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = release ]; then
+            VERSION=$(deploy/release/version_from_tag.sh "$TAG")
+            CHANNEL=release
+            BREAK=false
+          else
+            VERSION=$INPUT_VERSION
+            CHANNEL=test
+            BREAK=${BREAK_START:-false}
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$ ]]; then
+            echo "::error::Version '$VERSION' is not MAJOR.MINOR.PATCH; only such versions are installed as updates."
+            exit 1
+          fi
+          {
+            echo "version=$VERSION"
+            echo "channel=$CHANNEL"
+            echo "break_start=$BREAK"
+          } >> "$GITHUB_OUTPUT"
+          echo "version $VERSION, channel $CHANNEL, break_start $BREAK"
+
+      - name: Public signing keys
+        run: python3 deploy/release/build_package.py keys --keys deploy/update/keys
+
+      - name: Build the package
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          CHANNEL: ${{ steps.meta.outputs.channel }}
+          BREAK_START: ${{ steps.meta.outputs.break_start }}
+        run: |
+          set -euo pipefail
+          extra=()
+          [ "$BREAK_START" = true ] && extra+=(--break-start)
+          python3 deploy/release/build_package.py build --ref HEAD --version "$VERSION" \
+            --channel "$CHANNEL" "${extra[@]}" --out dist
+
+      # The only step with the private key: written to a file only the
+      # runner user can read, used once, removed even when signing fails.
+      - name: Sign the manifest
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::The secret UPDATE_SIGNING_KEY of the environment release-signing is missing."
+            exit 1
+          fi
+          umask 077
+          key="$RUNNER_TEMP/update-signing.key"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$SIGNING_KEY" > "$key"
+          python3 deploy/release/build_package.py sign \
+            --manifest "dist/receiptpi-$VERSION.manifest.json" --key "$key"
+
+      - name: Verify like a device
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          CHANNEL: ${{ steps.meta.outputs.channel }}
+        run: |
+          python3 deploy/release/build_package.py verify \
+            --manifest "dist/receiptpi-$VERSION.manifest.json" --keys deploy/update/keys --channel "$CHANNEL"
+
+      - name: Checksums
+        run: python3 deploy/release/build_package.py sums --out dist
+
+      - name: Keep the package for the next jobs
+        uses: actions/upload-artifact@v7
+        with:
+          name: receiptpi-package
+          path: dist/
+          retention-days: 1
+          if-no-files-found: error
+
+  release-assets:
+    needs: package
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch the package
+        uses: actions/download-artifact@v7
+        with:
+          name: receiptpi-package
+          path: dist
+
+      # Never replaces a file that is already attached: a published
+      # package stays what devices may have verified.
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY"
+
+  image:
+    needs: package
+    if: github.event_name == 'release' || inputs.build_image
+    permissions:
+      contents: read
+    uses: ./.github/workflows/image.yml
+    with:
+      package_artifact: receiptpi-package
+      version: ${{ needs.package.outputs.version }}
+      upload_image: true
+
+  image-assets:
+    needs: [package, image]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch the image
+        uses: actions/download-artifact@v7
+        with:
+          name: receiptpi-image
+          path: image
+
+      - name: Fetch the image checksum
+        uses: actions/download-artifact@v7
+        with:
+          name: receiptpi-image-files
+          path: image-files
+
+      # A release file must be under 2 GiB; the image is checked against
+      # the checksum the build wrote, and the checksum file gets a name
+      # of its own next to the package's SHA256SUMS.
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          VERSION: ${{ needs.package.outputs.version }}
+        run: |
+          set -euo pipefail
+          img="receiptpi-$VERSION-arm64.img.xz"
+          [ -f "image/$img" ] || { echo "::error::$img is missing"; exit 1; }
+          size=$(stat -c %s "image/$img")
+          [ "$size" -lt $((2 * 1024 * 1024 * 1024)) ] || { echo "::error::$img is $size bytes, too large for a release"; exit 1; }
+          # The files artifact keeps the paths below the build directory.
+          (cd image && sha256sum -c ../image-files/out/SHA256SUMS)
+          cp image-files/out/SHA256SUMS "image/$img.sha256"
+          gh release upload "$TAG" "image/$img" "image/$img.sha256" --repo "$GITHUB_REPOSITORY"

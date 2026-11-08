@@ -1,7 +1,10 @@
 name: Build image
 
 # Builds receiptpi-<version>-arm64.img.xz from the official Raspberry Pi OS
-# Lite image (deploy/image/). Started by hand only.
+# Lite image (deploy/image/). Started by hand, it installs the checkout.
+# Called by release.yml, it installs the update package that workflow
+# built (an artifact of the same run), so the image and the update hold
+# the same files.
 on:
   workflow_dispatch:
     inputs:
@@ -9,13 +12,23 @@ on:
         description: "Upload the image (img.xz) as an artifact, kept for 1 day"
         type: boolean
         default: false
+  workflow_call:
+    inputs:
+      package_artifact:
+        description: "Name of the artifact with receiptpi-<version>.tar.gz"
+        type: string
+        required: true
+      version:
+        description: "Version the package must hold"
+        type: string
+        required: true
+      upload_image:
+        description: "Upload the image (img.xz) as an artifact, kept for 1 day"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
-
-concurrency:
-  group: image-build
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -23,14 +36,27 @@ jobs:
     # emulation.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
+    concurrency:
+      group: image-build
+      cancel-in-progress: false
     env:
       WORK: ${{ github.workspace }}/image-build
+      # Empty when started by hand: build.sh then installs the checkout.
+      PACKAGE: ${{ inputs.package_artifact && format('{0}/package/receiptpi-{1}.tar.gz', github.workspace, inputs.version) || '' }}
+      PACKAGE_VERSION: ${{ inputs.version || '' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Fetch the update package
+        if: inputs.package_artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.package_artifact }}
+          path: ${{ github.workspace }}/package
 
       - name: Install build tools
         run: |
@@ -44,7 +70,7 @@ jobs:
         run: sudo --preserve-env=WORK deploy/image/build.sh prepare
 
       - name: Install ReceiptPi in a chroot
-        run: sudo --preserve-env=WORK deploy/image/build.sh customize
+        run: sudo --preserve-env=WORK,PACKAGE,PACKAGE_VERSION deploy/image/build.sh customize
 
       - name: Check the root file system
         run: sudo --preserve-env=WORK deploy/image/build.sh check
