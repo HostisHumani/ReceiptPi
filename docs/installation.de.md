@@ -86,6 +86,10 @@ mitkopiert. Auf einem Gerät, auf dem `/opt/receiptpi` von einer älteren
 Installation noch ein normaler Ordner ist, ersetzt das Skript diesen Ordner
 durch den Verweis.
 
+Spätere Versionen installierst du unter **Einstellungen** → **Updates**,
+siehe [Updates](settings/updates.de.md). Das Skript aus einem neueren
+Checkout erneut auszuführen, bleibt der Weg von Hand.
+
 ---
 
 ## Erster Start

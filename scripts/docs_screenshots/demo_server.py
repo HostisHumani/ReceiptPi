@@ -10,6 +10,7 @@ IP addresses).
 GET /__demo/seed fills in accounts and demo data; until then the instance is
 in its "no admin yet" state, for the setup screenshots.
 """
+import json
 import os
 import secrets
 import shutil
@@ -53,9 +54,27 @@ import history_store
 import lists_store
 import pending_store
 import user_prefs
+import version
+from modules.update import routes as update_routes
 
 app = app_module.app
 DE = LANG == "de"
+
+# The updater's files in the demo directory: installed like from the
+# image, no update run yet, and the update check found the running
+# version as the latest release (so no footer notice on every page).
+update_routes.UPDATE_DIR = os.path.join(W, "update")
+update_routes.UPDATER_UNIT = os.path.join(W, "receiptpi-update.path")
+update_routes.UPDATE_CONF = os.path.join(W, "update.conf")
+update_routes.APP_LINK = os.path.join(W, "receiptpi")
+os.makedirs(update_routes.UPDATE_DIR)
+open(update_routes.UPDATER_UNIT, "w").close()
+os.makedirs(os.path.join(W, "release"))
+os.symlink("release", update_routes.APP_LINK)
+_latest = version.format_display(version.CURRENT_VERSION)
+with open(os.path.join(state, "update_check.json"), "w") as f:
+    json.dump({"latest_version": _latest, "update_available": False,
+               "latest_url": f"https://github.com/HostisHumani/ReceiptPi/releases/tag/{_latest}"}, f)
 
 T = {
     "shopping_title": "Einkaufszettel" if DE else "Shopping list",

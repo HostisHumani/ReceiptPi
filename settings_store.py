@@ -99,6 +99,12 @@ DEFAULT_SETTINGS = {
         "enabled": True,
         "blur": True,
     },
+    # Automatic updates in the nightly window. The updater
+    # (deploy/update/updater.py) reads this flag as root; off until an
+    # admin switches it on.
+    "updates": {
+        "auto": False,
+    },
     # Which home-page/tile modules are switched on - see module_catalog.py
     # for the full key list and app.py's before_request hook for how a
     # disabled module's routes (UI + /print/*) get blocked with a 404,

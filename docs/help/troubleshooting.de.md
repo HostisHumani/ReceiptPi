@@ -42,6 +42,24 @@ nach unten ab.
 | Du kannst dich nicht anmelden. | Siehe [Anmeldung und Konten](../settings/accounts.de.md#klappt-nicht). |
 | Eine Kachel oder ein Menüeintrag fehlt. | Siehe [Startseite und Menü](../home-and-menu.de.md#klappt-nicht). |
 
+### Ein Update
+
+| Problem | Was du prüfen kannst |
+|---------|----------------------|
+| Die Update-Seite nennt einen Grund. | Siehe [Updates](../settings/updates.de.md#klappt-nicht). |
+| „... und der Weg zurück auf ... auch nicht.“ | Nimm den Rückweg über SSH unten. |
+| Das Gerät kommt nach einem Update nicht wieder. | Schalte es aus und wieder ein: Beim Start schließt ReceiptPi ein unterbrochenes Update von selbst ab oder macht es rückgängig. |
+
+Der Rückweg über SSH (Terminal) führt zurück auf die Version vor dem
+letzten Update und auf die Daten, die direkt davor gesichert wurden.
+Alles, was sich seitdem geändert hat, geht verloren. Der erste Befehl
+zeigt nur den Stand:
+
+```bash
+sudo python3 -I -E -s /var/lib/receiptpi-update/updater.py status
+sudo python3 -I -E -s /var/lib/receiptpi-update/updater.py rollback --yes
+```
+
 ### Genauer nachsehen (Terminal)
 
 Diese Befehle zeigen, was ReceiptPi gerade tut. Sie ändern nichts.

@@ -86,6 +86,10 @@ A `config.py`, `secret.key` or `settings.json` in the checkout is not
 copied. On a device that has `/opt/receiptpi` as a plain folder from an
 older installation, the installer replaces that folder with the link.
 
+Later versions are installed under **Settings** → **Updates**, see
+[Updates](settings/updates.md). Running the installer again from a newer
+checkout stays the way by hand.
+
 ---
 
 ## First start

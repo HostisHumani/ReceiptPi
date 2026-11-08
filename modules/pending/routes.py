@@ -41,6 +41,7 @@ from modules.lists.routes import _raw_print_list, _raw_print_task
 from modules.message.routes import _raw_print_message
 from modules.recipes.routes import _raw_print_recipe
 from modules.system.routes import _raw_print_system_report
+from modules.update.routes import _raw_print_update_result
 from modules.weather.routes import _raw_print_weather
 from modules.wifi.routes import _raw_print_wifi
 from print_queue import enqueue_print
@@ -120,6 +121,15 @@ def _replay_images(entry, admin):
     )
 
 
+def _replay_update(entry, admin):
+    # The update receipt the nightly run held back during quiet hours;
+    # the payload was checked when the updater sent it.
+    return enqueue_print(
+        _raw_print_update_result, entry["payload"],
+        job_type="update", summary=entry["summary"], **_replay_options(entry, admin),
+    )
+
+
 def _replay_recipe(entry, admin):
     # The payload is the full printable recipe (see
     # mealie.recipe_to_printable()) - replaying never needs Mealie to
@@ -147,6 +157,7 @@ REPLAY_HANDLERS = {
     "system": _replay_system,
     "images": _replay_images,
     "recipes": _replay_recipe,
+    "update": _replay_update,
 }
 
 

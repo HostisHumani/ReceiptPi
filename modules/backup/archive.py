@@ -146,6 +146,7 @@ SETTINGS_SCHEMA = {
     "language": str,
     "theme": str,
     "glass": {"enabled": bool, "blur": bool},
+    "updates": {"auto": bool},
     "enabled_modules": _Map(bool),
     "recipes": {
         "provider": str,
@@ -751,6 +752,13 @@ def _plan_glass(section, device, report, errors):
     report["sections"].append("glass")
 
 
+def _plan_updates(section, device, report, errors):
+    # A plain boolean, type-checked by _filter(); the updater still only
+    # acts on it while an admin account exists.
+    device.setdefault("updates", {}).update(section)
+    report["sections"].append("updates")
+
+
 def _plan_enabled_modules(section, device, report, errors):
     enabled = device.setdefault("enabled_modules", {})
     for key, value in section.items():
@@ -979,6 +987,8 @@ def plan_restore(backup_settings, device_settings):
         _plan_simple("theme", filtered["theme"], themes.SUPPORTED_THEMES, device, report, errors)
     if "glass" in filtered:
         _plan_glass(filtered["glass"], device, report, errors)
+    if "updates" in filtered:
+        _plan_updates(filtered["updates"], device, report, errors)
     if "enabled_modules" in filtered:
         _plan_enabled_modules(filtered["enabled_modules"], device, report, errors)
     if "recipes" in filtered:

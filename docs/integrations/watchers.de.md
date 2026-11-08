@@ -14,7 +14,7 @@ drucken, wenn etwas passiert. Niemand muss dafür einen Knopf drücken.
 | **GitHub-Sterne** | ein beobachtetes GitHub-Projekt einen neuen Stern bekommt | 5 Minuten | ja, beobachtet aber nichts, bis du ein Projekt einträgst |
 | **Unwetterwarnung** | eine neue amtliche Wetterwarnung gilt | 15 Minuten | ja, druckt aber erst, wenn du sie in den [Wetter-Einstellungen](../modules/weather.de.md#unwetterwarnung-einschalten) einschaltest |
 | **Gäste-WLAN** | du das Gästenetz deiner FRITZ!Box einschaltest | 1 Minute | nein, siehe [Gäste-WLAN](../modules/wifi.de.md#einmalige-einrichtung) |
-| **Update-Prüfung** | nie. Sie sucht nach einer neuen ReceiptPi-Version und zeigt sie unten auf jeder Seite an. | 12 Stunden | ja |
+| **Update-Prüfung** | nie. Sie sucht nach einem neuen vollen Release von ReceiptPi (keine Testversionen) und zeigt es unten auf jeder Seite und unter [Updates](../settings/updates.de.md) an. | 12 Stunden | ja |
 
 ## So geht's
 
@@ -52,8 +52,8 @@ Jeder aktive Watcher steht dort mit der Zeit seines nächsten Laufs.
 - **Watcher brauchen keine Anmeldung.** Hast du einen
   [API-Token](api.de.md#1-api-token-festlegen) festgelegt, nutzen sie ihn
   von selbst.
-- **Die Update-Prüfung informiert nur.** Es wird nichts automatisch
-  installiert.
+- **Die Update-Prüfung informiert nur.** Installiert wird unter
+  [Updates](../settings/updates.de.md), von Hand oder nachts.
 
 ## Klappt nicht?
 

@@ -16,10 +16,11 @@ release is rare) - the write is skipped there too, since 2 runs/day
 would otherwise mean ~730 SD card writes a year for a footer value
 that almost never actually changes.
 
-Deliberately uses GET /repos/{owner}/{repo}/releases (the list), NOT
-/releases/latest - GitHub's own docs confirm /releases/latest returns
-only "the most recent non-prerelease, non-draft release", which would
-silently skip every ReceiptPi alpha release.
+Uses GET /repos/{owner}/{repo}/releases/latest: GitHub documents it as
+"the most recent non-prerelease, non-draft release", and only full
+releases are offered as updates. One request per run; a release marked
+as prerelease or draft is skipped here as well, in case the answer ever
+holds one.
 """
 import json
 import os
@@ -37,7 +38,7 @@ import version
 
 OWNER = "HostisHumani"
 REPO = "ReceiptPi"
-RELEASES_URL = f"https://api.github.com/repos/{OWNER}/{REPO}/releases"
+LATEST_URL = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
 STATE_DIR = getattr(config, "STATE_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 CACHE_FILE = os.path.join(STATE_DIR, "update_check.json")
 
@@ -54,23 +55,22 @@ def is_valid_release_url(url):
 
 
 def fetch_latest_release():
-    """Returns the newest published (non-draft) release dict - may be
-    a prerelease, that's intentional, see module docstring - or None
-    if the repo has no published releases at all yet."""
-    req = urllib.request.Request(RELEASES_URL, headers={
+    """Returns the latest full release as a dict, or None if the repo has
+    no full release yet (GitHub answers 404 then)."""
+    req = urllib.request.Request(LATEST_URL, headers={
         "User-Agent": "receiptpi-update-check",
         "Accept": "application/vnd.github+json",
     })
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        releases = json.load(resp)
-    published = [r for r in releases if not r.get("draft")]
-    if not published:
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            release = json.load(resp)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+    if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
         return None
-    # Belt-and-braces: GitHub already returns releases newest-first,
-    # but sort explicitly by created_at rather than relying on
-    # undocumented ordering.
-    published.sort(key=lambda r: r.get("created_at", ""), reverse=True)
-    return published[0]
+    return release
 
 
 def save_cache(data):
@@ -105,7 +105,7 @@ def main():
         return
 
     if release is None:
-        print("no published releases found yet, cache left untouched")
+        print("no full release found, cache left untouched")
         return
 
     tag = release.get("tag_name", "")

@@ -91,6 +91,7 @@ receiptpi/
 │   ├── backup/                  Sicherung und Wiederherstellung der Einstellungen (.zip)
 │   ├── auth/                    Anmeldung, Ersteinrichtung, eigenes Konto, persönliche Einstellungen, Nutzerverwaltung, Login- und Rollenprüfung für jeden Request
 │   ├── setup_wifi/              Belege der WLAN-Einrichtung (POST /print/setup-wifi, nur von localhost)
+│   ├── update/                  Einstellungen -> Updates und der Beleg eines Updates (POST /print/update-result, nur von localhost)
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
 ├── setup_wifi/              WLAN-Einrichtungsdienst fürs Image: eigenes WLAN + Einrichtungsseite, solange das Gerät kein Netz hat (siehe „WLAN-Einrichtung“ unten)
 ├── watchers/
@@ -383,6 +384,7 @@ Unterseite pro Bereich verlinkt – statt eines langen Formulars:
 - `/settings/recipes` – Rezeptmanager (Aus / Mealie), Mealie-Base-URL, verschlüsselter API-Token, Verbindungstest, siehe [Rezepte](#rezepte) unten
 - `/settings/mqtt` – Verbindung zum MQTT-Broker, Themen-Präfix und Home Assistant Discovery, siehe [MQTT](#mqtt) unten
 - `/settings/backup` – Sicherung der Einstellungen und Logos herunterladen oder einspielen (siehe unten)
+- `/settings/updates` – Version, Update-Knopf und automatische Updates, siehe [Updates](#updates)
 - `/settings/users` – Nutzerverwaltung, siehe [Anmeldung und Konten](#anmeldung-und-konten)
 
 **Sicherung und Wiederherstellung** (`/settings/backup`): Die Sicherung ist
@@ -432,6 +434,7 @@ Ein blockierter Auftrag antwortet mit `429`.
 - `POST /ui/images`, `POST /ui/images/preview` – Formular-Posts der Web-UI (CSRF-geschützt, angemeldetes Konto), Multipart-Felder `image`, `dither` und, beim Drucken, `caption` (max. 500 Zeichen). Mit `Accept: application/json` antwortet `/ui/images` statt mit der Seite mit `{"status": "printed"|"error", "detail": "..."}` und den Statuscodes der Druck-Queue; so druckt der Editor (`static/image-editor.js`)
 - `POST /print/wifi` – `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
 - `POST /print/setup-wifi` – Belege der WLAN-Einrichtung, nur vom Gerät selbst (sonst `403`): `{ "kind": "hotspot", "ssid": "...", "password": "..." }`, `{ "kind": "failed", "ssid": "...", "password": "...", "network": "..." }` oder `{ "kind": "connected", "network": "...", "url": "http://<IPv4>:5000/" }`. Gedruckt auf Deutsch und Englisch, ohne Ruhezeiten; der Verlauf nennt nur das Netz, es entsteht kein ausstehender Auftrag
+- `POST /print/update-result` – der Ergebnis-Beleg eines Updates, nur vom Gerät selbst (sonst `403`): `{ "result": "updated"|"failed"|"rolled_back"|"rollback_failed", "reason": "<key>", "from": "<version>", "to": "<version>", "mode": "manual"|"auto"|"ssh", "by": "<Konto>" }`. Gedruckt auf Deutsch und Englisch; `mode` `auto` hält sich an die Ruhezeiten (`429`, der Beleg wartet dann unter den ausstehenden Aufträgen), die anderen drucken sofort. Siehe [Updates](#updates)
 - `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort; auch `GET /print/weather?location=Berlin`
 - `POST /print/system` – kein Body nötig
 - `POST /print/automation` – `{ "title": "optional", "text": "..." }` – generischer Automation-Webhook (kompatibel mit Home Assistant, Node-RED, n8n oder jedem Tool, das HTTP-POST beherrscht)
@@ -602,6 +605,110 @@ Installationsskript ist `watchers/crontab.example` eine Vorlage für Cron:
 installieren mit `crontab watchers/crontab.example` (nach Anpassen der
 Platzhalter `PYTHON`/`PROJECT_DIR`), oder einzelne Zeilen in eine
 bestehende Crontab übernehmen (`crontab -e`).
+
+## Updates
+
+Code: `deploy/update/updater.py` (root, System-Python, nur
+Standardbibliothek), `modules/update/` (Seite und Beleg), die Units
+`receiptpi-update.path`, `receiptpi-update@.service`,
+`receiptpi-update-auto.timer` und `receiptpi-update-recover.service`.
+Nur bei Installationen aus dem Image oder mit `deploy/install.sh`: Der
+Updater braucht das Release-Layout (`/opt/receiptpi` als Verweis auf
+`/opt/receiptpi-releases/<version>`).
+
+**Ein Update starten.** Die Web-UI schreibt
+`STATE_DIR/update-request.json` (`{"action": "install", "by": "<Konto>"}`);
+die Path-Unit startet `receiptpi-update@manual.service`, das die Datei als
+Erstes löscht. Mehr übernimmt der Updater daraus nicht: keine Version,
+keinen Pfad. Der nächtliche Timer startet `receiptpi-update@auto.service`
+um 02:00 mit bis zu 85 Minuten zufälliger Verzögerung; dieser Lauf
+arbeitet nur zwischen 02:00 und 03:30, mit eingeschaltetem `updates.auto`
+und einem Admin-Konto in `auth.db`. Eine ruhige Nacht schreibt nichts auf
+die SD-Karte.
+
+**Was installiert wird.** Das neueste Release auf GitHub
+(`/releases/latest`, nie ein Pre-Release oder Entwurf), nur mit höherer
+Version als der laufenden. Das Release enthält
+`receiptpi-<version>.manifest.json`, dessen Ed25519-Signatur
+`receiptpi-<version>.manifest.json.sig` (64 Bytes) und
+`receiptpi-<version>.tar.gz` mit genau einem Ordner `receiptpi-<version>/`.
+Das Manifest (`format` 1) nennt `version`, `channel` (`release`),
+`handoff`, Dateiname, Größe und SHA-256 des Pakets, `lock_sha256` und
+optional `python` (unterstützte Python-Versionen) und `apt` (nötige
+Systempakete). Die Signatur wird mit `openssl pkeyutl -verify -rawin`
+gegen `deploy/update/keys/*.pub` des installierten Releases geprüft.
+Downloads kommen nur von
+`https://github.com/HostisHumani/ReceiptPi/releases/download/<tag>/`.
+
+**Zwei Stufen.** Stufe 1 ist der Updater des installierten Releases:
+Sperre, Auftrag, Admin-Prüfung, Download, Signatur, Prüfsumme, Version und
+Entpacken (tar-Filter „data“). Danach startet er den Updater des neuen,
+geprüften Releases als Stufe 2, einmal pro Schritt:
+`python3 -I -E -s <neues Release>/deploy/update/updater.py apply <schritt> --handoff <n>`.
+
+| Schritt | Stufe 2 macht | Stufe 1 prüft danach |
+|---------|---------------|----------------------|
+| `prepare` | Python-Umgebung (`/opt/receiptpi-venvs/<key>`, nur neu, wenn sich Lock-Datei oder Python-Version ändern), Bytecode, Verweise | Verweis und Units unverändert |
+| `backup` | stoppt Server und Watcher-Timer, sichert `/var/lib/receiptpi`, `/etc/receiptpi`, die Units und die udev-Regel nach `/var/lib/receiptpi-update/backups/` (nur root) | Verweis und Units unverändert, Sicherung vollständig und für dieses Update |
+| `switch` | installiert die Units, schaltet den Verweis um, startet und prüft den Server; kommt er nicht hoch, spielt sie die Sicherung selbst zurück | Exit 0: das neue Release läuft; Exit 3: das bisherige Release läuft mit genau den gesicherten Daten |
+
+Exit-Codes: 0 fertig, 3 von Stufe 2 zurückgesetzt, 65 Handoff nicht
+unterstützt; alles andere, ein Absturz oder ein Schritt über seiner
+Zeitgrenze (prepare 40, backup 15, switch 20 Minuten) ist ein Fehler. Was
+nicht passt, macht Stufe 1 mit eigenem Code rückgängig: Daten,
+Konfiguration, Units und udev-Regel aus der Sicherung, den Verweis
+zurück, Server gestartet und geprüft. Ein Manifest mit einem `handoff`,
+den dieser Updater nicht kennt, wird vor jeder Änderung abgelehnt (Grund
+`manual_install`). Der Server gilt als laufend, wenn systemd ihn aktiv
+meldet, `/health` mit seinem JSON antwortet (500 „Drucker offline“ zählt),
+`/login` antwortet und er 30 Sekunden lang denselben Hauptprozess behält;
+dafür hat er 180 Sekunden.
+
+**Journal und Wiederherstellung beim Start.** Jeder Schritt, der das
+System ändert, steht vorher in `/var/lib/receiptpi-update/journal.json`
+(mit `format`). Beim Start schließt `receiptpi-update-recover.service` ein
+unterbrochenes Update ab oder macht es rückgängig, mit
+`/var/lib/receiptpi-update/updater.py`: dem Updater der letzten
+erfolgreichen Installation (geschrieben von `install.sh`, ersetzt nur nach
+einem erfolgreichen Update), nicht dem, auf den der Verweis gerade zeigt.
+Sein Beleg folgt zwei Minuten nach dem Start.
+
+**Status und Beleg.** `/var/lib/receiptpi-update/status.json`
+(`root:receiptpi`, 0640) enthält `state`, `phase`, `result` (`updated`,
+`up_to_date`, `not_available`, `failed`, `rolled_back`,
+`rollback_failed`), `reason`, `from`, `to`, `mode`, `by`, `receipt`; die
+Seite liest sie. Das Ergebnis geht an `POST /print/update-result` (siehe
+[Endpunkte](#endpunkte)); nach einem Rückfall druckt es das bisherige
+Release, deshalb bleibt diese Schnittstelle, wie sie ist. Während ein
+Update läuft, hält `/run/receiptpi-update/active` den Start-Beleg zurück.
+
+**Ein Release vor der Veröffentlichung testen** braucht root auf dem
+Gerät: `/etc/receiptpi/update.conf` (gehört root, für niemanden sonst
+beschreibbar) mit `source = <Ordner mit den Release-Dateien>`,
+`allow_test_channel = yes` und optional `test_key = <öffentlicher
+Schlüssel>`. Ohne diese Datei nutzt der Updater nur GitHub, den
+Release-Kanal und die Schlüssel des installierten Releases; solange es
+sie gibt, zeigt die Seite eine Warnung.
+
+**Migrationen.** Ein Rückfall stellt die Daten so her, wie sie gesichert
+wurden; eine neue Version darf Einstellungen und Datenbanken also beim
+ersten Start migrieren. Neue Werte in `config.py` brauchen einen
+Standardwert (`getattr(config, ..., default)`): Der Updater ändert
+`/etc/receiptpi/config.py` nie.
+
+**Rückweg über SSH** (Terminal, root): zurück auf das Release vor dem
+letzten Update und auf die Daten der letzten Sicherung, die direkt vor
+diesem Update entstand. Alles, was sich seitdem geändert hat, geht
+verloren.
+
+```bash
+sudo python3 -I -E -s /var/lib/receiptpi-update/updater.py status
+sudo python3 -I -E -s /var/lib/receiptpi-update/updater.py rollback --yes
+```
+
+Grenzen: Ein Update kann keine neuen Systempakete installieren, keine
+neuen Units einschalten und das Netzwerk nicht ändern; ein Release, das
+das braucht, nennt es in seinem Manifest und wird abgelehnt.
 
 ## Features
 

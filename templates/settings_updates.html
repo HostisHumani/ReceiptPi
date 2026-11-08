@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block header_icon %}<span class="mark"><span class="icon icon-refresh-cw" aria-hidden="true"></span></span>{% endblock %}
+{% block header_title %}{{ t('settings.index.updates.name') }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings"><span class="icon icon-arrow-left" aria-hidden="true"></span> {{ t('back_link') }}</a>
+
+<h2 class="section-title section-title-flush">{{ t('update.version.heading') }}</h2>
+<div class="card">
+  <div class="list-row list-row-flush"><span>{{ t('update.version.installed') }}</span><span class="mono" id="update-installed">{{ installed_version }}</span></div>
+  <div class="list-row list-row-flush"><span>{{ t('update.version.latest') }}</span><span class="mono">{{ latest_version or t('update.version.unknown') }}</span></div>
+  {% if update_available %}<div class="hint hint-standalone">{{ t('update.version.newer') }}</div>{% endif %}
+  <div class="hint">{{ t('update.version.check_hint') }}</div>
+</div>
+
+{% if not available %}
+  <div class="msg notice">
+    <span class="icon icon-info" aria-hidden="true"></span>
+    <span>{{ t('update.not_available') }}</span>
+  </div>
+{% else %}
+  {% if test_mode %}
+    <div class="msg notice" id="update-test-mode">
+      <span class="icon icon-circle-alert" aria-hidden="true"></span>
+      <span>{{ t('update.test_mode') }}</span>
+    </div>
+  {% endif %}
+
+  <h2 class="section-title">{{ t('update.status.heading') }}</h2>
+  {#- The script asks /settings/updates/status every few seconds while
+      busy and reloads the page once the update is over. #}
+  <div class="card" id="update-status" data-busy="{{ '1' if busy else '0' }}"
+       data-restarting="{{ t('update.status.restarting') }}">
+    <div id="update-status-lines">
+      {% for line in status_lines %}<div class="list-row list-row-flush"><span>{{ line }}</span></div>{% endfor %}
+    </div>
+  </div>
+
+  {% if not admin_present %}
+    <div class="msg notice">
+      <span class="icon icon-info" aria-hidden="true"></span>
+      <span>{{ t('update.no_admin') }}</span>
+    </div>
+  {% endif %}
+
+  <h2 class="section-title">{{ t('update.install.heading') }}</h2>
+  <form method="post" action="/ui/settings/updates/install" class="card" id="update-install">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="hint hint-standalone">{{ t('update.install.hint') }}</div>
+    <label class="checkbox-row">
+      <input type="checkbox" name="confirm" value="yes" required {% if busy or not admin_present %}disabled{% endif %}>
+      <span>{{ t('update.install.confirm') }}</span>
+    </label>
+    <button type="submit" {% if busy or not admin_present %}disabled{% endif %}>{{ t('update.install.button') }}</button>
+  </form>
+
+  <h2 class="section-title">{{ t('update.auto.heading') }}</h2>
+  <form method="post" action="/ui/settings/updates/auto" class="card" id="update-auto">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="list-row">
+      <div class="list-row-main">
+        <div class="list-row-title">{{ t('update.auto.label') }}</div>
+        <div class="list-row-meta">{{ t('update.auto.desc') }}</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" name="auto" aria-label="{{ t('update.auto.label') }}" {% if auto %}checked{% endif %} {% if not admin_present %}disabled{% endif %}>
+        <span class="track"><span class="thumb"></span></span>
+      </label>
+    </div>
+    <div class="hint">{{ t('update.auto.hint') }}</div>
+    <button type="submit" {% if not admin_present %}disabled{% endif %}>{{ t('settings.save') }}</button>
+  </form>
+{% endif %}
+{% endblock %}
+{% block extra_scripts %}{% if available %}<script src="{{ static_url('update-status.js') }}" defer></script>{% endif %}{% endblock %}

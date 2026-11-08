@@ -14,7 +14,7 @@ own when something happens. No one has to press a button.
 | **GitHub stars** | a watched GitHub project gets a new star | 5 minutes | yes, but watches nothing until you add a project |
 | **Storm warning** | a new official weather warning is active | 15 minutes | yes, but only prints once you switch it on in the [weather settings](../modules/weather.md#switching-on-storm-warnings) |
 | **Guest Wi-Fi** | you switch on the guest network of your FRITZ!Box | 1 minute | no, see [Guest Wi-Fi](../modules/wifi.md#one-time-setup) |
-| **Update check** | never prints. It looks for a new ReceiptPi version and shows it at the bottom of each page. | 12 hours | yes |
+| **Update check** | never prints. It looks for a new full release of ReceiptPi (no test versions) and shows it at the bottom of each page and under [Updates](../settings/updates.md). | 12 hours | yes |
 
 ## How to use it
 
@@ -51,7 +51,8 @@ Each active watcher is listed with the time of its next run.
   watcher needs the **Message** module.
 - **Watchers don't need a login.** If you set an
   [API token](api.md#1-set-an-api-token), they use it automatically.
-- **The update check only informs.** Nothing is installed automatically.
+- **The update check only informs.** Installing happens under
+  [Updates](../settings/updates.md), by hand or at night.
 
 ## Something not working?
 

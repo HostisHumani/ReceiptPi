@@ -41,6 +41,23 @@ top to bottom.
 | You can't log in. | See [Login and accounts](../settings/accounts.md#something-not-working). |
 | A tile or menu entry is missing. | See [Home page and menu](../home-and-menu.md#something-not-working). |
 
+### An update
+
+| Problem | What to check |
+|---------|---------------|
+| The update page shows a reason. | See [Updates](../settings/updates.md#something-not-working). |
+| "... and neither did going back to ..." | Use the way back over SSH below. |
+| The device doesn't come back after an update. | Switch it off and on again: on start, ReceiptPi finishes or undoes an interrupted update by itself. |
+
+The way back over SSH (terminal) returns to the version before the last
+update and to the data saved right before it. Everything changed since
+then is lost. The first command only shows the state:
+
+```bash
+sudo python3 -I -E -s /var/lib/receiptpi-update/updater.py status
+sudo python3 -I -E -s /var/lib/receiptpi-update/updater.py rollback --yes
+```
+
 ### Looking deeper (terminal)
 
 These commands show what ReceiptPi is doing. They change nothing.

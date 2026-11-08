@@ -44,6 +44,7 @@ and what to do if it doesn't work.
 | [Print rules](settings/print-rules.md) | Quiet hours, print limit, duplicates, large text |
 | [Logos](settings/logos.md) | Your own logo at the top of a receipt |
 | [Backup](settings/backup.md) | Saving and restoring your settings |
+| [Updates](settings/updates.md) | New versions, with one tap or at night |
 | [Login and accounts](settings/accounts.md) | Admin account, more users, roles |
 | [My settings](settings/my-settings.md) | Personal language, design and home page |
 

@@ -148,6 +148,8 @@ async function go(page, url) {
   await shot(page, 'settings', 'logos');
   await go(page, '/settings/backup');
   await shot(page, 'settings', 'backup');
+  await go(page, '/settings/updates');
+  await shot(page, 'settings', 'updates');
   await go(page, '/settings/users');
   await shot(page, 'settings', 'users');
   await go(page, '/account');

@@ -44,6 +44,7 @@ Schritt benutzt und was du tun kannst, wenn es nicht klappt.
 | [Druckregeln](settings/print-rules.de.md) | Ruhezeiten, Drucklimit, Duplikate, große Schrift |
 | [Logos](settings/logos.de.md) | Ein eigenes Logo oben auf dem Bon |
 | [Sicherung](settings/backup.de.md) | Einstellungen sichern und wiederherstellen |
+| [Updates](settings/updates.de.md) | Neue Versionen, mit einem Tipp oder nachts |
 | [Anmeldung und Konten](settings/accounts.de.md) | Admin-Konto, weitere Nutzer, Rollen |
 | [Meine Einstellungen](settings/my-settings.de.md) | Eigene Sprache, eigenes Design und eigene Startseite |
 
