@@ -46,24 +46,32 @@ def escape_wifi_qr_value(value):
     return value
 
 
-def _raw_print_wifi(ssid, password, auth_type="WPA"):
-    qr_source = (
+def wifi_qr_source(ssid, password, auth_type="WPA"):
+    """The text of a QR code that joins a phone to the network."""
+    return (
         f"WIFI:T:{auth_type};S:{escape_wifi_qr_value(ssid)};"
         f"P:{escape_wifi_qr_value(password)};;"
     )
-    # qrcode.make() returns a qrcode.image.pil.PilImage wrapper whose
-    # .width/.height are NOT pixel dimensions (.width is the QR module
-    # count, e.g. 29 for a small code) - only .get_image() returns the
-    # actual underlying PIL Image with correct pixel .width/.height/
-    # .size. Using the wrapper's attributes directly (as an earlier
-    # version of this code did) computed a wildly wrong resize ratio
-    # and printed a hugely stretched, distorted QR code - found via a
-    # real hardware test on 2026-08-09.
-    qr_img = qrcode.make(qr_source).get_image()
-    qr_target_width = 450
-    if qr_img.width < qr_target_width:
-        ratio = qr_target_width / qr_img.width
-        qr_img = qr_img.resize((qr_target_width, int(qr_img.height * ratio)), Image.NEAREST)
+
+
+def qr_image(source, target_width=450):
+    """A printable QR code image of source, scaled up to target_width.
+
+    qrcode.make() returns a qrcode.image.pil.PilImage wrapper whose
+    .width/.height are NOT pixel dimensions (.width is the QR module
+    count, e.g. 29 for a small code) - only .get_image() returns the
+    actual underlying PIL Image with correct pixel .width/.height/
+    .size. Using the wrapper's attributes directly computes a wildly
+    wrong resize ratio and prints a hugely stretched, distorted QR code."""
+    img = qrcode.make(source).get_image()
+    if img.width < target_width:
+        ratio = target_width / img.width
+        img = img.resize((target_width, int(img.height * ratio)), Image.NEAREST)
+    return img
+
+
+def _raw_print_wifi(ssid, password, auth_type="WPA"):
+    qr_img = qr_image(wifi_qr_source(ssid, password, auth_type))
 
     scale = get_text_scale()
     # Imported lazily on purpose: watchers/fritzbox_wifi_watch.py imports this
