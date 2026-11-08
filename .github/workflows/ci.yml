@@ -40,6 +40,7 @@ jobs:
             config.example.py \
             deploy/generate_config.py \
             deploy/image/check_image.py \
+            deploy/update/updater.py \
             history_store.py \
             i18n.py \
             lists_store.py \

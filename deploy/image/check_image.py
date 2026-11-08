@@ -39,6 +39,9 @@ REQUIRED_ENABLED = [
     "ssh.service.wants/sshd-keygen.service",
     "multi-user.target.wants/receiptpi.service",
     "multi-user.target.wants/receiptpi-setup-wifi.service",
+    "multi-user.target.wants/receiptpi-update-recover.service",
+    "paths.target.wants/receiptpi-update.path",
+    "timers.target.wants/receiptpi-update-auto.timer",
     "timers.target.wants/receiptpi-github-star.timer",
     "timers.target.wants/receiptpi-storm-warning.timer",
     "timers.target.wants/receiptpi-update-check.timer",
@@ -50,6 +53,9 @@ NOT_ENABLED = ["receiptpi-wifi-watch.timer", "ssh.service", "sshd.service", "ssh
 PRESET_LINES = [
     "enable receiptpi.service",
     "enable receiptpi-setup-wifi.service",
+    "enable receiptpi-update.path",
+    "enable receiptpi-update-auto.timer",
+    "enable receiptpi-update-recover.service",
     "enable receiptpi-github-star.timer",
     "enable receiptpi-storm-warning.timer",
     "enable receiptpi-update-check.timer",
@@ -151,6 +157,28 @@ def check_root(args):
           os.path.islink(config_link) and os.readlink(config_link) == "/etc/receiptpi/config.py")
     data = child_entries(os.path.join(root, "var/lib/receiptpi"))
     check("nothing in /var/lib/receiptpi", not data, ", ".join(data))
+    update_data = child_entries(os.path.join(root, "var/lib/receiptpi-update"))
+    check("nothing in /var/lib/receiptpi-update", not update_data, ", ".join(update_data))
+
+    # The release layout the updater needs: a relative link to the one
+    # release, which links to its Python environment.
+    app = os.path.join(root, "opt/receiptpi")
+    target = os.readlink(app) if os.path.islink(app) else ""
+    releases = child_entries(os.path.join(root, "opt/receiptpi-releases"))
+    check("/opt/receiptpi is a relative link to the only release",
+          target.startswith("receiptpi-releases/") and releases == [target.split("/", 1)[1]]
+          and read(os.path.join(app, "VERSION")).strip() == releases[0], f"{target} {releases}")
+    venv = os.path.join(app, "venv")
+    venv_target = os.readlink(venv) if os.path.islink(venv) else ""
+    check("the release links to its Python environment",
+          venv_target.startswith("../../receiptpi-venvs/")
+          and os.path.isfile(os.path.join(venv, ".receiptpi-complete"))
+          and os.path.isfile(os.path.join(venv, "bin/gunicorn")), venv_target)
+    check("updater installed",
+          os.path.isfile(os.path.join(app, "deploy/update/updater.py"))
+          and all(os.path.isfile(os.path.join(root, "etc/systemd/system", unit)) for unit in
+                  ("receiptpi-update@.service", "receiptpi-update.path",
+                   "receiptpi-update-auto.timer", "receiptpi-update-recover.service")))
 
     keys = [n for n in child_entries(os.path.join(root, "etc/ssh")) if n.startswith("ssh_host_")]
     check("no SSH host keys", not keys, ", ".join(keys))

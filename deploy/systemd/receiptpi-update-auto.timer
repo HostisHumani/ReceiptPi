@@ -1,0 +1,17 @@
+[Unit]
+Description=ReceiptPi: nightly automatic update, if switched on in the settings
+Documentation=https://github.com/HostisHumani/ReceiptPi
+
+[Timer]
+# The updater only acts between 02:00 and 03:30 and only when automatic
+# updates are switched on; the random delay keeps devices from all asking
+# GitHub at the same minute. No catching up after the device was off: a
+# missed night is simply the next one.
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=85min
+AccuracySec=1min
+Persistent=false
+Unit=receiptpi-update@auto.service
+
+[Install]
+WantedBy=timers.target

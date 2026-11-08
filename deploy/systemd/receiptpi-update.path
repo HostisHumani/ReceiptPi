@@ -1,0 +1,12 @@
+[Unit]
+Description=ReceiptPi: start an update requested in the web UI
+Documentation=https://github.com/HostisHumani/ReceiptPi
+
+[Path]
+# The web application writes this file; the updater removes it first
+# thing, otherwise the unit would start it again right away.
+PathExists=/var/lib/receiptpi/update-request.json
+Unit=receiptpi-update@manual.service
+
+[Install]
+WantedBy=paths.target

@@ -72,7 +72,8 @@ receiptpi/
 │   ├── install.sh              Installationsskript für Raspberry Pi OS Lite; ohne laufendes systemd aktiviert es die Units nur
 │   ├── generate_config.py      erzeugt beim ersten Start /etc/receiptpi/config.py mit eigenem SECRET_KEY pro Gerät
 │   ├── requirements.lock       Python-Pakete mit Hashes festgelegt, genutzt von install.sh
-│   ├── systemd/                Units für Server, Erststart, WLAN-Einrichtung und Watcher, Watcher-Timer
+│   ├── systemd/                Units für Server, Erststart, WLAN-Einrichtung, Updater und Watcher, Timer
+│   ├── update/updater.py       Root-Updater: signiertes Release neben dem aktiven, Umschalten, Gesundheitsprüfung, Rückfall mit den gesicherten Daten
 │   ├── udev/                   Regel für den Druckerzugriff des Dienst-Benutzers
 │   └── image/                  Image-Bau aus Raspberry Pi OS Lite (.github/workflows/image.yml, nur von Hand gestartet)
 ├── modules/

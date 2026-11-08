@@ -1,0 +1,34 @@
+[Unit]
+Description=ReceiptPi update (%i)
+Documentation=https://github.com/HostisHumani/ReceiptPi
+Wants=network-online.target
+After=network-online.target receiptpi-update-recover.service
+
+[Service]
+Type=oneshot
+# The system Python with only the standard library: the updater must not
+# depend on the application's environment, which it replaces.
+ExecStart=/usr/bin/python3 -I -E -s /opt/receiptpi/deploy/update/updater.py run %i
+# Long enough for a new Python environment on a slow device; a run that
+# is stopped here is undone by the next run or the next boot.
+TimeoutStartSec=45min
+# The lock file and the marker that keeps the boot greeting quiet.
+RuntimeDirectory=receiptpi-update
+RuntimeDirectoryMode=0755
+
+# Root for installing code and units and restoring data owned by the
+# service user; everything else is read-only.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt /etc/systemd/system /etc/udev/rules.d /etc/receiptpi
+ReadWritePaths=-/var/lib/receiptpi /var/lib/receiptpi-update
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER

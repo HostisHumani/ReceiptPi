@@ -66,18 +66,25 @@ Was es einrichtet:
 
 | Pfad / Unit | Zweck |
 |-------------|-------|
-| `/opt/receiptpi` | Programmcode, gehört root, für den Dienst nicht beschreibbar |
-| `/opt/receiptpi/venv` | Python-Umgebung mit den Versionen und Hashes aus `deploy/requirements.lock` |
+| `/opt/receiptpi` | Verweis auf das aktive Release |
+| `/opt/receiptpi-releases/<version>` | Programmcode eines Releases, gehört root, für den Dienst nicht beschreibbar. Das Release vor dem aktiven bleibt erhalten. |
+| `/opt/receiptpi-venvs/<key>` | Python-Umgebung mit den Versionen und Hashes aus `deploy/requirements.lock`; Releases mit derselben Lock-Datei teilen sie |
 | `/etc/receiptpi/config.py` | Konfiguration (`root:receiptpi`, Modus 0640), entsteht beim ersten Start |
 | `/var/lib/receiptpi` | Einstellungen, Verlauf, Konten (Modus 0750) |
+| `/var/lib/receiptpi-update` | Status, Sicherungen und Downloads des Updaters (`root:receiptpi`, Modus 0750) |
 | `receiptpi` | System-Benutzer ohne Login, unter dem Server und Watcher laufen |
 | `receiptpi.service` | Der Server (Gunicorn, Port 5000), aktiviert |
 | `receiptpi-firstboot.service` | Erzeugt die Konfiguration vor dem ersten Serverstart |
 | `receiptpi-*.timer` | Die Watcher, siehe unten |
+| `receiptpi-update.path`, `receiptpi-update@.service` | Der Updater (`deploy/update/updater.py`, root): installiert ein neueres, signiertes Release, wenn die Web-UI es anfordert |
+| `receiptpi-update-auto.timer` | Nächtlicher Lauf des Updaters zwischen 02:00 und 03:30; er installiert nur etwas, wenn automatische Updates eingeschaltet sind |
+| `receiptpi-update-recover.service` | Beim Start: schließt ein unterbrochenes Update ab oder macht es rückgängig, etwa nach einem Stromausfall |
 | `/etc/udev/rules.d/99-receiptpi-printer.rules` | Druckerzugriff für die Gruppe `lp` |
 
 Eine `config.py`, `secret.key` oder `settings.json` im Checkout wird nicht
-mitkopiert.
+mitkopiert. Auf einem Gerät, auf dem `/opt/receiptpi` von einer älteren
+Installation noch ein normaler Ordner ist, ersetzt das Skript diesen Ordner
+durch den Verweis.
 
 ---
 
