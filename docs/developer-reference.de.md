@@ -579,6 +579,15 @@ Minuten ohne Aktivität auf der Seite schließt er das Einrichtungs-WLAN für
 eine Minute, damit NetworkManager die gespeicherten Netze erneut versucht.
 Ein Kabel beendet die Einrichtung sofort.
 
+Die Uhr (der Pi hat keine Echtzeituhr): Das Image gibt die Zeitserver, die
+ein Netz per DHCP mitteilt, an systemd-timesyncd weiter (Dispatcher-Skript
+`50-receiptpi-ntp` für NetworkManager, schreibt nur nach
+`/run/systemd/timesyncd.conf.d/`) und setzt mehrere öffentliche Ersatzserver.
+Hat timesyncd noch nicht synchronisiert, schickt die Einrichtungsseite die
+Uhrzeit des Handys mit, und der Einrichtungsdienst stellt die Systemuhr
+damit vor, wenn sie mehr als eine Stunde zurückliegt; zurückgestellt wird sie
+nie.
+
 ### Watcher
 
 Die vier Scripts unter `watchers/` (GitHub-Star-Benachrichtigung,

@@ -221,6 +221,14 @@ def check_root(args):
           os.path.isfile(os.path.join(root, "etc/systemd/system/receiptpi-setup-wifi.service"))
           and os.path.isfile(os.path.join(root, "opt/receiptpi/setup_wifi/daemon.py")))
 
+    # The clock: time servers from DHCP, several public ones as fallback.
+    dispatcher = os.path.join(root, "etc/NetworkManager/dispatcher.d/50-receiptpi-ntp")
+    check("time servers announced over DHCP are used",
+          os.path.isfile(dispatcher) and os.stat(dispatcher).st_mode & 0o777 == 0o755)
+    fallback = os.path.join(root, "etc/systemd/timesyncd.conf.d/50-receiptpi-fallback.conf")
+    check("several public time servers as fallback",
+          os.path.isfile(fallback) and "pool.ntp.org" in read(fallback))
+
     cmdline = read(os.path.join(root, "boot/firmware/cmdline.txt")).split()
     base_cmdline = read(os.path.join(state, "cmdline.txt")).split()
     regdom = f"cfg80211.ieee80211_regdom={WIFI_COUNTRY}"

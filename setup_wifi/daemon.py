@@ -16,6 +16,11 @@ and lets NetworkManager try the saved networks - after a router outage
 the device finds its way back by itself. A cable that is plugged in ends
 the setup at once.
 
+The device has no clock that keeps running without power. If no time
+server has answered yet, the phone's clock sent with the setup form
+moves the system clock forward, so certificate checks work from the
+first connection on; a time server corrects it once one answers.
+
 Runs as root from receiptpi-setup-wifi.service and only on devices with
 /etc/receiptpi/setup-wifi, which the image creates: a device whose
 network is set up some other way must never open a network of its own.
@@ -50,6 +55,14 @@ PAGE_GRACE_S = 2
 # A form submitted less than this long ago postpones the retry of the
 # saved networks, so nobody gets cut off while typing.
 ACTIVITY_QUIET_S = 120
+# Touched by systemd-timesyncd on every successful synchronisation
+# (systemd-timesyncd.service(8)).
+TIME_SYNCED_FILE = "/run/systemd/timesync/synchronized"
+# The phone's clock is only used if it is at least this far ahead: a few
+# minutes don't matter for certificates, and the clock never goes back.
+CLOCK_AHEAD_S = 3600
+# 2100-01-01: anything later is not a real clock.
+CLOCK_LIMIT = 4102444800
 
 
 def log(message):
@@ -111,10 +124,19 @@ class ReceiptPrinter:
         return False
 
 
+def time_synced():
+    return os.path.exists(TIME_SYNCED_FILE)
+
+
+def set_system_clock(seconds):
+    time.clock_settime(time.CLOCK_REALTIME, seconds)
+
+
 class Setup:
     def __init__(self, network=nm, printer=None, portal_factory=None, clock=time.monotonic,
                  sleep=time.sleep, boot_grace=120, lost_grace=600, retry_every=600,
-                 retry_wait=60, poll=30):
+                 retry_wait=60, poll=30, wallclock=time.time, set_clock=set_system_clock,
+                 synced=time_synced):
         self.nm = network
         self.printer = printer or ReceiptPrinter()
         self.portal_factory = portal_factory or self._default_portal
@@ -125,6 +147,9 @@ class Setup:
         self.retry_every = retry_every
         self.retry_wait = retry_wait
         self.poll = poll
+        self.wallclock = wallclock
+        self.set_clock = set_clock
+        self.synced = synced
         self.requests = queue.Queue()
         self.state = "watch"
         self.started = clock()
@@ -241,11 +266,12 @@ class Setup:
                 return
         self._open_network()
 
-    def handle_request(self, ssid, password, hidden):
+    def handle_request(self, ssid, password, hidden, phone_time=None):
         s = self.session
         if s is None:
             return
         s["last_activity"] = self.clock()
+        self._take_phone_time(phone_time)
         self.sleep(PAGE_GRACE_S)
         self._close_network()
         log(f"joining the network chosen on the setup page on {s['device']}")
@@ -286,8 +312,22 @@ class Setup:
             s["portal"] = None
         self.nm.stop_hotspot()
 
-    def _submit(self, ssid, password, hidden):
-        self.requests.put((ssid, password, hidden))
+    def _submit(self, ssid, password, hidden, phone_time=None):
+        self.requests.put((ssid, password, hidden, phone_time))
+
+    def _take_phone_time(self, phone_time):
+        if phone_time is None or self.synced():
+            return
+        now = self.wallclock()
+        if not now + CLOCK_AHEAD_S <= phone_time < CLOCK_LIMIT:
+            return
+        try:
+            self.set_clock(phone_time)
+        except OSError as e:
+            log(f"clock could not be set from the phone: {e}")
+            return
+        log(f"clock set from the phone: {time.strftime('%Y-%m-%d %H:%M', time.gmtime(now))} -> "
+            f"{time.strftime('%Y-%m-%d %H:%M', time.gmtime(phone_time))} UTC")
 
     def _finish(self, devs, network):
         if self.session:

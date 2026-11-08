@@ -11,7 +11,14 @@ takes the name of another network by hand, and the password. A form
 token issued with the page ties a submission to a page this server
 handed out. The page follows the phone's language, German or English;
 its texts live in translations/<lang>.json next to this file.
+
+The form also sends the phone's clock: the device has no clock of its
+own that survives without power, and in a network where no time server
+answers this is the only source of the date it has. The one inline
+script that fills the field is allowed by its hash, nothing else.
 """
+import base64
+import hashlib
 import html
 import http.server
 import json
@@ -24,6 +31,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LANGS = ("de", "en")
 MAX_BODY = 4096
 MAX_SSID_BYTES = 32
+CLOCK_SCRIPT = ("document.querySelector('form').addEventListener('submit',function(){"
+                "document.querySelector('input[name=client_time]').value=Date.now();});")
+CLOCK_SCRIPT_HASH = "sha256-" + base64.b64encode(
+    hashlib.sha256(CLOCK_SCRIPT.encode("utf-8")).digest()).decode("ascii")
 
 
 def load_texts():
@@ -45,6 +56,15 @@ def _valid_password(password):
     if len(password) == 64:
         return all(c in "0123456789abcdefABCDEF" for c in password)
     return 8 <= len(password) <= 63 and all(" " <= c <= "~" for c in password)
+
+
+def phone_time(form):
+    """The phone's clock in seconds since the epoch, None if missing or
+    not a plausible number of milliseconds."""
+    value = form.get("client_time", "")
+    if not value.isdigit() or len(value) > 15:
+        return None
+    return int(value) / 1000
 
 
 def validate(form, networks):
@@ -69,7 +89,7 @@ def validate(form, networks):
 
 class Portal:
     """Serves the page in a thread until stop(). on_submit(ssid, password,
-    hidden) is called once a valid form arrives."""
+    hidden, phone_time) is called once a valid form arrives."""
 
     def __init__(self, address, port, networks, on_submit, texts=None):
         self.address = address
@@ -123,6 +143,7 @@ class Portal:
             parts.append(f'<p class="error" role="alert">{e(self.t(lang, error_key))}</p>')
         parts.append('<form method="post" action="/connect">')
         parts.append(f'<input type="hidden" name="token" value="{e(self.token)}">')
+        parts.append('<input type="hidden" name="client_time" value="">')
         parts.append(f"<fieldset><legend>{e(self.t(lang, 'page.networks'))}</legend>")
         if self.networks:
             selected = selected if selected in {n["ssid"] for n in self.networks} else \
@@ -144,6 +165,7 @@ class Portal:
         parts.append(f'<p class="hint">{e(self.t(lang, "page.password_hint"))}</p>')
         parts.append(f'<button type="submit">{e(self.t(lang, "page.submit"))}</button>')
         parts.append("</form>")
+        parts.append(f"<script>{CLOCK_SCRIPT}</script>")
         return self.render(lang, "page.title", "\n".join(parts))
 
     def connecting_page(self, lang, ssid):
@@ -177,7 +199,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def _page(self, status, text):
         self._send(status, text.encode("utf-8"), {
             "Content-Type": "text/html; charset=utf-8",
-            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
+            "Content-Security-Policy": f"default-src 'none'; style-src 'unsafe-inline'; "
+                                       f"script-src '{CLOCK_SCRIPT_HASH}'; "
                                        "form-action 'self'; frame-ancestors 'none'",
             "X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "no-referrer",
@@ -223,4 +246,4 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             return
         ssid, password, hidden = result
         self._page(200, self.portal.connecting_page(lang, ssid))
-        self.portal.on_submit(ssid, password, hidden)
+        self.portal.on_submit(ssid, password, hidden, phone_time(form))

@@ -1,0 +1,44 @@
+#!/bin/sh
+# NetworkManager dispatcher script: hands the time servers a network
+# announces over DHCP (option 42) to systemd-timesyncd. NetworkManager
+# doesn't pass them on by itself, so without this the device only knows
+# public servers, and a network that blocks or filters those leaves the
+# clock wrong - and with it every HTTPS certificate check.
+#
+# The setting lives in /run only: written on a connection when it
+# changes, never on the SD card. A network without such an announcement
+# removes it again, so timesyncd goes back to the public servers.
+set -eu
+
+case "${2:-}" in
+    up|dhcp4-change) ;;
+    *) exit 0 ;;
+esac
+
+DIR=/run/systemd/timesyncd.conf.d
+FILE=$DIR/50-receiptpi-dhcp.conf
+
+# Only plain host names and addresses get into the configuration.
+servers=""
+for server in ${DHCP4_NTP_SERVERS:-}; do
+    case "$server" in
+        *[!0-9A-Za-z.:-]*) continue ;;
+    esac
+    servers="$servers $server"
+done
+servers=${servers# }
+
+if [ -n "$servers" ]; then
+    content=$(printf '[Time]\nNTP=%s' "$servers")
+    if [ -f "$FILE" ] && [ "$(cat "$FILE")" = "$content" ]; then
+        exit 0
+    fi
+    mkdir -p "$DIR"
+    printf '%s\n' "$content" > "$FILE.tmp"
+    mv "$FILE.tmp" "$FILE"
+elif [ -f "$FILE" ]; then
+    rm -f "$FILE"
+else
+    exit 0
+fi
+systemctl try-restart systemd-timesyncd.service

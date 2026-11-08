@@ -149,6 +149,10 @@ Gut zu wissen:
   WLAN wieder da ist.
 - Ein Netzwerkkabel am Gerät beendet die Einrichtung sofort.
 - Ein USB-WLAN-Stick wird vor dem eingebauten WLAN verwendet.
+- Die Uhrzeit: Das Gerät hat keine Uhr, die ohne Strom weiterläuft. Es holt
+  die Zeit vom Zeitserver, den dein Router mitteilt, sonst von öffentlichen
+  Zeitservern. Antwortet keiner davon, wird die Uhrzeit deines Handys von
+  der Einrichtungsseite übernommen, damit das Datum von Anfang an stimmt.
 - Mit `install.sh` installiert, öffnet das Gerät nie ein Einrichtungs-WLAN.
 
 ---

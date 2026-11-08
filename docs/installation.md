@@ -147,6 +147,10 @@ Good to know:
   minutes it checks for a minute whether the saved Wi-Fi is back.
 - A network cable plugged into the device ends the setup at once.
 - A USB Wi-Fi adapter is used before the built-in Wi-Fi.
+- The clock: the device has none that keeps running without power. It
+  sets the time from the time server your router announces, otherwise from
+  public time servers. If none of them answers, the time of your phone
+  from the setup page is used, so the date is right from the start.
 - Installed with `install.sh`, the device never opens a setup network.
 
 ---

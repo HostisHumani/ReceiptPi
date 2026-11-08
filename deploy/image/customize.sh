@@ -6,7 +6,7 @@
 #
 # Sets the defaults of the image (hostname, time zone, Wi-Fi country),
 # automatic security upgrades, the Wi-Fi setup for devices without a
-# network and the unit presets for the first boot.
+# network, the time servers and the unit presets for the first boot.
 # Raspberry Pi Imager settings applied by cloud-init on the first boot
 # take precedence over the hostname, time zone and Wi-Fi country set here.
 set -Eeuo pipefail
@@ -58,6 +58,13 @@ install -d -m 0755 /etc/NetworkManager/dnsmasq-shared.d
 install -m 0644 -o root -g root "$SRC/setup-wifi/captive-portal.conf" \
     /etc/NetworkManager/dnsmasq-shared.d/receiptpi-setup.conf
 systemctl enable receiptpi-setup-wifi.service
+
+log "Time servers"
+# The time servers a network announces over DHCP go to systemd-timesyncd,
+# with several public servers as the fallback.
+install -m 0755 -o root -g root "$SRC/time/50-receiptpi-ntp" /etc/NetworkManager/dispatcher.d/
+install -d -m 0755 /etc/systemd/timesyncd.conf.d
+install -m 0644 -o root -g root "$SRC/time/50-receiptpi-fallback.conf" /etc/systemd/timesyncd.conf.d/
 
 log "Unit presets for the first boot"
 install -d -m 0755 /etc/systemd/system-preset

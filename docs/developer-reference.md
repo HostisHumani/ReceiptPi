@@ -554,6 +554,14 @@ if that fails, the setup network comes back and a note is printed. Every
 minute so NetworkManager can retry the saved networks. A cable ends the
 setup at once.
 
+The clock (no RTC on the Pi): the image hands the time servers a network
+announces over DHCP to systemd-timesyncd (NetworkManager dispatcher script
+`50-receiptpi-ntp`, writes `/run/systemd/timesyncd.conf.d/` only) and sets
+several public fallback servers. If timesyncd hasn't synchronised yet, the
+setup page sends the phone's clock and the setup service moves the system
+clock forward by it when it is more than an hour ahead; it never moves the
+clock back.
+
 ### Watchers
 
 The four scripts under `watchers/` (GitHub star notifications, guest
