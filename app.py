@@ -62,6 +62,7 @@ from modules.message.routes import message_bp
 from modules.pending.routes import pending_bp
 from modules.recipes.routes import recipes_bp
 from modules.settings.routes import settings_bp
+from modules.setup_wifi.routes import setup_wifi_bp
 from modules.system.routes import system_bp
 from modules.weather.routes import weather_bp
 from modules.wifi.routes import wifi_bp
@@ -134,6 +135,7 @@ ensure_default_logo_seeded()  # one-time: bundled default logo -> STATE_DIR, see
 for blueprint in (
     lists_bp, message_bp, images_bp, wifi_bp, weather_bp, system_bp, automation_bp, settings_bp,
     history_bp, pending_bp, games_bp, recipes_bp, backup_bp, auth_bp, users_bp, preferences_bp,
+    setup_wifi_bp,
 ):
     app.register_blueprint(blueprint)
 

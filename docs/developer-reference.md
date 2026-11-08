@@ -69,7 +69,7 @@ receiptpi/
 │   ├── install.sh              installer for Raspberry Pi OS Lite; without a running systemd it only enables the units
 │   ├── generate_config.py      creates /etc/receiptpi/config.py with a per-device SECRET_KEY on the first start
 │   ├── requirements.lock       Python packages pinned with hashes, used by install.sh
-│   ├── systemd/                server, first-start and watcher units, watcher timers
+│   ├── systemd/                server, first-start, Wi-Fi setup and watcher units, watcher timers
 │   ├── udev/                   printer access rule for the service user
 │   └── image/                  image build from Raspberry Pi OS Lite (.github/workflows/image.yml, started by hand)
 ├── modules/
@@ -86,7 +86,9 @@ receiptpi/
 │   ├── pending/                 review/reprint/discard blocked or failed print jobs
 │   ├── backup/                  settings backup and restore (.zip)
 │   ├── auth/                    login, first-time setup, own account page, personal settings, user management, login and role check for every request
+│   ├── setup_wifi/              receipts of the Wi-Fi setup (POST /print/setup-wifi, localhost only)
 │   └── settings/                settings pages (web UI) + settings API
+├── setup_wifi/              Wi-Fi setup service for the image: own network + setup page while the device has none (see "Wi-Fi setup" below)
 ├── watchers/
 │   ├── github_star_watch.py     timer/cron: prints on a new GitHub star
 │   ├── fritzbox_wifi_watch.py    timer/cron: prints a wifi slip once the guest network is enabled
@@ -409,6 +411,7 @@ A blocked job responds with `429`.
 - `POST /print/image/preview` - same body as `/print/image`, returns the 1-bit print image as PNG without printing (no print rules, no history)
 - `POST /ui/images`, `POST /ui/images/preview` - web UI form posts (CSRF-protected, logged-in account), multipart fields `image`, `dither` and, for printing, `caption` (max. 500 characters). With `Accept: application/json`, `/ui/images` answers `{"status": "printed"|"error", "detail": "..."}` with the print queue's status codes instead of the page; the editor (`static/image-editor.js`) prints this way
 - `POST /print/wifi` - `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
+- `POST /print/setup-wifi` - receipts of the Wi-Fi setup, only from the device itself (`403` otherwise): `{ "kind": "hotspot", "ssid": "...", "password": "..." }`, `{ "kind": "failed", "ssid": "...", "password": "...", "network": "..." }` or `{ "kind": "connected", "network": "...", "url": "http://<IPv4>:5000/" }`. Printed in German and English, skips the quiet hours; the history names only the network, there is no pending job
 - `POST /print/weather` - optional `{ "location": "Berlin" }`, otherwise the default location; also `GET /print/weather?location=Berlin`
 - `POST /print/system` - no body needed
 - `POST /print/automation` - `{ "title": "optional", "text": "..." }` - generic automation webhook (compatible with Home Assistant, Node-RED, n8n, or any tool that can do an HTTP POST)
@@ -531,6 +534,25 @@ topic write receiptpi/cmd/#
 `requirements.txt` deliberately has no version pins. `install.sh`
 installs the versions from `deploy/requirements.lock`, pinned with the
 hashes of the PyPI files, so every device gets the same tested packages.
+
+### Wi-Fi setup
+
+Only on devices installed from the image: the image creates
+`/etc/receiptpi/setup-wifi` and enables `receiptpi-setup-wifi.service`;
+`install.sh` installs the unit but never enables it. The service
+(`setup_wifi/daemon.py`, root, system Python, no file writes) watches
+NetworkManager. Without a network 2 minutes after the start, or 10 minutes
+after losing it, it opens the Wi-Fi `ReceiptPi-<last four MAC digits>` with
+a new 12-character password (NetworkManager shared mode, profile in memory
+only, `10.42.0.1`), prints it with a QR code through `/print/setup-wifi`
+and serves the setup page (`setup_wifi/portal.py`) on port 80 of that
+network. A USB Wi-Fi adapter is preferred over the built-in one. Every
+name resolves to the device on that network, so phones open the page by
+themselves. After joining the chosen network it prints the new address;
+if that fails, the setup network comes back and a note is printed. Every
+10 minutes without activity on the page it closes the setup network for a
+minute so NetworkManager can retry the saved networks. A cable ends the
+setup at once.
 
 ### Watchers
 

@@ -120,6 +120,37 @@ credentials, see the comments in the file.
 
 ---
 
+## Wi-Fi setup (image only)
+
+A device written from the ReceiptPi image needs no Wi-Fi settings in
+Raspberry Pi Imager; it sets up its Wi-Fi on its own. Status: tested with a
+simulated NetworkManager, not yet on a real device.
+
+1. Switch the device on with the printer connected. If it finds no network
+   within 2 minutes, it prints a receipt **Wi-Fi setup** with a network name
+   (`ReceiptPi-…`), a password and a QR code.
+2. Scan the QR code with your phone, or join the network by hand with the
+   name and password from the receipt.
+3. The setup page opens by itself. If not, open `http://10.42.0.1` in the
+   browser.
+4. Choose your Wi-Fi, enter its password and tap **Connect**.
+5. The setup network closes. The device prints **Wi-Fi connected** with its
+   address and a QR code to open the web UI. Continue with
+   [First start](#first-start).
+
+Good to know:
+
+- If joining fails, the setup network opens again with the same password
+  and a note is printed.
+- If the device loses its Wi-Fi for 10 minutes later on (new router, new
+  password), the setup network opens again with a new password. Every 10
+  minutes it checks for a minute whether the saved Wi-Fi is back.
+- A network cable plugged into the device ends the setup at once.
+- A USB Wi-Fi adapter is used before the built-in Wi-Fi.
+- Installed with `install.sh`, the device never opens a setup network.
+
+---
+
 ## Printer and USB
 
 ReceiptPi talks to the printer directly over USB (python-escpos with the

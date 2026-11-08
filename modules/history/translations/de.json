@@ -15,6 +15,7 @@
   "history.source.pending": "Nachdruck",
   "history.job_type.boot": "Boot-Gruß",
   "history.job_type.weather_alert": "Unwetterwarnung",
+  "history.job_type.setup_wifi": "WLAN-Einrichtung",
   "history.job_type.other": "Sonstiges",
   "history.empty": "Noch keine Druckjobs aufgezeichnet.",
   "history.pagination.prev": "Zurück",

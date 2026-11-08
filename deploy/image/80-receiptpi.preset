@@ -1,8 +1,9 @@
 # systemd applies presets on the first boot of the image; a unit without a
 # matching line counts as "enable". These lines keep the states the
-# installer set: the server and three watchers on, the Fritz!Box watcher
-# and SSH off. Raspberry Pi Imager can still switch SSH on.
+# image set: the server, the Wi-Fi setup and three watchers on, the
+# Fritz!Box watcher and SSH off. Raspberry Pi Imager can still switch SSH on.
 enable receiptpi.service
+enable receiptpi-setup-wifi.service
 enable receiptpi-github-star.timer
 enable receiptpi-storm-warning.timer
 enable receiptpi-update-check.timer

@@ -1,0 +1,17 @@
+{
+  "page.title": "Set up Wi-Fi",
+  "page.intro": "Choose the Wi-Fi ReceiptPi should join and enter its password.",
+  "page.networks": "Wi-Fi networks nearby",
+  "page.none_found": "No networks found. Enter the name below by hand.",
+  "page.open": "open",
+  "page.manual": "Other network (name by hand)",
+  "page.password": "Password",
+  "page.password_hint": "Leave empty for an open network.",
+  "page.submit": "Connect",
+  "page.connecting_title": "Connecting …",
+  "page.connecting_text": "ReceiptPi is now joining \"{network}\". This setup Wi-Fi closes while it does. If it works, ReceiptPi prints a receipt with its address. If not, the setup Wi-Fi opens again and a note is printed.",
+  "error.no_network": "Please choose a network or enter a name.",
+  "error.name_long": "The network name is too long (at most 32 bytes).",
+  "error.password": "The password must be 8 to 63 characters long.",
+  "error.expired": "This page has expired. Please try again."
+}

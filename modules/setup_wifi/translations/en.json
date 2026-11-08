@@ -1,0 +1,10 @@
+{
+  "receipt.setup_wifi.title": "Wi-Fi setup",
+  "receipt.setup_wifi.step_join": "1. Join this Wi-Fi with your phone, for example with the QR code:",
+  "receipt.setup_wifi.step_page": "2. The setup page opens by itself. If not, open it in the browser: {url}",
+  "receipt.setup_wifi.failed": "Joining \"{network}\" didn't work. Please check the password and try again.",
+  "receipt.setup_wifi.network_word": "Wi-Fi",
+  "receipt.setup_wifi.password_word": "Password",
+  "receipt.setup_wifi.connected_title": "Wi-Fi connected",
+  "receipt.setup_wifi.connected_url": "Open ReceiptPi in the browser: {url}"
+}

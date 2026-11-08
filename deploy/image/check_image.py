@@ -38,6 +38,7 @@ REQUIRED_ENABLED = [
     "sysinit.target.wants/regenerate_ssh_host_keys.service",
     "ssh.service.wants/sshd-keygen.service",
     "multi-user.target.wants/receiptpi.service",
+    "multi-user.target.wants/receiptpi-setup-wifi.service",
     "timers.target.wants/receiptpi-github-star.timer",
     "timers.target.wants/receiptpi-storm-warning.timer",
     "timers.target.wants/receiptpi-update-check.timer",
@@ -48,6 +49,7 @@ NOT_ENABLED = ["receiptpi-wifi-watch.timer", "ssh.service", "sshd.service", "ssh
 
 PRESET_LINES = [
     "enable receiptpi.service",
+    "enable receiptpi-setup-wifi.service",
     "enable receiptpi-github-star.timer",
     "enable receiptpi-storm-warning.timer",
     "enable receiptpi-update-check.timer",
@@ -207,6 +209,17 @@ def check_root(args):
     preset = os.path.join(root, "etc/systemd/system-preset/80-receiptpi.preset")
     preset_lines = read(preset).splitlines() if os.path.isfile(preset) else []
     check("first-boot presets installed", all(line in preset_lines for line in PRESET_LINES))
+
+    # The Wi-Fi setup: enabled, allowed by its marker file, and the DNS
+    # setting that makes phones open the setup page.
+    check("Wi-Fi setup enabled on this image (/etc/receiptpi/setup-wifi)",
+          os.path.isfile(os.path.join(root, "etc/receiptpi/setup-wifi")))
+    captive = os.path.join(root, "etc/NetworkManager/dnsmasq-shared.d/receiptpi-setup.conf")
+    check("setup network resolves every name to the device",
+          os.path.isfile(captive) and "address=/#/10.42.0.1" in read(captive).split())
+    check("setup service and its code installed",
+          os.path.isfile(os.path.join(root, "etc/systemd/system/receiptpi-setup-wifi.service"))
+          and os.path.isfile(os.path.join(root, "opt/receiptpi/setup_wifi/daemon.py")))
 
     cmdline = read(os.path.join(root, "boot/firmware/cmdline.txt")).split()
     base_cmdline = read(os.path.join(state, "cmdline.txt")).split()

@@ -120,6 +120,39 @@ API-Token und Zugangsdaten, siehe die Kommentare in der Datei.
 
 ---
 
+## WLAN-Einrichtung (nur Image)
+
+Ein Gerät, das mit dem ReceiptPi-Image beschrieben wurde, braucht keine
+WLAN-Einstellungen im Raspberry Pi Imager; es richtet sein WLAN selbst ein.
+Stand: getestet mit nachgestelltem NetworkManager, noch nicht auf einem
+echten Gerät.
+
+1. Gerät mit angeschlossenem Drucker einschalten. Findet es innerhalb von
+   2 Minuten kein Netz, druckt es einen Beleg **WLAN einrichten** mit einem
+   Netznamen (`ReceiptPi-…`), einem Passwort und einem QR-Code.
+2. Den QR-Code mit dem Handy scannen oder sich mit Name und Passwort vom
+   Beleg von Hand verbinden.
+3. Die Einrichtungsseite öffnet sich von selbst. Falls nicht, im Browser
+   `http://10.42.0.1` öffnen.
+4. Dein WLAN wählen, sein Passwort eingeben und auf **Verbinden** tippen.
+5. Das Einrichtungs-WLAN schließt sich. Das Gerät druckt **WLAN verbunden**
+   mit seiner Adresse und einem QR-Code zur Web-UI. Weiter mit
+   [Erster Start](#erster-start).
+
+Gut zu wissen:
+
+- Klappt das Verbinden nicht, öffnet sich das Einrichtungs-WLAN wieder mit
+  demselben Passwort, und ein Hinweis wird gedruckt.
+- Verliert das Gerät später sein WLAN für 10 Minuten (neuer Router, neues
+  Passwort), öffnet sich das Einrichtungs-WLAN wieder mit einem neuen
+  Passwort. Alle 10 Minuten prüft es eine Minute lang, ob das gespeicherte
+  WLAN wieder da ist.
+- Ein Netzwerkkabel am Gerät beendet die Einrichtung sofort.
+- Ein USB-WLAN-Stick wird vor dem eingebauten WLAN verwendet.
+- Mit `install.sh` installiert, öffnet das Gerät nie ein Einrichtungs-WLAN.
+
+---
+
 ## Drucker und USB
 
 ReceiptPi spricht den Drucker direkt über USB an (python-escpos mit dem

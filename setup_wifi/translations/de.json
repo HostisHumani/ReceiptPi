@@ -1,0 +1,17 @@
+{
+  "page.title": "WLAN einrichten",
+  "page.intro": "Wähle das WLAN, mit dem sich ReceiptPi verbinden soll, und gib sein Passwort ein.",
+  "page.networks": "WLANs in der Nähe",
+  "page.none_found": "Keine WLANs gefunden. Gib den Namen unten von Hand ein.",
+  "page.open": "offen",
+  "page.manual": "Anderes WLAN (Name von Hand)",
+  "page.password": "Passwort",
+  "page.password_hint": "Bei einem offenen WLAN leer lassen.",
+  "page.submit": "Verbinden",
+  "page.connecting_title": "Verbinde …",
+  "page.connecting_text": "ReceiptPi verbindet sich jetzt mit „{network}“. Dieses Einrichtungs-WLAN schließt sich dabei. Klappt es, druckt ReceiptPi einen Beleg mit seiner Adresse. Klappt es nicht, öffnet sich das Einrichtungs-WLAN wieder und ein Hinweis wird gedruckt.",
+  "error.no_network": "Bitte ein WLAN auswählen oder einen Namen eingeben.",
+  "error.name_long": "Der WLAN-Name ist zu lang (höchstens 32 Bytes).",
+  "error.password": "Das Passwort muss 8 bis 63 Zeichen lang sein.",
+  "error.expired": "Die Seite ist abgelaufen. Bitte noch einmal versuchen."
+}

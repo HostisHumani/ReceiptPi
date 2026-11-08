@@ -5,7 +5,8 @@
 #   chroot <root> /bin/bash <source>/deploy/image/customize.sh
 #
 # Sets the defaults of the image (hostname, time zone, Wi-Fi country),
-# automatic security upgrades and the unit presets for the first boot.
+# automatic security upgrades, the Wi-Fi setup for devices without a
+# network and the unit presets for the first boot.
 # Raspberry Pi Imager settings applied by cloud-init on the first boot
 # take precedence over the hostname, time zone and Wi-Fi country set here.
 set -Eeuo pipefail
@@ -46,6 +47,17 @@ apt-get update -q
 apt-get install -y -q unattended-upgrades
 install -m 0644 -o root -g root "$SRC/apt/20auto-upgrades" "$SRC/apt/50unattended-upgrades" \
     /etc/apt/apt.conf.d/
+
+log "Wi-Fi setup"
+# The setup service only runs with this file (ConditionPathExists=).
+printf '# Enables receiptpi-setup-wifi.service on this device.\n' > /etc/receiptpi/setup-wifi
+chmod 0644 /etc/receiptpi/setup-wifi
+# While the setup network is up, every name resolves to the device, so a
+# phone that checks for a login page lands on the setup page.
+install -d -m 0755 /etc/NetworkManager/dnsmasq-shared.d
+install -m 0644 -o root -g root "$SRC/setup-wifi/captive-portal.conf" \
+    /etc/NetworkManager/dnsmasq-shared.d/receiptpi-setup.conf
+systemctl enable receiptpi-setup-wifi.service
 
 log "Unit presets for the first boot"
 install -d -m 0755 /etc/systemd/system-preset

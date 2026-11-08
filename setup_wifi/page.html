@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="{lang}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title} - ReceiptPi</title>
+<style>
+  :root { color-scheme: light dark; --accent: #c2410c; --line: #d6d3d1; --muted: #78716c; }
+  body { font: 17px/1.45 system-ui, sans-serif; margin: 0; padding: 16px; background: Canvas; color: CanvasText; }
+  main { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0.4rem 0 0.8rem; }
+  fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0 0 16px; }
+  legend { padding: 0 4px; font-weight: 600; }
+  .net { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .net:last-of-type { border-bottom: 0; }
+  .net input { width: 22px; height: 22px; flex: none; accent-color: var(--accent); }
+  .badge { font-size: 0.8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; }
+  label { display: block; font-weight: 600; margin: 0 0 12px; }
+  input[type=text], input[type=password] { display: block; box-sizing: border-box; width: 100%; margin-top: 6px; padding: 12px; font: inherit; border: 1px solid var(--line); border-radius: 10px; background: Field; color: FieldText; }
+  .hint { color: var(--muted); font-size: 0.9rem; margin: -4px 0 16px; }
+  .error { border-left: 4px solid #b91c1c; padding: 8px 12px; background: rgba(185, 28, 28, 0.08); border-radius: 6px; }
+  button { width: 100%; padding: 14px; font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 12px; }
+</style>
+</head>
+<body>
+<main>
+{body}
+</main>
+</body>
+</html>

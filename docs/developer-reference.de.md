@@ -72,7 +72,7 @@ receiptpi/
 │   ├── install.sh              Installationsskript für Raspberry Pi OS Lite; ohne laufendes systemd aktiviert es die Units nur
 │   ├── generate_config.py      erzeugt beim ersten Start /etc/receiptpi/config.py mit eigenem SECRET_KEY pro Gerät
 │   ├── requirements.lock       Python-Pakete mit Hashes festgelegt, genutzt von install.sh
-│   ├── systemd/                Units für Server, Erststart und Watcher, Watcher-Timer
+│   ├── systemd/                Units für Server, Erststart, WLAN-Einrichtung und Watcher, Watcher-Timer
 │   ├── udev/                   Regel für den Druckerzugriff des Dienst-Benutzers
 │   └── image/                  Image-Bau aus Raspberry Pi OS Lite (.github/workflows/image.yml, nur von Hand gestartet)
 ├── modules/
@@ -89,7 +89,9 @@ receiptpi/
 │   ├── pending/                 Ausstehende Druckaufträge ansehen/nachdrucken/verwerfen
 │   ├── backup/                  Sicherung und Wiederherstellung der Einstellungen (.zip)
 │   ├── auth/                    Anmeldung, Ersteinrichtung, eigenes Konto, persönliche Einstellungen, Nutzerverwaltung, Login- und Rollenprüfung für jeden Request
+│   ├── setup_wifi/              Belege der WLAN-Einrichtung (POST /print/setup-wifi, nur von localhost)
 │   └── settings/                Settings-Seiten (Web-UI) + Settings-API
+├── setup_wifi/              WLAN-Einrichtungsdienst fürs Image: eigenes WLAN + Einrichtungsseite, solange das Gerät kein Netz hat (siehe „WLAN-Einrichtung“ unten)
 ├── watchers/
 │   ├── github_star_watch.py     Timer/Cron: druckt bei neuem GitHub-Star
 │   ├── fritzbox_wifi_watch.py    Timer/Cron: druckt WLAN-Zettel bei aktiviertem Gästenetz
@@ -428,6 +430,7 @@ Ein blockierter Auftrag antwortet mit `429`.
 - `POST /print/image/preview` – gleicher Body wie `/print/image`, liefert das 1-Bit-Druckbild als PNG, ohne zu drucken (keine Druckregeln, keine Historie)
 - `POST /ui/images`, `POST /ui/images/preview` – Formular-Posts der Web-UI (CSRF-geschützt, angemeldetes Konto), Multipart-Felder `image`, `dither` und, beim Drucken, `caption` (max. 500 Zeichen). Mit `Accept: application/json` antwortet `/ui/images` statt mit der Seite mit `{"status": "printed"|"error", "detail": "..."}` und den Statuscodes der Druck-Queue; so druckt der Editor (`static/image-editor.js`)
 - `POST /print/wifi` – `{ "ssid": "...", "password": "...", "auth_type": "WPA" }`
+- `POST /print/setup-wifi` – Belege der WLAN-Einrichtung, nur vom Gerät selbst (sonst `403`): `{ "kind": "hotspot", "ssid": "...", "password": "..." }`, `{ "kind": "failed", "ssid": "...", "password": "...", "network": "..." }` oder `{ "kind": "connected", "network": "...", "url": "http://<IPv4>:5000/" }`. Gedruckt auf Deutsch und Englisch, ohne Ruhezeiten; der Verlauf nennt nur das Netz, es entsteht kein ausstehender Auftrag
 - `POST /print/weather` – optional `{ "location": "Berlin" }`, sonst Standard-Standort; auch `GET /print/weather?location=Berlin`
 - `POST /print/system` – kein Body nötig
 - `POST /print/automation` – `{ "title": "optional", "text": "..." }` – generischer Automation-Webhook (kompatibel mit Home Assistant, Node-RED, n8n oder jedem Tool, das HTTP-POST beherrscht)
@@ -556,6 +559,25 @@ topic write receiptpi/cmd/#
 installiert die Versionen aus `deploy/requirements.lock`, festgelegt mit
 den Hashes der PyPI-Dateien, damit jedes Gerät dieselben getesteten Pakete
 bekommt.
+
+### WLAN-Einrichtung
+
+Nur auf Geräten aus dem Image: Das Image legt `/etc/receiptpi/setup-wifi` an
+und aktiviert `receiptpi-setup-wifi.service`; `install.sh` installiert die
+Unit, aktiviert sie aber nie. Der Dienst (`setup_wifi/daemon.py`, root,
+System-Python, schreibt keine Dateien) beobachtet NetworkManager. Ohne Netz
+2 Minuten nach dem Start oder 10 Minuten nach einem Netzverlust öffnet er das
+WLAN `ReceiptPi-<letzte vier MAC-Stellen>` mit einem neuen 12-stelligen
+Passwort (Shared-Modus von NetworkManager, Profil nur im Speicher,
+`10.42.0.1`), druckt es mit QR-Code über `/print/setup-wifi` und liefert die
+Einrichtungsseite (`setup_wifi/portal.py`) auf Port 80 dieses Netzes aus. Ein
+USB-WLAN-Stick hat Vorrang vor dem eingebauten WLAN. In diesem Netz löst jeder
+Name auf das Gerät auf, deshalb öffnen Handys die Seite von selbst. Nach dem
+Verbinden mit dem gewählten Netz druckt er die neue Adresse; klappt es nicht,
+kommt das Einrichtungs-WLAN zurück und ein Hinweis wird gedruckt. Alle 10
+Minuten ohne Aktivität auf der Seite schließt er das Einrichtungs-WLAN für
+eine Minute, damit NetworkManager die gespeicherten Netze erneut versucht.
+Ein Kabel beendet die Einrichtung sofort.
 
 ### Watcher
 

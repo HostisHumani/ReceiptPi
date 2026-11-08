@@ -28,7 +28,10 @@ UDEV_DIR=/etc/udev/rules.d
 APT_PACKAGES=(python3 python3-venv libusb-1.0-0 ca-certificates)
 # The Fritz!Box guest network timer is installed but not enabled: without
 # a Fritz!Box it would only start a Python process every minute to find
-# out that no credentials are configured.
+# out that no credentials are configured. receiptpi-setup-wifi.service is
+# installed as well, but only the image enables it (deploy/image/): it
+# opens a Wi-Fi network of its own and must never run where the network
+# is set up some other way.
 TIMERS=(receiptpi-github-star.timer receiptpi-storm-warning.timer
         receiptpi-update-check.timer)
 

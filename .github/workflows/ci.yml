@@ -54,5 +54,6 @@ jobs:
             scripts/manage_users.py \
             security.py \
             settings_store.py \
+            setup_wifi \
             themes.py \
             user_prefs.py

@@ -1,0 +1,10 @@
+{
+  "receipt.setup_wifi.title": "WLAN einrichten",
+  "receipt.setup_wifi.step_join": "1. Handy mit diesem WLAN verbinden, zum Beispiel mit dem QR-Code:",
+  "receipt.setup_wifi.step_page": "2. Die Einrichtungsseite öffnet sich von selbst. Falls nicht, im Browser öffnen: {url}",
+  "receipt.setup_wifi.failed": "Mit „{network}“ hat es nicht geklappt. Bitte Passwort prüfen und noch einmal versuchen.",
+  "receipt.setup_wifi.network_word": "WLAN",
+  "receipt.setup_wifi.password_word": "Passwort",
+  "receipt.setup_wifi.connected_title": "WLAN verbunden",
+  "receipt.setup_wifi.connected_url": "ReceiptPi im Browser öffnen: {url}"
+}

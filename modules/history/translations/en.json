@@ -15,6 +15,7 @@
   "history.source.pending": "Reprint",
   "history.job_type.boot": "Boot greeting",
   "history.job_type.weather_alert": "Storm warning",
+  "history.job_type.setup_wifi": "Wi-Fi setup",
   "history.job_type.other": "Other",
   "history.empty": "No print jobs recorded yet.",
   "history.pagination.prev": "Previous",
