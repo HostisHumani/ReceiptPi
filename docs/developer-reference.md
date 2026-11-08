@@ -70,7 +70,7 @@ receiptpi/
 │   ├── generate_config.py      creates /etc/receiptpi/config.py with a per-device SECRET_KEY on the first start
 │   ├── requirements.lock       Python packages pinned with hashes, used by install.sh
 │   ├── systemd/                server, first-start, Wi-Fi setup, updater and watcher units, timers
-│   ├── update/updater.py       root updater: signed release next to the active one, switch, health check, rollback with the backed-up data
+│   ├── update/updater.py       root updater in two stages: the installed one checks the signed release, the new one installs it (environment, backup, switch, health check), the installed one undoes whatever goes wrong
 │   ├── udev/                   printer access rule for the service user
 │   └── image/                  image build from Raspberry Pi OS Lite (.github/workflows/image.yml, started by hand)
 ├── modules/

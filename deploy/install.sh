@@ -19,7 +19,8 @@
 #                                     receiptpi-firstboot.service
 #   /var/lib/receiptpi                data, created by systemd (StateDirectory=)
 #   /var/lib/receiptpi-update         status, backups and downloads of the
-#                                     updater (deploy/update/updater.py)
+#                                     updater (deploy/update/updater.py), and
+#                                     the copy of it that runs on boot
 #
 # A code directory at /opt/receiptpi from an installation without
 # releases is replaced by the symlink.
@@ -191,8 +192,11 @@ install -d -m 0750 -o root -g "$SERVICE_USER" "$CONF_DIR"
 
 log "Updater directory $UPDATE_DIR"
 # Readable for the service group, so the web UI can show the status;
-# backups and downloads below it are root's only.
+# backups and downloads below it are root's only. The updater kept here
+# undoes an interrupted update on boot; it is the one of the release
+# installed last.
 install -d -m 0750 -o root -g "$SERVICE_USER" "$UPDATE_DIR"
+install -m 0644 -o root -g root "$REL_DIR/deploy/update/updater.py" "$UPDATE_DIR/updater.py"
 
 log "systemd units and udev rule"
 install -d -m 0755 "$UNIT_DIR" "$UDEV_DIR"

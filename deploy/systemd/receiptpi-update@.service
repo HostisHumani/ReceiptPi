@@ -7,11 +7,14 @@ After=network-online.target receiptpi-update-recover.service
 [Service]
 Type=oneshot
 # The system Python with only the standard library: the updater must not
-# depend on the application's environment, which it replaces.
+# depend on the application's environment, which it replaces. This is
+# stage 1, the updater of the installed release; it runs the new
+# release's updater as stage 2 after checking the release.
 ExecStart=/usr/bin/python3 -I -E -s /opt/receiptpi/deploy/update/updater.py run %i
-# Long enough for a new Python environment on a slow device; a run that
-# is stopped here is undone by the next run or the next boot.
-TimeoutStartSec=45min
+# Longer than all stage 2 steps together (see STEP_TIMEOUTS) on a slow
+# device; a run that is stopped here is undone by the next run or the
+# next boot.
+TimeoutStartSec=90min
 # The lock file and the marker that keeps the boot greeting quiet.
 RuntimeDirectory=receiptpi-update
 RuntimeDirectoryMode=0755

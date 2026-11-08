@@ -158,7 +158,10 @@ def check_root(args):
     data = child_entries(os.path.join(root, "var/lib/receiptpi"))
     check("nothing in /var/lib/receiptpi", not data, ", ".join(data))
     update_data = child_entries(os.path.join(root, "var/lib/receiptpi-update"))
-    check("nothing in /var/lib/receiptpi-update", not update_data, ", ".join(update_data))
+    check("only the boot recovery updater in /var/lib/receiptpi-update",
+          update_data == ["updater.py"]
+          and read(os.path.join(root, "var/lib/receiptpi-update/updater.py"))
+          == read(os.path.join(root, "opt/receiptpi/deploy/update/updater.py")), ", ".join(update_data))
 
     # The release layout the updater needs: a relative link to the one
     # release, which links to its Python environment.

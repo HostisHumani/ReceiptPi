@@ -72,14 +72,14 @@ What it sets up:
 | `/opt/receiptpi-venvs/<key>` | Python environment with the versions and hashes from `deploy/requirements.lock`; releases with the same lock file share it |
 | `/etc/receiptpi/config.py` | Configuration (`root:receiptpi`, mode 0640), created on the first start |
 | `/var/lib/receiptpi` | Settings, history, accounts (mode 0750) |
-| `/var/lib/receiptpi-update` | Status, backups and downloads of the updater (`root:receiptpi`, mode 0750) |
+| `/var/lib/receiptpi-update` | Status, backups and downloads of the updater, and the updater of the last successful installation for recoveries (`root:receiptpi`, mode 0750) |
 | `receiptpi` | System user without login that runs the server and the watchers |
 | `receiptpi.service` | The server (Gunicorn, port 5000), enabled |
 | `receiptpi-firstboot.service` | Creates the configuration before the first server start |
 | `receiptpi-*.timer` | The watchers, see below |
-| `receiptpi-update.path`, `receiptpi-update@.service` | The updater (`deploy/update/updater.py`, root): installs a newer signed release when the web UI asks for it |
+| `receiptpi-update.path`, `receiptpi-update@.service` | The updater (`deploy/update/updater.py`, root): installs a newer signed release when the web UI asks for it. The installed updater checks the release; the updater of the new release then installs it, watched by the installed one. |
 | `receiptpi-update-auto.timer` | Nightly run of the updater between 02:00 and 03:30; it only installs something when automatic updates are switched on |
-| `receiptpi-update-recover.service` | On start: finishes or undoes an update that was interrupted, for example by a power cut |
+| `receiptpi-update-recover.service` | On start: finishes or undoes an update that was interrupted, for example by a power cut, with the updater of the last successful installation |
 | `/etc/udev/rules.d/99-receiptpi-printer.rules` | Printer access for the `lp` group |
 
 A `config.py`, `secret.key` or `settings.json` in the checkout is not

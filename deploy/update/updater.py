@@ -16,6 +16,30 @@ library, always as `python3 -I -E -s updater.py <command>`:
   receipt          prints a result receipt that is still owed
   venv-key LOCK    name of the Python environment for a lock file; install.sh
                    uses it, so both name environments the same way
+  apply STEP --handoff N
+                   stage 2, see below; only started by stage 1
+
+Two stages, so a mistake in the updater can be fixed by the next release
+instead of only over SSH:
+  Stage 1 is the updater of the INSTALLED release. It takes the lock,
+  reads the request, checks for an admin account, downloads the release,
+  checks its signature, checksum and version and unpacks it. It then runs
+  stage 2 for each step and watches the result.
+  Stage 2 is the updater of the NEW, verified release ("apply"). It builds
+  the Python environment (prepare), stops the server and backs up
+  (backup), installs the units, switches the link, checks the server and,
+  if that fails, goes back on its own (switch).
+  Stage 1 checks what stage 2 did after every step: before the switch,
+  the link and the units must be untouched; the backup must be complete
+  before stage 2 may switch; after the switch, the server must run the
+  expected release, and after a rollback by stage 2, the data must equal
+  the backup. Whatever does not match - including a stage 2 that crashes,
+  hangs or exits with an unknown code - stage 1 undoes with its own code.
+  Its own copy (/var/lib/receiptpi-update/updater.py, replaced only after
+  a successful update) also does the recovery on boot.
+  The steps, their exit codes and journal.json are the handoff. Its
+  version is named in the signed manifest; a release with a handoff this
+  updater doesn't know is refused before anything changes.
 
 Layout:
   /opt/receiptpi                    relative symlink to the active release
@@ -24,7 +48,9 @@ Layout:
                                     release with the same lock file; each
                                     release links to its own as "venv"
   /var/lib/receiptpi-update         status.json (readable for the service
-                                    group), journal.json, backups/, download/
+                                    group), journal.json, updater.py (the
+                                    updater for recoveries), backups/,
+                                    download/
 
 What is trusted, and why:
   - From the request file the web UI writes, only the action and the name
@@ -37,25 +63,19 @@ What is trusted, and why:
   - The manifest is signed with Ed25519 and checked with the keys of the
     INSTALLED release (deploy/update/keys/*.pub), so a release can only be
     replaced by one signed with a key the device already trusts. The
-    manifest names the package's size and checksum.
+    manifest names the package's size and checksum. Stage 2 runs only
+    after these checks: code of the release runs as root anyway once it
+    is installed, through its units.
   - Only a version higher than the running one is installed.
   - A local test source, the test channel and a test key are only possible
     through /etc/receiptpi/update.conf, which must be owned by root and
     writable by nobody else. The web application cannot write there.
 
-The update itself:
-  1. Download, verify and unpack the new release, build its Python
-     environment if the lock file changed. The device keeps running.
-  2. Stop the server and its watchers, back up the data, the configuration
-     and the units.
-  3. Install the new units, switch the symlink, start the server and
-     check it.
-  4. On failure: the old units, the old symlink and the backed-up data
-     come back. The data comes back too because the new version may
-     already have migrated settings or databases on its first start, and
-     the old version can't be expected to read them.
-Every step that changes the system is recorded in journal.json first, so
-an update interrupted at any point is finished or undone on the next boot.
+Rollback restores the backed-up data too: the new version may already
+have migrated settings or databases on its first start, and the old
+version can't be expected to read them. Every step that changes the
+system is recorded in journal.json first, so an update interrupted at
+any point is finished or undone on the next boot.
 """
 import ast
 import datetime
@@ -104,11 +124,17 @@ ROOT_UID = 0
 # stopping it would not stop the run it started anyway.
 KEEP_RUNNING_TIMERS = ("receiptpi-update-auto.timer",)
 
-# The manifest format and the steps this updater knows. A release that
-# needs a newer updater says so with "min_updater" and is refused with a
-# reason the web UI can show, instead of being half installed.
 MANIFEST_FORMAT = 1
-UPDATER_LEVEL = 1
+# The handoff between stage 1 and stage 2: steps, exit codes and the
+# journal. A release names the handoff it speaks in its manifest; one this
+# updater does not know is refused before anything changes.
+SUPPORTED_HANDOFFS = (1,)
+JOURNAL_FORMAT = 1
+STEPS = ("prepare", "backup", "switch")
+EXIT_ROLLED_BACK = 3
+EXIT_HANDOFF = 65
+STEP_TIMEOUTS = {"prepare": 40 * 60, "backup": 15 * 60, "switch": 20 * 60}
+REASON_RE = re.compile(r"^[a-z_]{1,32}$")
 
 MAX_REQUEST_BYTES = 4096
 MAX_SETTINGS_BYTES = 1024 * 1024
@@ -144,15 +170,17 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 MANIFEST_NAME_RE = re.compile(r"^receiptpi-(\d{1,4}\.\d{1,4}\.\d{1,4})\.manifest\.json$")
 
 # Journal phases, in order. Up to "backup_done" the running system is
-# unchanged apart from stopped services; from "switched" on, undoing
-# means restoring the backup.
-PHASE_STAGING = "staging"
+# unchanged apart from stopped services. From "backup_checked" on, stage 1
+# holds a complete backup, and undoing means restoring it.
+PHASE_STAGED = "staged"
+PHASE_PREPARED = "prepared"
 PHASE_STOPPED = "stopped"
 PHASE_BACKUP_DONE = "backup_done"
+PHASE_BACKUP_CHECKED = "backup_checked"
 PHASE_SWITCHED = "switched"
 PHASE_ROLLING_BACK = "rolling_back"
 PHASE_DONE = "done"
-RESTORE_PHASES = (PHASE_SWITCHED, PHASE_ROLLING_BACK)
+RESTORE_PHASES = (PHASE_BACKUP_CHECKED, PHASE_SWITCHED, PHASE_ROLLING_BACK)
 
 # Results that get a receipt. "up_to_date" and "not_available" are the
 # normal outcome of a check and print nothing.
@@ -781,9 +809,9 @@ def check_manifest(data, version, conf, test_key_used):
     for value in (package.get("sha256"), manifest.get("lock_sha256")):
         if not isinstance(value, str) or not SHA256_RE.match(value):
             raise UpdateError("manifest", "checksum format")
-    min_updater = manifest.get("min_updater", 1)
-    if not isinstance(min_updater, int) or min_updater > UPDATER_LEVEL:
-        raise UpdateError("updater", f"needs updater level {min_updater}")
+    handoff = manifest.get("handoff")
+    if not isinstance(handoff, int) or isinstance(handoff, bool) or handoff not in SUPPORTED_HANDOFFS:
+        raise UpdateError("manual_install", f"handoff {handoff!r} is not one this updater knows")
     pythons = manifest.get("python")
     if pythons is not None:
         if not isinstance(pythons, list) or not all(isinstance(p, str) and PYTHON_RE.match(p)
@@ -913,19 +941,21 @@ def build_venv(release_dir, lock_sha256):
     return key, True
 
 
-def finish_release(staging, key):
+def finish_release(release_dir, key):
     """Links the environment and the configuration, compiles the bytecode
     (the service can't write the code directory, so Python could not
     cache it) and makes everything root's and read-only for others."""
-    os.symlink(os.path.relpath(os.path.join(VENVS_DIR, key), staging), os.path.join(staging, "venv"))
-    os.symlink(os.path.join(CONF_DIR, "config.py"), os.path.join(staging, "config.py"))
+    for name, target in (("venv", os.path.relpath(os.path.join(VENVS_DIR, key), release_dir)),
+                         ("config.py", os.path.join(CONF_DIR, "config.py"))):
+        _remove(os.path.join(release_dir, name))
+        os.symlink(target, os.path.join(release_dir, name))
     python = os.path.join(VENVS_DIR, key, "bin", "python3")
     try:
         _run([python, "-m", "compileall", "-q", "-x",
-              "^" + re.escape(staging) + r"/(venv/|config\.py$)", staging])
+              "^" + re.escape(release_dir) + r"/(venv/|config\.py$)", release_dir])
     except (subprocess.SubprocessError, OSError) as e:
         raise UpdateError("package", f"compileall: {e}") from e
-    own_tree(staging)
+    own_tree(release_dir)
 
 
 def own_tree(path):
@@ -1083,16 +1113,91 @@ def list_backups():
     return sorted(os.path.join(_work("backups"), n) for n in names if n.endswith(".tar"))
 
 
+BACKUP_PREFIXES = ("state/", "conf/", "units/", "udev/")
+
+
+def backup_usable(path, journal):
+    """A backup this updater can restore for this update: a tar file of
+    its own in the backup directory, made for exactly this update, with
+    nothing outside the four parts. Stage 2 writes it, so stage 1 never
+    takes its word for it."""
+    try:
+        if not isinstance(path, str) or not os.path.isfile(path) or os.path.islink(path):
+            return False
+        if os.path.dirname(os.path.realpath(path)) != os.path.realpath(_work("backups")):
+            return False
+        with tarfile.open(path, "r:") as tar:
+            names = tar.getnames()
+            meta = json.loads(tar.extractfile("meta.json").read().decode("utf-8"))
+    except (OSError, tarfile.TarError, ValueError, KeyError, AttributeError):
+        return False
+    if (meta.get("from"), meta.get("to"), meta.get("release")) != (
+            journal.get("from"), journal.get("to"), journal.get("previous_release")):
+        return False
+    return all(n == "meta.json" or n.startswith(BACKUP_PREFIXES) for n in names)
+
+
+def backup_complete(path):
+    """Every entry of the data directory and the configuration directory
+    is in the backup. Checked right after the backup, while the server is
+    stopped and nothing changes them."""
+    with tarfile.open(path, "r:") as tar:
+        names = set(tar.getnames())
+    for prefix, directory in (("state", STATE_DIR), ("conf", CONF_DIR)):
+        try:
+            entries = os.listdir(directory)
+        except FileNotFoundError:
+            entries = []
+        if any(f"{prefix}/{entry}" not in names for entry in entries):
+            return False
+    return True
+
+
+def _state_files():
+    """{relative path: sha256} of the regular files in the data directory."""
+    files = {}
+    for root, _dirs, names in os.walk(STATE_DIR):
+        for name in names:
+            path = os.path.join(root, name)
+            if stat.S_ISREG(os.lstat(path).st_mode):
+                files[os.path.relpath(path, STATE_DIR)] = _sha256_file(path)
+    return files
+
+
+def state_matches_backup(path):
+    """The data directory holds exactly the regular files of the backup,
+    with the same content: a rollback really brought the data back."""
+    expected = {}
+    with tarfile.open(path, "r:") as tar:
+        by_name = {m.name: m for m in tar.getmembers()}
+        for member in by_name.values():
+            if not member.name.startswith("state/"):
+                continue
+            source = member
+            if member.islnk():
+                source = by_name.get(member.linkname)
+            if source is None or not source.isreg():
+                continue
+            digest = hashlib.sha256(tar.extractfile(source).read()).hexdigest()
+            expected[member.name[len("state/"):]] = digest
+    return _state_files() == expected
+
+
 # ---------------------------------------------------------------- switching
 
-def install_units(release_dir):
+def install_units(release_dir, remove_others=False):
     """Copies the release's units and udev rule into place. Which units
-    are enabled stays as it is."""
+    are enabled stays as it is. With remove_others, unit files the release
+    does not have are removed, so the units are exactly the release's."""
     src = os.path.join(release_dir, "deploy", "systemd")
-    for name in sorted(os.listdir(src)):
-        path = os.path.join(src, name)
-        if name.startswith("receiptpi") and os.path.isfile(path):
-            _copy_file(path, os.path.join(UNIT_DIR, name))
+    names = sorted(n for n in os.listdir(src)
+                   if n.startswith("receiptpi") and os.path.isfile(os.path.join(src, n)))
+    if remove_others:
+        for name in _unit_files():
+            if name not in names:
+                _remove(os.path.join(UNIT_DIR, name))
+    for name in names:
+        _copy_file(os.path.join(src, name), os.path.join(UNIT_DIR, name))
     rule = os.path.join(release_dir, "deploy", "udev", UDEV_RULE)
     if os.path.isfile(rule):
         _copy_file(rule, os.path.join(UDEV_DIR, UDEV_RULE))
@@ -1162,6 +1267,34 @@ def _answers():
         return status in (200, 302, 303)
     except (OSError, ValueError, urllib.error.URLError):
         return False
+
+
+def unit_snapshot():
+    """{name: sha256} of the unit files and the udev rule, to see whether
+    a step changed them."""
+    snap = {name: _sha256_file(os.path.join(UNIT_DIR, name)) for name in _unit_files()}
+    rule = os.path.join(UDEV_DIR, UDEV_RULE)
+    if os.path.isfile(rule):
+        snap[UDEV_RULE] = _sha256_file(rule)
+    return snap
+
+
+def running_release(release_dir):
+    """The link points to release_dir and the server runs and answers, and
+    keeps doing so for STABLE_SECONDS. Never starts or stops anything."""
+    if os.path.realpath(APP_LINK) != os.path.realpath(release_dir):
+        return False
+    try:
+        props = _service_props()
+        if not (props.get("ActiveState") == "active" and props.get("SubState") == "running"
+                and _answers()):
+            return False
+        _sleep(STABLE_SECONDS)
+        again = _service_props()
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return (again.get("ActiveState") == "active" and again.get("MainPID") == props.get("MainPID")
+            and again.get("NRestarts") == props.get("NRestarts") and _answers())
 
 
 def start_and_check():
@@ -1290,10 +1423,10 @@ def prune(keep_releases):
     _remove(_work("download"))
 
 
-# ---------------------------------------------------------------- the update
+# ---------------------------------------------------------------- stage 1: find and verify
 
 def prepare(conf, current_version, current_dir, on_found=None):
-    """Finds, downloads, verifies and stages the new release while the
+    """Finds, downloads, verifies and unpacks the new release while the
     device keeps running. Returns (version, staging dir, manifest).
     Raises NoUpdate or UpdateError. on_found(version) is called once a
     newer version is known."""
@@ -1335,63 +1468,158 @@ def prepare(conf, current_version, current_dir, on_found=None):
     if os.path.getsize(package_path) != package["size"] or _sha256_file(package_path) != package["sha256"]:
         raise UpdateError("checksum", "the package does not match the manifest")
     staging = unpack(package_path, version)
-    key_name, _built = build_venv(staging, manifest["lock_sha256"])
-    finish_release(staging, key_name)
     return version, staging, manifest
 
 
 def place_release(staging, version):
-    """Moves the staged release to its final name. A leftover directory of
-    the same version (an earlier attempt) is replaced; the active release
-    never has this name, its version is lower."""
+    """Moves the unpacked release to its final name. A leftover directory
+    of the same version (an earlier attempt) is replaced; the active
+    release never has this name, its version is lower."""
     final = os.path.join(RELEASES_DIR, version)
     _remove(final)
     os.rename(staging, final)
     return final
 
 
-def switch_over(journal):
-    """Stops, backs up, switches and checks. Each step is recorded before
-    it starts. Raises on failure; the caller rolls back."""
-    journal["timers"] = stop_services()
-    journal["phase"] = PHASE_STOPPED
-    write_journal(journal)
-    journal["backup"] = create_backup(journal)
-    journal["phase"] = PHASE_BACKUP_DONE
-    write_journal(journal)
-    # Recorded as switched before the first change, so an interruption
-    # from here on restores the backup.
-    journal["phase"] = PHASE_SWITCHED
-    write_journal(journal)
-    install_units(journal["new_release"])
-    reload_units()
-    switch_link(journal["new_release"])
-    start_and_check()
+def install_supervisor(release_dir):
+    """The updater that undoes an interrupted update on boot: the one of
+    the release that is known to work, replaced only after a successful
+    update."""
+    src = os.path.join(release_dir, "deploy", "update", "updater.py")
+    with open(src, "rb") as f:
+        data = f.read()
+    _write_atomic(_work("updater.py"), data, 0o644)
 
 
-def roll_back(journal, start):
-    """Undoes an update according to the journal's phase. With start the
-    server and the timers are started and checked (a run or the SSH
-    route); without (during boot) systemd starts them afterwards.
-    Returns True if the old version is back and, with start, healthy."""
-    phase = journal.get("phase")
-    restore = phase in RESTORE_PHASES
-    journal["phase"] = PHASE_ROLLING_BACK if restore else journal.get("phase")
+# ---------------------------------------------------------------- stage 1: running stage 2
+
+def _stage2_command(release_dir, step, handoff):
+    return [SYSTEM_PYTHON, "-I", "-E", "-s",
+            os.path.join(release_dir, "deploy", "update", "updater.py"),
+            "apply", step, "--handoff", str(handoff)]
+
+
+def run_stage2(release_dir, step, handoff):
+    """Exit code of one stage 2 step; 124 when it took too long (it is
+    killed), 127 when it could not be started."""
+    env = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+           "LANG": "C.UTF-8"}
+    try:
+        return subprocess.run(_stage2_command(release_dir, step, handoff), env=env,
+                              stdin=subprocess.DEVNULL, timeout=STEP_TIMEOUTS[step],
+                              check=False).returncode
+    except subprocess.TimeoutExpired:
+        log(f"stage 2 {step}: no result within {STEP_TIMEOUTS[step]} s, stopped")
+        return 124
+    except OSError as e:
+        log(f"stage 2 {step}: could not be started: {e}")
+        return 127
+
+
+def _stage2_reason(default):
+    """The reason stage 2 recorded for a failure, if it is a plain key."""
+    reason = (read_journal() or {}).get("reason")
+    return reason if isinstance(reason, str) and REASON_RE.match(reason) else default
+
+
+def supervise(journal):
+    """Runs the stage 2 steps of the new release and checks after each one
+    that the system is in the state the step promises. Returns (result,
+    reason). Whatever stage 2 leaves behind, the device ends up either on
+    the new release, running, or on the previous release with the data of
+    the backup."""
+    previous, new = journal["previous_release"], journal["new_release"]
+    handoff = journal["handoff"]
+    units = unit_snapshot()
+
+    def untouched():
+        return os.path.realpath(APP_LINK) == os.path.realpath(previous) and unit_snapshot() == units
+
+    rc = run_stage2(new, "prepare", handoff)
+    if not untouched():
+        return repair_without_backup(journal)
+    if rc == EXIT_HANDOFF:
+        return abort_before_switch(journal, "manual_install")
+    if rc != 0:
+        return abort_before_switch(journal, _stage2_reason("prepare"))
+
+    journal["timers"] = _active_timers()
+    journal["phase"] = PHASE_PREPARED
+    write_journal(journal)
+    write_status(**_status_base(journal), state="running", phase="backup")
+    _set_marker(True)
+    rc = run_stage2(new, "backup", handoff)
+    if not untouched():
+        return repair_without_backup(journal)
+    backup = (read_journal() or {}).get("backup")
+    if rc != 0 or not backup_usable(backup, journal) or not backup_complete(backup):
+        log("stage 2 backup: no complete backup, nothing switched")
+        return abort_before_switch(journal, _stage2_reason("backup"))
+
+    journal["backup"] = backup
+    journal["phase"] = PHASE_BACKUP_CHECKED
+    write_journal(journal)
+    write_status(**_status_base(journal), state="running", phase="switch")
+    rc = run_stage2(new, "switch", handoff)
+    reason = _stage2_reason("health")
+    if rc == 0 and running_release(new):
+        return "updated", ""
+    if rc == EXIT_ROLLED_BACK and running_release(previous) and state_matches_backup(backup):
+        return "rolled_back", reason
+    log(f"stage 2 switch ended with {rc}; stage 1 takes over the rollback")
+    if rc not in (0, EXIT_ROLLED_BACK, 4):
+        reason = "handoff"
+    ok = rescue(journal, start=True)
+    return ("rolled_back" if ok else "rollback_failed"), reason
+
+
+def abort_before_switch(journal, reason):
+    """Nothing was switched: the previous release and the data are as
+    they were, only the server and the timers may be stopped."""
+    _systemctl_quiet("start", SERVICE)
+    start_timers(journal.get("timers", []))
+    return "failed", reason
+
+
+def repair_without_backup(journal):
+    """A step before the switch changed the link or the units, against the
+    handoff. Without a checked backup the data can't be restored; the
+    link and the units of the previous release come back, and the server
+    is checked."""
+    log("stage 2 changed the link or the units before the switch; undoing it")
+    journal["phase"] = PHASE_ROLLING_BACK
+    write_journal(journal)
+    _systemctl_quiet("stop", SERVICE)
+    ok = True
+    try:
+        switch_link(journal["previous_release"])
+        install_units(journal["previous_release"], remove_others=True)
+        reload_units()
+        start_and_check()
+    except (UpdateError, subprocess.SubprocessError, OSError) as e:
+        log(f"repair failed: {e}")
+        ok = False
+    start_timers(journal.get("timers", []))
+    return ("rolled_back" if ok else "rollback_failed"), "handoff"
+
+
+def rescue(journal, start):
+    """Stage 1's own rollback from the checked backup: data, configuration,
+    units and udev rule as backed up, the link to the previous release.
+    With start the server is started and checked and the timers are
+    started; during boot systemd does that after the recovery unit."""
+    journal["phase"] = PHASE_ROLLING_BACK
     write_journal(journal)
     if start:
         _systemctl_quiet("stop", SERVICE)
     ok = True
-    if restore:
-        try:
-            backup = journal.get("backup")
-            if not backup or not os.path.isfile(backup):
-                raise UpdateError("backup", "backup missing")
-            restore_backup(backup)
-            switch_link(journal["previous_release"])
-            reload_units()
-        except (UpdateError, OSError, tarfile.TarError, KeyError) as e:
-            log(f"rollback failed: {e}")
-            ok = False
+    try:
+        restore_backup(journal["backup"])
+        switch_link(journal["previous_release"])
+        reload_units()
+    except (OSError, tarfile.TarError, KeyError, subprocess.SubprocessError) as e:
+        log(f"rollback failed: {e}")
+        ok = False
     if start and ok:
         try:
             start_and_check()
@@ -1400,13 +1628,88 @@ def roll_back(journal, start):
             ok = False
     if start:
         start_timers(journal.get("timers", []))
-    new_release = journal.get("new_release")
-    if ok and new_release and os.path.realpath(APP_LINK) != os.path.realpath(new_release):
-        _remove(new_release)
-        prune_venvs()
-    _set_marker(False)
     return ok
 
+
+def _status_base(journal):
+    return {k: journal.get(k, "") for k in ("mode", "by", "started", "from", "to")}
+
+
+def _drop_new_release(journal):
+    """Removes the release that is not active after a rollback or an
+    abort, and the environments nothing uses any more."""
+    new = journal.get("new_release")
+    if new and os.path.realpath(APP_LINK) != os.path.realpath(new):
+        _remove(new)
+    _cleanup_staging()
+
+
+# ---------------------------------------------------------------- stage 2
+
+def own_release():
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
+
+def apply(step, handoff):
+    """One stage 2 step, run by stage 1 of the installed release with the
+    updater of this (new, verified) release. Exit codes: 0 done, 3 the
+    switch failed and this step went back to the previous release, 65 the
+    handoff is not one this updater speaks, anything else failed."""
+    if handoff not in SUPPORTED_HANDOFFS or step not in STEPS:
+        return EXIT_HANDOFF
+    journal = read_journal()
+    if (not journal or journal.get("format") != JOURNAL_FORMAT
+            or os.path.realpath(journal.get("new_release", "")) != own_release()):
+        log("apply: the journal does not describe an update to this release")
+        return 2
+    try:
+        if step == "prepare":
+            key, built = build_venv(journal["new_release"], journal["lock_sha256"])
+            finish_release(journal["new_release"], key)
+            log(f"prepared, environment {key} {'built' if built else 'reused'}")
+            journal["phase"] = PHASE_PREPARED
+            write_journal(journal)
+            return 0
+        if step == "backup":
+            stop_services()
+            journal["phase"] = PHASE_STOPPED
+            write_journal(journal)
+            journal["backup"] = create_backup(journal)
+            journal["phase"] = PHASE_BACKUP_DONE
+            write_journal(journal)
+            return 0
+    except UpdateError as e:
+        log(f"apply {step}: {e}")
+        journal["reason"] = e.reason
+        write_journal(journal)
+        return 1
+    # switch: recorded as switched before the first change.
+    journal["phase"] = PHASE_SWITCHED
+    write_journal(journal)
+    try:
+        install_units(journal["new_release"])
+        reload_units()
+        switch_link(journal["new_release"])
+        start_and_check()
+        return 0
+    except Exception as e:  # every failure after the first change is rolled back here
+        journal["reason"] = e.reason if isinstance(e, UpdateError) else "switch"
+        log(f"apply switch: {e!r}, going back to the previous release")
+    journal["phase"] = PHASE_ROLLING_BACK
+    write_journal(journal)
+    _systemctl_quiet("stop", SERVICE)
+    try:
+        restore_backup(journal["backup"])
+        switch_link(journal["previous_release"])
+        reload_units()
+        start_and_check()
+    except (UpdateError, OSError, tarfile.TarError, KeyError, subprocess.SubprocessError) as e:
+        log(f"apply switch: rollback failed: {e}")
+        return 4
+    return EXIT_ROLLED_BACK
+
+
+# ---------------------------------------------------------------- stage 1: the run
 
 def prune_venvs():
     used = set()
@@ -1464,11 +1767,10 @@ def _run_locked(mode, request):
         if mode == "manual":
             finish({**base, "state": "done", "result": "failed", "reason": "no_admin"})
         return 0
-    journal = read_journal()
-    if journal:
+    if read_journal():
         # An earlier run ended without finishing (killed or crashed while
         # the system was running): undo it before anything else.
-        log(f"unfinished update in phase {journal.get('phase')}, undoing it first")
+        log("unfinished update found, undoing it first")
         recover(start=True)
     try:
         current_version, current_dir = current_release()
@@ -1478,13 +1780,12 @@ def _run_locked(mode, request):
             # Someone is waiting on the settings page; the nightly run
             # only shows itself once there is something to install.
             show_running()
-        version, staging, _manifest = prepare(conf, current_version, current_dir, on_found=found)
+        version, staging, manifest = prepare(conf, current_version, current_dir, on_found=found)
         new_release = place_release(staging, version)
     except NoUpdate as e:
         log(f"no update: {e.result}")
         finish({**base, "to": e.version or base["to"], "state": "done", "result": e.result,
-                "reason": ""},
-               previous=previous, running_shown=shown["running"])
+                "reason": ""}, previous=previous, running_shown=shown["running"])
         _cleanup_staging()
         return 0
     except UpdateError as e:
@@ -1500,31 +1801,37 @@ def _run_locked(mode, request):
         _cleanup_staging()
         return 1
 
-    journal = {**base, "phase": PHASE_STAGING, "previous_release": current_dir,
-               "new_release": new_release, "timers": []}
+    journal = {**base, "format": JOURNAL_FORMAT, "handoff": manifest["handoff"],
+               "phase": PHASE_STAGED, "previous_release": current_dir, "new_release": new_release,
+               "lock_sha256": manifest["lock_sha256"], "timers": []}
     write_journal(journal)
-    write_status(**base, state="running", phase="switching")
-    _set_marker(True)
+    write_status(**base, state="running", phase="prepare")
     try:
-        switch_over(journal)
-    except Exception as e:  # every failure after stopping is rolled back
-        reason = e.reason if isinstance(e, UpdateError) else "switch"
-        log(f"update failed ({e!r}), rolling back")
-        ok = roll_back(journal, start=True)
+        result, reason = supervise(journal)
+    except Exception as e:  # a bug in stage 1 itself: the journal decides on the next run or boot
+        log(f"update stopped by an unexpected error: {e!r}")
+        raise
+    final = {**base, "state": "done", "result": result, "reason": reason,
+             "backup": os.path.basename(journal.get("backup") or "")}
+    if result == "updated":
+        journal["phase"] = PHASE_DONE
+        write_journal(journal)
+        start_timers(journal["timers"])
+        _set_marker(False)
+        install_supervisor(new_release)
+        status = finish(final)
+        prune([new_release, current_dir])
         clear_journal()
-        finish({**base, "state": "done", "result": "rolled_back" if ok else "rollback_failed",
-                "reason": reason, "backup": os.path.basename(journal.get("backup") or "")})
-        return 1
-    journal["phase"] = PHASE_DONE
-    write_journal(journal)
-    start_timers(journal["timers"])
+        log(f"updated from {current_version} to {version}, receipt: {status['receipt']}")
+        return 0
+    if result == "rolled_back":
+        start_timers(journal.get("timers", []))
     _set_marker(False)
-    status = finish({**base, "state": "done", "result": "updated", "reason": "",
-                     "backup": os.path.basename(journal["backup"])})
-    prune([new_release, current_dir])
+    _drop_new_release(journal)
     clear_journal()
-    log(f"updated from {current_version} to {version}, receipt: {status['receipt']}")
-    return 0
+    finish(final, previous=previous, running_shown=True)
+    log(f"update to {version}: {result} ({reason})")
+    return 1
 
 
 def _cleanup_staging():
@@ -1539,46 +1846,66 @@ def _cleanup_staging():
 
 
 def recover(start=False):
-    """Finishes or undoes an unfinished update from its journal. During
-    boot (start=False) nothing is started: systemd starts the server and
-    the timers after this unit, and the receipt follows by a one-time
-    timer."""
+    """Finishes or undoes an unfinished update from its journal, with this
+    updater's own code. During boot (start=False) nothing is started:
+    systemd starts the server and the timers after this unit, and the
+    receipt follows by a one-time timer."""
     journal = read_journal()
     if not journal:
         return 0
+    if (journal.get("format") != JOURNAL_FORMAT or not journal.get("previous_release")
+            or not journal.get("new_release")):
+        aside = _work(f"journal-unknown-{_now().strftime('%Y%m%d-%H%M%S')}.json")
+        os.replace(_work("journal.json"), aside)
+        log(f"journal in a format this updater does not know, kept as {aside}")
+        finish({**_status_base(journal), "state": "done", "result": "rollback_failed",
+                "reason": "journal"}, print_receipt=start)
+        return 1
     phase = journal.get("phase")
-    base = {k: journal.get(k, "") for k in ("mode", "by", "started", "from", "to")}
-    log(f"unfinished update {base['from']} -> {base['to']} in phase {phase}")
+    log(f"unfinished update {journal.get('from')} -> {journal.get('to')} in phase {phase}")
     if phase == PHASE_DONE:
         clear_journal()
         prune([journal.get("new_release"), journal.get("previous_release")])
         _set_marker(False)
         return 0
-    if phase in RESTORE_PHASES:
-        ok = roll_back(journal, start=start)
+    backup = journal.get("backup")
+    if phase in RESTORE_PHASES and backup_usable(backup, journal):
+        ok = rescue(journal, start=start)
         result = "rolled_back" if ok else "rollback_failed"
+    elif os.path.realpath(APP_LINK) != os.path.realpath(journal["previous_release"]):
+        # Switched without a checked backup, against the handoff.
+        result, _reason = repair_without_backup(journal) if start else _repair_links(journal)
     else:
-        # Nothing was switched yet: the old release and the data are
-        # unchanged; only the services may still be stopped.
+        # Nothing was switched: the previous release and the data are
+        # unchanged; only the server and the timers may be stopped.
         if start:
             _systemctl_quiet("start", SERVICE)
             start_timers(journal.get("timers", []))
-        new_release = journal.get("new_release")
-        if new_release:
-            _remove(new_release)
-        backup = journal.get("backup")
-        if phase == PHASE_STOPPED and backup:
-            _remove(backup + ".partial")
-        _set_marker(False)
-        _cleanup_staging()
         result = "failed"
+    if backup and phase not in RESTORE_PHASES:
+        _remove(backup + ".partial")
+    _set_marker(False)
+    _drop_new_release(journal)
     clear_journal()
-    status = finish({**base, "state": "done", "result": result, "reason": "interrupted",
-                     "backup": os.path.basename(journal.get("backup") or "")},
+    status = finish({**_status_base(journal), "state": "done", "result": result,
+                     "reason": "interrupted", "backup": os.path.basename(backup or "")},
                     print_receipt=start)
     if status["receipt"] == "pending":
         schedule_receipt()
     return 0
+
+
+def _repair_links(journal):
+    """During boot: the link and the units of the previous release, nothing
+    started."""
+    try:
+        switch_link(journal["previous_release"])
+        install_units(journal["previous_release"], remove_others=True)
+        reload_units()
+    except (OSError, subprocess.SubprocessError) as e:
+        log(f"repair failed: {e}")
+        return "rollback_failed", "interrupted"
+    return "rolled_back", "interrupted"
 
 
 def rollback_cli():
@@ -1599,16 +1926,19 @@ def rollback_cli():
     if os.path.realpath(previous) == os.path.realpath(current_dir):
         log("the last update was already undone; the running release is the one of the backup")
         return 1
-    journal = {"mode": "ssh", "by": "", "started": _stamp(), "from": current_version,
-               "to": meta.get("from", ""), "phase": PHASE_SWITCHED, "backup": backup,
-               "previous_release": previous, "new_release": current_dir,
+    journal = {"format": JOURNAL_FORMAT, "mode": "ssh", "by": "", "started": _stamp(),
+               "from": meta.get("from", ""), "to": meta.get("to", ""), "phase": PHASE_SWITCHED,
+               "backup": backup, "previous_release": previous, "new_release": current_dir,
                "timers": stop_services()}
     write_journal(journal)
     _set_marker(True)
-    ok = roll_back(journal, start=True)
+    ok = rescue(journal, start=True)
+    _set_marker(False)
+    if ok:
+        _drop_new_release(journal)
     clear_journal()
     finish({"mode": "ssh", "by": "", "started": journal["started"], "from": current_version,
-            "to": journal["to"], "state": "done",
+            "to": meta.get("from", ""), "state": "done",
             "result": "rolled_back" if ok else "rollback_failed", "reason": "manual",
             "backup": os.path.basename(backup)})
     log("rolled back" if ok else "rollback failed, see the log above")
@@ -1637,6 +1967,12 @@ def main(argv):
         print("updater.py: must run as root", file=sys.stderr)
         return 2
     os.umask(0o022)
+    if len(argv) == 4 and argv[0] == "apply" and argv[2] == "--handoff":
+        try:
+            handoff = int(argv[3])
+        except ValueError:
+            return EXIT_HANDOFF
+        return apply(argv[1], handoff)
     prepare_work_dir()
     if len(argv) == 2 and argv[0] == "run" and argv[1] in ("manual", "auto"):
         return run(argv[1])
