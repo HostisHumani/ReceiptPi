@@ -18,6 +18,12 @@ TimeoutStartSec=90min
 # The lock file and the marker that keeps the boot greeting quiet.
 RuntimeDirectory=receiptpi-update
 RuntimeDirectoryMode=0755
+# Kept when the unit stops: the manual run, the nightly run and the
+# recovery share this directory, and a run that ends - also one
+# refused because another holds the lock - must not take the lock
+# file and the marker of a running update with it. /run is empty
+# after every boot.
+RuntimeDirectoryPreserve=yes
 
 # Root for installing code and units and restoring data owned by the
 # service user; everything else is read-only.

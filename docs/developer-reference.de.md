@@ -697,6 +697,13 @@ ersten Start migrieren. Neue Werte in `config.py` brauchen einen
 Standardwert (`getattr(config, ..., default)`): Der Updater ändert
 `/etc/receiptpi/config.py` nie.
 
+**Sicherungen.** Die Sicherungen der letzten beiden erfolgreichen Updates
+bleiben in `/var/lib/receiptpi-update/backups/`. Die Sicherung eines
+Updates, das mit einem Rückfall endete oder nicht durchlief, wird entfernt,
+sobald die Daten wieder da sind, damit ein Release, das jede Nacht
+scheitert, die SD-Karte nicht füllt; nach einem gescheiterten Rückfall
+bleibt sie.
+
 **Rückweg über SSH** (Terminal, root): zurück auf das Release vor dem
 letzten Update und auf die Daten der letzten Sicherung, die direkt vor
 diesem Update entstand. Alles, was sich seitdem geändert hat, geht

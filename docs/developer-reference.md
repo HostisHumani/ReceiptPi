@@ -666,6 +666,12 @@ version may migrate settings and databases on its first start. New
 values in `config.py` must have defaults (`getattr(config, ..., default)`):
 the updater never changes `/etc/receiptpi/config.py`.
 
+**Backups.** The backups of the last two successful updates stay in
+`/var/lib/receiptpi-update/backups/`. The backup of an update that was
+rolled back or did not go through is removed once the data is back, so
+a release that fails every night doesn't fill the SD card; after a
+failed rollback it stays.
+
 **Way back over SSH** (terminal, root): back to the release before the
 last update and to the data of the last backup, which was taken right
 before that update. Everything changed since then is lost.

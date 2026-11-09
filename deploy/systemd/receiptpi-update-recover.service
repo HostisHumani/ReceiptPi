@@ -15,6 +15,12 @@ Type=oneshot
 ExecStart=/usr/bin/python3 -I -E -s /var/lib/receiptpi-update/updater.py recover
 RuntimeDirectory=receiptpi-update
 RuntimeDirectoryMode=0755
+# Kept when the unit stops: the manual run, the nightly run and the
+# recovery share this directory, and a run that ends - also one
+# refused because another holds the lock - must not take the lock
+# file and the marker of a running update with it. /run is empty
+# after every boot.
+RuntimeDirectoryPreserve=yes
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

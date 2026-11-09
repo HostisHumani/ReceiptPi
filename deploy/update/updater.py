@@ -1137,6 +1137,33 @@ def backup_usable(path, journal):
     return all(n == "meta.json" or n.startswith(BACKUP_PREFIXES) for n in names)
 
 
+def end_attempt(journal, result):
+    """Clears the journal of an update that did not go through and removes
+    the backups made for it: the one stage 1 checked and the one stage 2
+    recorded, and any unfinished one. The data is the backed-up one again
+    (rolled back) or was never changed (failed), and a release that fails
+    again every night must not add a backup each time. After a failed
+    rollback the backup stays: it may still be needed by hand. Backups of
+    successful updates are left alone; prune() limits those, and the SSH
+    route needs the last one. Returns True if a backup was removed."""
+    attempt = []
+    if result != "rollback_failed":
+        for path in {journal.get("backup"), (read_journal() or {}).get("backup")}:
+            if isinstance(path, str) and backup_usable(path, journal):
+                attempt.append(path)
+    clear_journal()
+    for path in attempt:
+        _remove(path)
+    try:
+        names = os.listdir(_work("backups"))
+    except FileNotFoundError:
+        names = []
+    for name in names:
+        if name.endswith(".partial"):
+            _remove(os.path.join(_work("backups"), name))
+    return bool(attempt)
+
+
 def backup_complete(path):
     """Every entry of the data directory and the configuration directory
     is in the backup. Checked right after the backup, while the server is
@@ -1828,7 +1855,8 @@ def _run_locked(mode, request):
         start_timers(journal.get("timers", []))
     _set_marker(False)
     _drop_new_release(journal)
-    clear_journal()
+    if end_attempt(journal, result):
+        final["backup"] = ""
     finish(final, previous=previous, running_shown=True)
     log(f"update to {version}: {result} ({reason})")
     return 1
@@ -1882,13 +1910,11 @@ def recover(start=False):
             _systemctl_quiet("start", SERVICE)
             start_timers(journal.get("timers", []))
         result = "failed"
-    if backup and phase not in RESTORE_PHASES:
-        _remove(backup + ".partial")
     _set_marker(False)
     _drop_new_release(journal)
-    clear_journal()
+    dropped = end_attempt(journal, result)
     status = finish({**_status_base(journal), "state": "done", "result": result,
-                     "reason": "interrupted", "backup": os.path.basename(backup or "")},
+                     "reason": "interrupted", "backup": "" if dropped else os.path.basename(backup or "")},
                     print_receipt=start)
     if status["receipt"] == "pending":
         schedule_receipt()
