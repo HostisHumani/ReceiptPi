@@ -87,6 +87,25 @@ def read(path, mode="r"):
         return f.read()
 
 
+def fallback_ntp_servers(path):
+    """The servers timesyncd reads from FallbackNTP= in [Time].
+
+    Parsed instead of searched for a name: a search also passes for a
+    commented-out line or one in the wrong section, and says nothing
+    about how many servers there are. Like timesyncd, repeated lines add
+    to the list and an empty assignment clears it.
+    """
+    servers, section = [], None
+    for line in read(path).splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            section = line
+        elif section == "[Time]" and line.startswith("FallbackNTP="):
+            value = line.split("=", 1)[1].split()
+            servers = servers + value if value else []
+    return servers
+
+
 def child_entries(path):
     try:
         return sorted(os.listdir(path))
@@ -257,8 +276,8 @@ def check_root(args):
     check("time servers announced over DHCP are used",
           os.path.isfile(dispatcher) and os.stat(dispatcher).st_mode & 0o777 == 0o755)
     fallback = os.path.join(root, "etc/systemd/timesyncd.conf.d/50-receiptpi-fallback.conf")
-    check("several public time servers as fallback",
-          os.path.isfile(fallback) and "pool.ntp.org" in read(fallback))
+    servers = fallback_ntp_servers(fallback) if os.path.isfile(fallback) else []
+    check("several public time servers as fallback", len(servers) >= 3, " ".join(servers))
 
     cmdline = read(os.path.join(root, "boot/firmware/cmdline.txt")).split()
     base_cmdline = read(os.path.join(state, "cmdline.txt")).split()
