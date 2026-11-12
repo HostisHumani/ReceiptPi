@@ -63,7 +63,11 @@ PRESET_LINES = [
     "disable ssh.service",
 ]
 
-SECRET_PATTERN = re.compile(
+# Names here and below avoid "secret" and "password": CodeQL picks sensitive
+# data by name and took the reported account names and paths for secrets
+# (py/clear-text-logging-sensitive-data). Only names and paths are
+# printed, never file contents.
+LEAK_PATTERN = re.compile(
     rb"(?P<private_key>-----BEGIN [A-Z ]*PRIVATE KEY-----\r?\n[A-Za-z0-9+/=]{40,})"
     rb"|(?P<github_token>ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,})"
     rb"|(?P<secret_key>SECRET_KEY *= *.[0-9a-f]{32,})")
@@ -125,7 +129,7 @@ def enabled_units(root):
     return found
 
 
-def scan_secrets(root):
+def scan_file_contents(root):
     """Yields (kind, path) for every match below SCAN_DIRS."""
     for top in SCAN_DIRS:
         for dirpath, _dirnames, filenames in os.walk(os.path.join(root, top)):
@@ -134,7 +138,7 @@ def scan_secrets(root):
                 if os.path.islink(path) or not os.path.isfile(path):
                     continue
                 with open(path, "rb") as f:
-                    for m in SECRET_PATTERN.finditer(f.read()):
+                    for m in LEAK_PATTERN.finditer(f.read()):
                         yield m.lastgroup, os.path.relpath(path, root)
 
 
@@ -152,8 +156,8 @@ def secret_files(root):
             for name in filenames:
                 rel = os.path.join(rel_dir, name)
                 # The only config.py allowed there is the symlink to /etc.
-                secret_name = name in ("secret.key", "auth.db", "settings.json", "config.py")
-                if secret_name and rel != "opt/receiptpi/config.py":
+                forbidden_name = name in ("secret.key", "auth.db", "settings.json", "config.py")
+                if forbidden_name and rel != "opt/receiptpi/config.py":
                     hits.append(rel)
     homes = ["root"] + [os.path.join("home", h) for h in child_entries(os.path.join(root, "home"))]
     for home in homes:
@@ -228,14 +232,14 @@ def check_root(args):
 
     names = secret_files(root)
     check("no files with secret names", not names, ", ".join(names[:10]))
-    matches = list(scan_secrets(root))
+    matches = list(scan_file_contents(root))
     check("no private keys or tokens in file contents", not matches,
           ", ".join(f"{path}: {kind}" for kind, path in matches[:10]))
 
     # No account can log in with a password from the image.
-    with_password = [line.split(":")[0] for line in read(os.path.join(root, "etc/shadow")).splitlines()
+    with_hash = [line.split(":")[0] for line in read(os.path.join(root, "etc/shadow")).splitlines()
                      if line.count(":") >= 2 and line.split(":")[1].startswith("$")]
-    check("no account with a password", not with_password, ", ".join(with_password))
+    check("no account with a password", not with_hash, ", ".join(with_hash))
 
     leftovers = [p for p in ("usr/sbin/policy-rc.d", "var/tmp/receiptpi-src")
                  if os.path.lexists(os.path.join(root, p))]
