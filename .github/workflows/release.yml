@@ -148,7 +148,7 @@ jobs:
       contents: write
     steps:
       - name: Fetch the package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: receiptpi-package
           path: dist
@@ -181,13 +181,13 @@ jobs:
       contents: write
     steps:
       - name: Fetch the image
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: receiptpi-image
           path: image
 
       - name: Fetch the image checksum
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: receiptpi-image-files
           path: image-files
